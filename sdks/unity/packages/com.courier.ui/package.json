@@ -1,0 +1,13 @@
+{
+  "name": "com.courier.ui",
+  "version": "0.1.0",
+  "displayName": "Courier UI",
+  "description": "Courier — Universal Game SDK 可选 UI 包。M2 首发:公告栏 / 客服页 / 登录面板,消费 Branding 下发(docs/contract/branding.md;Core 无品牌逻辑,品牌只进 UI)。",
+  "unity": "2021.3",
+  "author": {
+    "name": "cuihairu"
+  },
+  "dependencies": {
+    "com.courier.service": "0.1.0"
+  }
+}

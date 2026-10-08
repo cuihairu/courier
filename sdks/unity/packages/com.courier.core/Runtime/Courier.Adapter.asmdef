@@ -1,0 +1,10 @@
+{
+    "name": "Courier.Adapter",
+    "rootNamespace": "Courier.Adapter",
+    "references": [
+        "Courier.Core",
+        "Newtonsoft.Json"
+    ],
+    "overrideReferences": true,
+    "autoReferenced": true
+}

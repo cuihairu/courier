@@ -12,11 +12,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="../Runtime/*.cs" />
-    <Compile Include="../Runtime/Core/*.cs" />
-    <Compile Include="../Runtime/Core/Contract/*.cs" />
-    <Compile Include="../Runtime/Identity/*.cs" />
-    <Compile Include="../Runtime/Session/*.cs" />
+    <Compile Include="../packages/com.courier.core/Runtime/*.cs" />
+    <Compile Include="../packages/com.courier.core/Runtime/Core/*.cs" />
+    <Compile Include="../packages/com.courier.core/Runtime/Core/Contract/*.cs" />
+    <Compile Include="../packages/com.courier.core/Runtime/Identity/*.cs" />
+    <Compile Include="../packages/com.courier.core/Runtime/Session/*.cs" />
   </ItemGroup>
 
   <ItemGroup>

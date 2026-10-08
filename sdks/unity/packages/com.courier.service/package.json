@@ -1,0 +1,13 @@
+{
+  "name": "com.courier.service",
+  "version": "0.1.0",
+  "displayName": "Courier Service",
+  "description": "Courier — Universal Game SDK 能力服务包。M2 落位:公告(herald)/ 客服(croupier)/ 推送(chirp)Provider 域客户端,均可配置替换或关闭(docs/layers.md L4 原则)。",
+  "unity": "2021.3",
+  "author": {
+    "name": "cuihairu"
+  },
+  "dependencies": {
+    "com.courier.core": "0.1.0"
+  }
+}

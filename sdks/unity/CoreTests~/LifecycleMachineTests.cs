@@ -143,5 +143,37 @@ namespace Courier.CoreTests
             Assert.Equal(new[] { "lifecycle.account_switched" }, rec.Types);
             Assert.False(m.ReportAccountId("acc_B"));   // 同号重登不算切换
         }
+
+        // --- TryFire(批次 5:Adapter 平台信号幂等,非法转移不抛) ---
+
+        [Fact]
+        public void TryFire_ValidTransition_MatchesFire()
+        {
+            var m = MachineAt("PlayerReady");
+            Assert.True(m.TryFire(LifecycleTrigger.Suspended));
+            Assert.Equal(LifecycleState.Suspended, m.State);
+            Assert.True(m.TryFire(LifecycleTrigger.ResumeStarted));
+            Assert.True(m.TryFire(LifecycleTrigger.ResumeCompleted));
+            Assert.Equal(LifecycleState.PlayerReady, m.State);   // 回挂起前状态
+        }
+
+        [Fact]
+        public void TryFire_InvalidTransition_ReturnsFalse_StateUnchanged_NoEvent()
+        {
+            var m = MachineAt("PlayerReady");
+            var rec = new Recorder(m);
+            Assert.False(m.TryFire(LifecycleTrigger.AuthStarted));   // PlayerReady 不可再登录
+            Assert.False(m.TryFire(LifecycleTrigger.ResumeStarted)); // 未挂起不可恢复
+            Assert.Equal(LifecycleState.PlayerReady, m.State);
+            Assert.Empty(rec.Types);
+        }
+
+        [Fact]
+        public void Fire_InvalidTransition_StillThrows_AfterTryFireRefactor()
+        {
+            var m = MachineAt("PlayerReady");
+            Assert.Throws<InvalidOperationException>(() => m.Fire(LifecycleTrigger.AuthStarted));
+            Assert.Equal(LifecycleState.PlayerReady, m.State);
+        }
     }
 }

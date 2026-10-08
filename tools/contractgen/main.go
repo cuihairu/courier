@@ -92,8 +92,8 @@ func generate(root string) map[string][]byte {
 		out[filepath.FromSlash(rel)] = []byte(strings.TrimRight(content, "\n") + "\n")
 	}
 
-	put("sdks/unity/Runtime/Core/Contract/ErrorCode.cs", genCsErrors(ef))
-	put("sdks/unity/Runtime/Core/Contract/Envelope.cs", genCsEnvelope(df))
+	put("sdks/unity/packages/com.courier.core/Runtime/Core/Contract/ErrorCode.cs", genCsErrors(ef))
+	put("sdks/unity/packages/com.courier.core/Runtime/Core/Contract/Envelope.cs", genCsEnvelope(df))
 	for _, end := range []string{"cocos", "miniprogram", "laybox"} {
 		put(fmt.Sprintf("sdks/%s/src/contract/errors.ts", end), genTsErrors(ef))
 		put(fmt.Sprintf("sdks/%s/src/contract/envelope.ts", end), genTsEnvelope(df))

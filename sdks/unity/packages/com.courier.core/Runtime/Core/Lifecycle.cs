@@ -90,22 +90,34 @@ namespace Courier.Core
             return t;
         }
 
-        /// <summary>推进状态机;成功时发出对应契约事件。</summary>
+        /// <summary>推进状态机;成功时发出对应契约事件。非法转移抛异常。</summary>
         public LifecycleState Fire(LifecycleTrigger trigger)
+        {
+            if (!TryFire(trigger))
+            {
+                throw new InvalidOperationException(
+                    "invalid lifecycle transition: " + _state + " --" + trigger + "--> ?");
+            }
+            return _state;
+        }
+
+        /// <summary>非抛版:非法转移返回 false 且状态不变(Adapter 平台信号幂等用)。</summary>
+        public bool TryFire(LifecycleTrigger trigger)
         {
             if (_state == LifecycleState.Resuming && trigger == LifecycleTrigger.ResumeCompleted)
             {
-                return Transition(trigger, _preSuspend, EventOf(trigger, _preSuspend));
+                Transition(trigger, _preSuspend, EventOf(trigger, _preSuspend));
+                return true;
             }
 
             long key = (long)_state * 100 + (long)trigger;
             LifecycleState target;
             if (!Transitions.TryGetValue(key, out target))
             {
-                throw new InvalidOperationException(
-                    "invalid lifecycle transition: " + _state + " --" + trigger + "--> ?");
+                return false;
             }
-            return Transition(trigger, target, EventOf(trigger, target));
+            Transition(trigger, target, EventOf(trigger, target));
+            return true;
         }
 
         LifecycleState Transition(LifecycleTrigger trigger, LifecycleState target, string eventType)

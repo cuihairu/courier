@@ -1,0 +1,13 @@
+{
+  "name": "com.courier.core",
+  "version": "0.1.0",
+  "displayName": "Courier Core",
+  "description": "Courier — Universal Game SDK 核心包。L2 平台无关内核(生命周期状态机、Identity/Session 域、信封解析、重试)+ L3 Unity Adapter(UnityWebRequest 传输、加密令牌存储、前后台监听)。契约:docs/contract(Frozen v1)。",
+  "unity": "2021.3",
+  "author": {
+    "name": "cuihairu"
+  },
+  "dependencies": {
+    "com.unity.nuget.newtonsoft-json": "3.2.1"
+  }
+}

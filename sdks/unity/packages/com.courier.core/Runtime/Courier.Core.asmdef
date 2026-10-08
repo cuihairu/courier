@@ -1,0 +1,9 @@
+{
+    "name": "Courier.Core",
+    "rootNamespace": "Courier",
+    "references": [
+        "Newtonsoft.Json"
+    ],
+    "overrideReferences": true,
+    "autoReferenced": true
+}
