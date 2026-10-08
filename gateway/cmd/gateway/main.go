@@ -17,6 +17,7 @@ import (
 	"github.com/cuihairu/courier/gateway/providers/chirp"
 	"github.com/cuihairu/courier/gateway/providers/croupier"
 	"github.com/cuihairu/courier/gateway/providers/herald"
+	"github.com/cuihairu/courier/gateway/providers/scribe"
 	"github.com/cuihairu/courier/gateway/providers/warden"
 	"github.com/cuihairu/courier/gateway/routing"
 )
@@ -45,7 +46,10 @@ func main() {
 		RequireAuth: reqAuth,
 		S2SToken:    os.Getenv("COURIER_REALNAME_S2S_TOKEN"),
 	})
-	for _, h := range []providers.Handler{acc, heraldP, croupierP, chirpP, wardenP} {
+	// 配置/应用状态(M3,批次 8):scribe(自建),config/branding/app 同管道;
+	// 玩家侧只读投影,发布/版本/维护开关走管理面(Publish/SetVersion/SetMaintenance)。
+	scribeP := scribe.New(scribe.Options{RequireAuth: reqAuth, Notify: chirpP.Hub().Publish})
+	for _, h := range []providers.Handler{acc, heraldP, croupierP, chirpP, wardenP, scribeP} {
 		if err := reg.Register(h); err != nil {
 			log.Fatalf("courier gateway: 注册 %s 失败: %v", h.Name(), err)
 		}
@@ -60,6 +64,7 @@ func main() {
 		providers.CapAnnouncements: {Primary: herald.DefaultName},
 		providers.CapSupport:       {Primary: croupier.DefaultName},
 		providers.CapMessages:      {Primary: chirp.DefaultName},
+		providers.CapApp:           {Primary: scribe.DefaultName},
 	}
 	if userCfg, err := loadConfig(); err != nil {
 		log.Fatalf("courier gateway: 加载路由表配置失败: %v", err)
@@ -69,9 +74,10 @@ func main() {
 		}
 	}
 
-	// 中间件链:trace → 结构化错误 → 限流 → scope(冻结顺序,批次 2)。
+	// 中间件链:trace → 结构化错误 → 限流 → scope(冻结顺序,批次 2);
+	// 维护门包整个入口(app.md:维护开启 → /v1/* 除本域端点外一律 503,白名单内建)。
 	chain := middleware.Chain(middleware.NewRateLimiter(120, 60))
-	handler := routing.New(reg, cfg, chain)
+	handler := middleware.Maintenance(scribeP.InMaintenance)(routing.New(reg, cfg, chain))
 
 	log.Printf("courier gateway listening on %s", addr)
 	log.Fatal(http.ListenAndServe(addr, handler))
