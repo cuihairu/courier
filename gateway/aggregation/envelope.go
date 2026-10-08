@@ -31,6 +31,10 @@ const (
 	CodeEmailTaken         = "AUTH_EMAIL_TAKEN"
 	CodeSessionConflict    = "SESSION_CONFLICT"
 
+	CodeAnnouncementNotFound  = "ANNOUNCEMENT_NOT_FOUND"
+	CodeSupportTicketNotFound = "SUPPORT_TICKET_NOT_FOUND"
+	CodeSupportTicketClosed   = "SUPPORT_TICKET_CLOSED"
+
 	CodeRealNameRequired = "REALNAME_REQUIRED"
 	CodeRealNameRejected = "REALNAME_REJECTED"
 	CodeRealNamePending  = "REALNAME_PENDING_REVIEW"
@@ -66,6 +70,10 @@ var codeTable = map[string]codeSpec{
 	CodeDeviceLimit:        {http.StatusForbidden, false},
 	CodeEmailTaken:         {http.StatusConflict, false},
 	CodeSessionConflict:    {http.StatusConflict, false},
+
+	CodeAnnouncementNotFound:  {http.StatusNotFound, false},
+	CodeSupportTicketNotFound: {http.StatusNotFound, false},
+	CodeSupportTicketClosed:   {http.StatusConflict, false},
 
 	CodeRealNameRequired: {http.StatusForbidden, false},
 	CodeRealNameRejected: {http.StatusForbidden, false},

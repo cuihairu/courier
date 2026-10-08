@@ -78,7 +78,7 @@ func generate(root string) map[string][]byte {
 	df := &dtoFixture{}
 	readJSON(filepath.Join(root, "docs", "contract", "fixtures", "dto.json"), df)
 
-	if ef.Version != 1 || len(ef.Codes) == 0 || len(ef.Prefixes) == 0 {
+	if ef.Version < 1 || len(ef.Codes) == 0 || len(ef.Prefixes) == 0 {
 		fatal("errors fixture 不完整: version=%d codes=%d prefixes=%d", ef.Version, len(ef.Codes), len(ef.Prefixes))
 	}
 	for _, k := range []string{"data", "error", "traceId", "code", "message", "retryable", "items", "nextCursor"} {

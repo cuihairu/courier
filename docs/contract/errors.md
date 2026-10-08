@@ -61,6 +61,9 @@
 | AUTH_DEVICE_LIMIT | 403 | false | 设备数超限 |
 | AUTH_EMAIL_TAKEN | 409 | false | 邮箱已被注册(M1 auth.md 冻结新增) |
 | SESSION_CONFLICT | 409 | false | 会话冲突(异地踢出等) |
+| ANNOUNCEMENT_NOT_FOUND | 404 | false | 公告不存在或不在可见期(M2 announcement.md 冻结新增) |
+| SUPPORT_TICKET_NOT_FOUND | 404 | false | 工单不存在或不属于当前玩家(M2 support.md 冻结新增) |
+| SUPPORT_TICKET_CLOSED | 409 | false | 工单已关闭,拒绝追加消息(M2 support.md 冻结新增) |
 | REALNAME_REQUIRED | 403 | false | 需要实名(未提交) |
 | REALNAME_REJECTED | 403 | false | 实名未通过 |
 | REALNAME_PENDING_REVIEW | 403 | false | 待复核(降级链全挂时的安全态) |
@@ -69,6 +72,10 @@
 | APP_VERSION_UNSUPPORTED | 426 | false | 版本过旧(payload 带下载地址,可选) |
 
 各域业务错误码随该域契约冻结;本表 code 一经冻结不得改语义。
+
+> **messages 域(推送通道,M2 [messages.md](./messages.md))不设专属前缀**:通道层
+> 错误全部复用通用码(关闭 `COMMON_CAPABILITY_DISABLED`、未认证 `COMMON_UNAUTHENTICATED`、
+> 限流 `RATE_LIMITED`);推送事件的业务语义由事件 `type` 与 data 承载,不是错误。
 
 ## 降级信号:COMMON_CAPABILITY_DISABLED
 

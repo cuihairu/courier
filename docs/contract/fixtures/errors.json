@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "source": "docs/contract/errors.md 错误码表 v1(基元冻结集)",
   "prefixes": ["COMMON", "AUTH", "SESSION", "SCOPE", "RATE", "ANNOUNCEMENT", "SUPPORT", "ASSISTANT", "PAYMENT", "REALNAME", "CONFIG", "APP", "DIAG"],
   "codes": [
@@ -20,6 +20,9 @@
     { "code": "AUTH_DEVICE_LIMIT", "http": 403, "retryable": false },
     { "code": "AUTH_EMAIL_TAKEN", "http": 409, "retryable": false },
     { "code": "SESSION_CONFLICT", "http": 409, "retryable": false },
+    { "code": "ANNOUNCEMENT_NOT_FOUND", "http": 404, "retryable": false },
+    { "code": "SUPPORT_TICKET_NOT_FOUND", "http": 404, "retryable": false },
+    { "code": "SUPPORT_TICKET_CLOSED", "http": 409, "retryable": false },
     { "code": "REALNAME_REQUIRED", "http": 403, "retryable": false },
     { "code": "REALNAME_REJECTED", "http": 403, "retryable": false },
     { "code": "REALNAME_PENDING_REVIEW", "http": 403, "retryable": false },

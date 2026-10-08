@@ -24,8 +24,8 @@ static int gFailed = 0;
 int main() {
     using namespace courier;
 
-    // 冻结码数量(docs/contract/fixtures/errors.json v1 = 23)。
-    CHECK(static_cast<int>(ErrorCode::kCount) == 23, "kCount == 23");
+    // 冻结码数量(docs/contract/fixtures/errors.json v2 = 26)。
+    CHECK(static_cast<int>(ErrorCode::kCount) == 26, "kCount == 26");
 
     // 抽查冻结映射(wire / HTTP / retryable)。
     CHECK(std::strcmp(error_spec(ErrorCode::CommonInternal).wire, "COMMON_INTERNAL") == 0,

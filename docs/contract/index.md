@@ -1,6 +1,6 @@
 # Courier SDK Contract(M0 立宪)
 
-> **状态**:基元五件 **Frozen v1**(2026-10-08,M0 跨端评审冻结);auth 域契约 Frozen v1(M1);realname / branding / diagnostics 初稿 Draft v0,实现前冻结。冻结后进入变更流程管理。
+> **状态**:基元五件 **Frozen v1**(2026-10-08,M0 跨端评审冻结;v2 追加 M2 域码);auth 域契约 Frozen v1(M1);announcement / support / messages 域契约 Frozen v1(M2);realname / branding / diagnostics 初稿 Draft v0,实现前冻结。冻结后进入变更流程管理。
 > **原则**:**SDK Contract > Everything**——契约是 Courier 的宪法。Gateway、Provider、Core、Adapter、生态后端(herald / croupier / chirp / oddsmaker / 自建 accounts)都只是契约的**实现者**;新增引擎 = 新增 Adapter,而不是重新设计 SDK。
 
 ## 为什么立宪
@@ -40,8 +40,8 @@ Gateway、Provider、herald、Chirp、Croupier、Oddsmaker 全部只是「契约
 | 层 | 内容 | 冻结点 |
 | --- | --- | --- |
 | 基元契约 | [primitives](./primitives.md) / [errors](./errors.md) / [scope](./scope.md) / [versioning](./versioning.md) / [events](./events.md) | **M0 已冻结 v1** |
-| 域契约 | [auth](./auth.md)(**Frozen v1 · M1**);[realname](./realname.md) / [branding](./branding.md) / [diagnostics](./diagnostics.md)(Draft 初稿) | auth 已冻结;其余实现前冻结 |
-| 域契约(后续) | announcements / support / config / payment | 各里程碑开工前冻结 |
+| 域契约 | [auth](./auth.md)(**Frozen v1 · M1**);[announcement](./announcement.md) / [support](./support.md) / [messages](./messages.md)(**Frozen v1 · M2**);[realname](./realname.md) / [branding](./branding.md) / [diagnostics](./diagnostics.md)(Draft 初稿) | auth、M2 三域已冻结;其余实现前冻结 |
+| 域契约(后续) | config / player / app / payment | 各里程碑开工前冻结 |
 
 ## 变更流程
 
@@ -70,6 +70,9 @@ Gateway、Provider、herald、Chirp、Croupier、Oddsmaker 全部只是「契约
 
 - [primitives.md](./primitives.md) — Request / Response / Pagination / Timestamp / ID / TraceID
 - [auth.md](./auth.md) — 认证与会话(Frozen v1 · M1)
+- [announcement.md](./announcement.md) — 公告(玩家侧只读投影;Frozen v1 · M2)
+- [support.md](./support.md) — 客服工单与 FAQ(Frozen v1 · M2)
+- [messages.md](./messages.md) — 推送通道(SSE,会话复用;Frozen v1 · M2)
 - [errors.md](./errors.md) — 错误体、错误码注册表、HTTP 映射、降级信号
 - [scope.md](./scope.md) — game_id + env 隔离
 - [versioning.md](./versioning.md) — 三层版本与兼容规则

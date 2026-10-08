@@ -26,7 +26,7 @@ func TestCodeTableMatchesContractFixture(t *testing.T) {
 	if err := json.Unmarshal(raw, &f); err != nil {
 		t.Fatalf("解析 errors.json: %v", err)
 	}
-	if f.Version != 1 {
+	if f.Version != 2 {
 		t.Fatalf("fixture version = %d,期望 1(升版需走契约变更流程)", f.Version)
 	}
 
