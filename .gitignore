@@ -37,3 +37,7 @@ node_modules/
 !sdks/unity/ContractTests~/*.csproj
 sdks/unity/ContractTests~/bin/
 sdks/unity/ContractTests~/obj/
+# Unity Core 测试工程(同 ContractTests~ 豁免策略)
+!sdks/unity/CoreTests~/*.csproj
+sdks/unity/CoreTests~/bin/
+sdks/unity/CoreTests~/obj/
