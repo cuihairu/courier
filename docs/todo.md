@@ -25,12 +25,13 @@
 - **验收**:go test(含 -race)覆盖注册/降级/中间件行为;`accounts` 等业务名不出现在 gateway 一级目录
 - **落地**:commit `cdd391d`;auth/session 为 M1 占位,热重载与熔断留批次 7
 
-## 批次 3 — M1:AccountProvider(自建)+ auth 契约
+## 批次 3 — M1:AccountProvider(自建)+ auth 契约(已完成,2026-10)
 
-- [ ] `docs/contract/auth.md` 冻结
-- [ ] accounts / sessions:邮箱+密码、游客设备、access/refresh 轮换、吊销、设备绑定
-- [ ] 数据表:accounts、account_credentials、sessions、devices;基础限流
-- **验收**:roadmap M1 服务端项(结构化错误、限流生效)
+- [x] `docs/contract/auth.md` 冻结(Frozen v1)
+- [x] accounts / sessions:邮箱+密码、游客设备、access/refresh 轮换、吊销、设备绑定
+- [x] 数据表:accounts、account_credentials、sessions、devices;基础限流
+- **验收**:roadmap M1 服务端项——go test(含 -race)覆盖结构化错误全码路径与登录限流(429 + Retry-After);e2e 全链路(游客→绑定→登出→轮换→重放吊销→拒绝)
+- **落地**:commit `3c24cfc`(契约)/ `39b5007`(实装);持久化与多实例限流协同随 M1 后续
 
 ## 批次 4 — M1:Unity Core(L2)
 

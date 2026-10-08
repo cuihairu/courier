@@ -36,7 +36,7 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 
 **接口形状**
 
-- 基元:primitives / errors / scope / versioning / events;域:auth(M1)、realname/branding/diagnostics(初稿已立)、announcements/support/config/payment(各里程碑前冻结)。
+- 基元:primitives / errors / scope / versioning / events;域:auth(Frozen v1)、realname/branding/diagnostics(初稿已立)、announcements/support/config/payment(各里程碑前冻结)。
 
 **现仓映射**:`docs/contract/`(本仓)。
 
@@ -108,9 +108,9 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 
 - 每域一个 Provider 接口 + `Register(registry)` 注册;接口与实现分离,默认实现可整体替换。
 
-**现仓映射**:`gateway/providers/`(Handler/Registry/Config 接口形状已冻结,批次 2)。
+**现仓映射**:`gateway/providers/`(接口形状批次 2 冻结;`account/` 为 AccountProvider 默认实现,批次 3)。
 
-**下一步**:M1 起 AccountProvider 等默认实现接入(批次 3);路由表热重载与熔断(批次 7)。
+**下一步**:公告/客服等 Provider 随 M2 接入;路由表热重载与熔断(批次 7)。
 
 ## L5 Gateway(入口治理层,服务端)
 
@@ -135,9 +135,9 @@ gateway/
 
 Go `http.ServeMux` + 中间件链(auth → rate limit → scope → audit);`/healthz`;`/v1/{domain}/*`。
 
-**现仓映射**:`gateway/{cmd,routing,middleware,scope,aggregation}`(批次 2 骨架);降级语义与中间件链已有测试覆盖。
+**现仓映射**:`gateway/{cmd,routing,middleware,scope,aggregation}`(批次 2 骨架)+ `auth`/`session`(批次 3 实装,Bearer→身份注入/会话验证);降级语义与中间件链已有测试覆盖。
 
-**下一步**:auth / session 实装(M1,批次 3);多实例限流协同随批次 3 基础限流联调。
+**下一步**:持久化存储与多实例限流协同(M1 后续);路由表热重载(批次 7)。
 
 ## 依赖规则
 
@@ -156,8 +156,8 @@ Go `http.ServeMux` + 中间件链(auth → rate limit → scope → audit);`/hea
 | L1 SDK Contract | `docs/contract/`(基元五件 + realname/branding/diagnostics 初稿) | M0 立宪完成初稿,待评审冻结 |
 | L2 Core | `sdks/*/core`、`Runtime/Core` | 规划,M1 Unity 先行 |
 | L3 Platform Adapter | `sdks/{unity,ue,cocos,miniprogram,laybox,godot}`(+可选 UI/Diagnostics 包) | 规划,M1 Unity 先行 |
-| L4 Service Provider | `gateway/providers/*` | 批次 2 接口形状冻结,默认实现随 M1+ |
-| L5 Gateway | `gateway/{cmd,routing,middleware,scope,aggregation,auth,session}` | 批次 2 骨架完成;auth/session 实装 M1 |
+| L4 Service Provider | `gateway/providers/*` | 接口形状批次 2 冻结;account 默认实现批次 3 已接入 |
+| L5 Gateway | `gateway/{cmd,routing,middleware,scope,aggregation,auth,session}` | 批次 2 骨架完成;auth/session 批次 3 实装 |
 
 ## 演进原则
 
