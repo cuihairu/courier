@@ -9,157 +9,169 @@
   <img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License: Apache-2.0" />
 </p>
 
+<p align="center">[English](README.md) | [中文](README.zh.md)</p>
+
 > **A universal SDK for integrating common game services across engines and platforms.**
 >
-> Courier 是一个面向游戏的通用 SDK,为 Unity、Unreal、Cocos、Godot 等游戏引擎提供统一的账号、认证、玩家、消息、公告、客服、支付、实名、远程配置、品牌与诊断等能力接口。
+> Courier is a universal SDK for games. It exposes one set of interfaces for account, authentication, player, messaging, announcements, customer support, payments, real-name verification, remote configuration, branding, and diagnostics across game engines such as Unity, Unreal, Cocos, and Godot.
 
-Courier 是信使:它不是某一种具体业务,而是替游戏把各种服务能力送到客户端。
+Courier means messenger: it is not any single business feature. It delivers service capabilities to the game client on the game's behalf.
 
 ```text
- 各服务能力(Provider):账号 · 公告 · 客服 · 推送 · 支付 · 实名 · 配置 · 品牌 · 诊断
+ Service capabilities (Providers): account · announcements · support · messaging ·
+ payments · real-name · config · branding · diagnostics
                              │
-                             ▼ 取件
-                       Courier(信使)
+                             ▼ pickup
+                       Courier (the messenger)
                              │
-                             ▼ 送达
+                             ▼ delivery
                        Game Client
-        Unity / Unreal / Cocos / Godot / 小程序 / Layabox
+        Unity / Unreal / Cocos / Godot / Mini Program / Layabox
 ```
 
-## 场景
+## Scenario
 
-一家游戏公司运营着多款游戏(MMO、卡牌、塔防……),过去每款游戏各自建账号、公告、客服、支付系统,玩家在每款游戏里都要重新注册,运营团队在每个后台之间来回切换。
+A game company runs multiple games (MMO, card, tower defense, ...). Each game used to build its own account, announcement, support, and payment systems. Players had to register again in every game, and the operations team switched between separate back offices.
 
-Courier 解决这个问题:
+Courier addresses this:
 
 ```text
-玩家视角:
-  注册一个账号 → 登录任意一款游戏 → 按游戏接入支付 → 统一客服
+Player's view:
+  register one account → sign in to any game → payments per game → unified support
 
-运营视角:
-  一套契约覆盖所有游戏的公共能力 → 各游戏按需选装 → 数据互通
+Operations' view:
+  one contract covers the common capabilities of all games → each game opts in as
+  needed → data flows across games
 ```
 
-## 设计原则:SDK Contract > Everything
+## Design Principle: SDK Contract > Everything
 
-契约是宪法;Gateway、Provider、后端服务都是契约的**实现者**。新增引擎 = 新增 Adapter,而不是重新设计 SDK。
+The contract is the constitution. The gateway, providers, and backend services are all its implementers. Adding an engine means adding an adapter, not redesigning the SDK.
 
-**Provider 原则:默认提供,可换可关。** 每个能力的后端都是可插拔 Provider——Courier 默认提供一套开箱即用的实现,但接不接、用哪家、换不换由接入方配置决定;不硬绑定、不强制依赖,未接入 = 能力降级而非报错。
+**Provider principle: provided by default, replaceable, and disableable.** The backend of every capability is a pluggable provider. Courier ships a set of implementations that work out of the box, but whether to connect one, which vendor to use, and whether to swap it are decided by the integrator's configuration. No hard binding, no forced dependency: a capability that is not connected degrades gracefully instead of raising errors.
 
-## 架构:五层
+## Architecture: Five Layers
 
 ```text
-SDK Contract      各端 SDK 的公共契约(类型、错误码、协议),跨端一致,M0 立宪
-Core             引擎无关的核心逻辑(生命周期状态机、会话、缓存、重试、序列化)
-Platform Adapter 平台适配层(Unity/Unreal/Cocos/Godot/小程序:生命周期、存储、网络;禁带业务)
-Service Provider 服务提供者接口 + 默认实现(可插拔:自建/第三方/关闭)
-Gateway          玩家 API 网关(Go:auth、session、scope、routing、aggregation、middleware、providers)
+SDK Contract      The common contract for every SDK (types, error codes, protocol);
+                  consistent across clients; ratified at M0
+Core             Engine-independent core logic (lifecycle state machine, session,
+                  cache, retry, serialization)
+Platform Adapter Platform adaptation (Unity/Unreal/Cocos/Godot/Mini Program:
+                  lifecycle, storage, networking; no business logic allowed)
+Service Provider Provider interfaces + default implementations (pluggable:
+                  self-hosted / third-party / disabled)
+Gateway          Player-facing API gateway (Go: auth, session, scope, routing,
+                  aggregation, middleware, providers)
 ```
 
-分层设计见 [docs/layers.md](docs/layers.md);总体架构、能力树、SDK 生命周期、Provider 治理见 [docs/architecture.md](docs/architecture.md);**契约宪法见 [docs/contract/](docs/contract/index.md)**;分批落地见 [docs/todo.md](docs/todo.md)。
+Layer-by-layer design: [docs/layers.md](docs/layers.md). Overall architecture, capability tree, SDK lifecycle, and provider governance: [docs/architecture.md](docs/architecture.md). **The contract constitution: [docs/contract/](docs/contract/index.md).** Batch-by-batch progress: [docs/todo.md](docs/todo.md).
 
-## 定位
+## Positioning
 
-Courier 不是又一套独立后端。它是**玩家端 SDK + 轻量 API 网关**,后端能力一律以 Provider 接口接入:
+Courier is not another standalone backend. It is a **player-side SDK plus a lightweight API gateway**; backend capabilities all connect through provider interfaces:
 
 ```text
-Game Client (Unity / UE / Cocos / 小程序 / Layabox / Godot)
+Game Client (Unity / UE / Cocos / Mini Program / Layabox / Godot)
   -> Courier SDK (C# / C++ / GDScript / TypeScript / JavaScript)
-  -> Courier Gateway (玩家 API 网关:auth、session、scope、路由、聚合)
-  -> 后端 Provider(默认提供,可换可关):
-     - AccountProvider       默认:courier 自建 accounts/sessions
-     - AnnouncementProvider  默认:herald(事件驱动通知投递)
-     - SupportProvider       默认:croupier support / ticket / faq
-     - MessageProvider       默认:chirp(gateway + session)
-     - RiskProvider          默认:oddsmaker(充值风控、行为分析)
-     - RealNameProvider      默认:关闭(自建/阿里云/腾讯云慧眼/易盾/Webhook 可接)
-     - ConfigProvider        远程配置,默认自建
-     - BrandingProvider      品牌素材,默认自建(与 Config 同管道)
-     - DiagnosticsProvider   默认:关闭(Sentry/GlitchTip/OTLP 可接)
+  -> Courier Gateway (player API gateway: auth, session, scope, routing, aggregation)
+  -> Backend Providers (provided by default, replaceable, disableable):
+     - AccountProvider       default: Courier's built-in accounts/sessions
+     - AnnouncementProvider  default: herald (event-driven notification delivery)
+     - SupportProvider       default: croupier support / ticket / faq
+     - MessageProvider       default: chirp (gateway + session)
+     - RiskProvider          default: oddsmaker (top-up risk control, behavior analysis)
+     - RealNameProvider      default: disabled (self-hosted / Alibaba Cloud /
+                             Tencent Cloud Huiyan / Yidun / Webhook can be connected)
+     - ConfigProvider        remote config, built-in by default
+     - BrandingProvider      branding assets, built-in by default (same pipeline as Config)
+     - DiagnosticsProvider   default: disabled (Sentry/GlitchTip/OTLP can be connected)
 ```
 
-默认供应商只是开箱即用的便利,不是绑定:任何一项都可配置为自建 HTTP 端点、第三方服务,或直接关闭(客户端安全地隐藏对应能力)。
+The default providers are an out-of-the-box convenience, not a lock-in. Any of them can be configured as a self-hosted HTTP endpoint, a third-party service, or switched off entirely (the client then safely hides the corresponding capability).
 
-### 账号模型
+### Account Model
 
 ```text
-一个公司账号(account)
-  ├── 游戏A:角色1(player_id_A)
-  ├── 游戏B:角色2(player_id_B)
-  └── 游戏C:角色3(player_id_C)
+One company-wide account
+  ├── Game A: character 1 (player_id_A)
+  ├── Game B: character 2 (player_id_B)
+  └── Game C: character 3 (player_id_C)
 ```
 
-- **一个账号登录所有游戏**:玩家注册一次,凭同一套凭证进入公司旗下任意游戏。
-- **每个游戏角色独立**:同一账号在不同游戏中有独立的角色数据、背包、等级。
-- **支付形态开放**:契约只定 Order/Purchase/Receipt,账号钱包/游戏钱包/直购/外部支付由各游戏选择,不做统一钱包假设。
-- **统一客服**:工单/FAQ 按 game_id 隔离,同一账号的历史工单可跨游戏查看。
+- **One account signs in to every game**: a player registers once and enters any game under the company with the same credentials.
+- **Characters stay per-game**: the same account has independent character data, inventory, and level in each game.
+- **Payment shapes stay open**: the contract only defines Order/Purchase/Receipt. Account wallet, per-game wallet, direct purchase, or external payment is each game's choice; no unified-wallet assumption.
+- **Unified support**: tickets and FAQ are isolated by game_id, while the same account's ticket history is visible across games.
 
-scope 模型:`game_id + env` 全局隔离,初始化指定一次,URL 与 payload 不得携带(见 [契约 scope.md](docs/contract/scope.md))。
+Scope model: `game_id + env` isolates globally. It is specified once at initialization and must not appear in URLs or payloads (see [contract scope.md](docs/contract/scope.md)).
 
-## 能力树
+## Capability Tree
 
 ```text
 Courier
-├── Core          Lifecycle / Network / Error / Retry / Cache / Telemetry 挂钩
-├── Identity      Login / Logout / Bind / Device / RealName(可选,合规)
+├── Core          Lifecycle / Network / Error / Retry / Cache / Telemetry hooks
+├── Identity      Login / Logout / Bind / Device / RealName (optional, compliance)
 ├── Session       AccessToken / RefreshToken / Session
 ├── Player        Profile / Game Player
 ├── App           Version / Maintenance / Remote Config / Branding
 ├── Communication Announcement / Message / Push
-├── Support       FAQ / Ticket(核心)+ Panel(可选 UI 包)
-├── Payment       Order / Purchase / Receipt(仅契约,四形态可选)
-├── Diagnostics   Crash / Error Tracking / OTel Trace / Perf / Analytics(可选包)
+├── Support       FAQ / Ticket (core) + Panel (optional UI package)
+├── Payment       Order / Purchase / Receipt (contract only; four shapes optional)
+├── Diagnostics   Crash / Error Tracking / OTel Trace / Perf / Analytics (optional package)
 └── Platform      Unity / Unreal / Cocos / Godot / Layabox / MiniProgram
 ```
 
-SDK 分包:**Core(必选)/ Service(按需)/ UI(可选包)**——`CreateTicket()` 在核心,`CourierSupportPanel` 在可选 UI 包;Diagnostics 同为可选包,默认全关,未配置即 no-op 零开销。
+SDK packages: **Core (required) / Service (as needed) / UI (optional)**. `CreateTicket()` lives in the core; `CourierSupportPanel` lives in the optional UI package. Diagnostics is likewise an optional package, disabled by default and a zero-cost no-op when unconfigured.
 
-| 能力域 | 说明 | 默认 Provider(可换/可关) | 里程碑 |
+| Capability | Description | Default Provider (replaceable/disableable) | Milestone |
 | --- | --- | --- | --- |
-| Identity / Session | 注册/登录(邮箱+密码、游客设备)、token 轮换、设备绑定;一个账号登录所有游戏 | 自建 accounts/sessions | M1 |
-| 公告 | 拉取/订阅公告、活动、维护通知(按游戏隔离) | herald + croupier message | M2 |
-| 客服 | 工单提交/查询、FAQ 检索(账号维度可跨游戏) | croupier support/ticket/faq | M2 |
-| 实名(可选) | 实名核验 + 防沉迷钩子接口位;Provider 热插拔(降级链+熔断);默认关闭,开启明示数据范围 | 自建/阿里云/腾讯云慧眼/易盾/Webhook | M2 后段 |
-| Remote Config | 按 game_id/env/platform/version/region 条件匹配,热生效 | 自建(可由 croupier 发布) | M3 |
-| Player Profile | 账号↔角色映射与档案接口,角色数据归各游戏 | 自建(轻量)+ 各游戏服 | M3 |
-| App | GetVersion / CheckUpdate / CheckMaintenance / GetEnvironment | 自建 | M3 |
-| Branding | 公司名/logo/主题色/关于页/客服入口,按 game_id+env 下发;UI 包消费,Core 无品牌逻辑,默认 Courier 标兜底 | 自建(与 Config 同管道) | M3 |
-| Diagnostics(可选) | 崩溃/错误追踪、OTel Trace、性能指标、埋点;默认全关 | Sentry/GlitchTip/自托管 OTLP | M3+ |
-| Assistant | FAQ 机器人、游戏内向导 | 可接 croupier faq | M4 |
-| Payment | 仅契约:Order/Purchase/Receipt;四形态由游戏选择 | 渠道抽象 + RiskProvider 前置 | M5 |
+| Identity / Session | Register/sign in (email+password, guest device), token rotation, device binding; one account for all games | Built-in accounts/sessions | M1 |
+| Announcements | Fetch/subscribe to announcements, events, maintenance notices (isolated per game) | herald + croupier message | M2 |
+| Support | Ticket submission/query, FAQ search (account-scoped, visible across games) | croupier support/ticket/faq | M2 |
+| Real-name (optional) | Real-name verification + anti-addiction hook interface; hot-swappable provider (degradation chain + circuit breaker); disabled by default, explicit data-scope notice when enabled | Self-hosted / Alibaba Cloud / Tencent Cloud Huiyan / Yidun / Webhook | late M2 |
+| Remote Config | Condition matching on game_id/env/platform/version/region, hot effect | Built-in (publishable via croupier) | M3 |
+| Player Profile | Account↔character mapping and profile interfaces; character data belongs to each game | Built-in (lightweight) + each game server | M3 |
+| App | GetVersion / CheckUpdate / CheckMaintenance / GetEnvironment | Built-in | M3 |
+| Branding | Company name/logo/theme color/about page/support entry, delivered per game_id+env; consumed by the UI package, Core has no branding logic, Courier-branded fallback by default | Built-in (same pipeline as Config) | M3 |
+| Diagnostics (optional) | Crash/error tracking, OTel Trace, performance metrics, analytics events; all off by default | Sentry/GlitchTip/self-hosted OTLP | M3+ |
+| Assistant | FAQ bot, in-game guide | Can connect to croupier faq | M4 |
+| Payment | Contract only: Order/Purchase/Receipt; the four shapes are each game's choice | Channel abstraction + RiskProvider pre-check | M5 |
 
-## 仓库结构
+## Repository Layout
 
 ```text
-gateway/    Courier API 网关(Go):auth、session、scope、routing、aggregation、middleware、providers
+gateway/    Courier API gateway (Go): auth, session, scope, routing, aggregation,
+            middleware, providers
 sdks/
-  unity/    Unity SDK(C#,UPM 包)
-  ue/       Unreal Engine SDK(C++ 插件)
-  cocos/    Cocos Creator SDK(TypeScript)
-  miniprogram/  微信小程序 SDK(JavaScript)
-  laybox/    Layabox SDK(TypeScript/JavaScript)
-  godot/     Godot SDK(GDScript/C#)
-docs/       契约(contract/)、架构、五层设计、竞品调研(research/)、路线图、TODO
+  unity/    Unity SDK (C#, UPM packages)
+  ue/       Unreal Engine SDK (C++ plugin)
+  cocos/    Cocos Creator SDK (TypeScript)
+  miniprogram/  WeChat Mini Program SDK (JavaScript)
+  laybox/   Layabox SDK (TypeScript/JavaScript)
+  godot/    Godot SDK (GDScript/C#)
+docs/       Contracts (contract/), architecture, five-layer design, competitive
+            research (research/), roadmap, TODO
 ```
 
-## 设计边界
+## Design Boundaries
 
-1. **SDK 只面向玩家**:不包含任何运营/管理能力;运营能力不在本 SDK 范围(默认供应商 Croupier,可自建)。
-2. **网关是唯一入口**:客户端不直连任何后端 Provider;网关做鉴权、限流、聚合和风控前置。
-3. **Provider 只进 providers/**:Gateway 不含业务目录,业务一律经 Provider 接口接入;未接入 = 能力降级(`COMMON_CAPABILITY_DISABLED`),不是报错。
-4. **一个账号多款游戏**:账号是跨游戏的最高层实体;角色(player)是游戏维度的,每个游戏独立创建。
-5. **支付只定契约**:四形态开放,统一钱包假设不进契约;沙箱渠道全链路先行,回调只认渠道签名。
-6. **采集/合规默认关闭**:Diagnostics 与 RealName 的红线内建于契约——默认关闭、显式开启、开启明示数据范围。
-7. **UI 永远可选**:Core/Service/UI 三包分离;Core 无 UI、无品牌逻辑。
-8. **无 any/unknown 敷衍**:各端 SDK 公共类型以契约对齐,禁止各自发明字段。
-9. **实时与渠道不做**:实时多人/匹配(Nakama/Agones 地盘)与渠道聚合联运(MSDK/QuickSDK 地盘)不在范围内,详见[竞品调研](docs/research/competitive.md)。
+1. **The SDK serves players only**: no operations/admin capabilities; those are out of scope for this SDK (default provider Croupier, or self-hosted).
+2. **The gateway is the single entry point**: clients never talk to backend providers directly; the gateway handles authentication, rate limiting, aggregation, and risk-control pre-checks.
+3. **Providers live only in providers/**: the gateway contains no business directories; business logic always connects through provider interfaces. A capability that is not connected degrades (`COMMON_CAPABILITY_DISABLED`) instead of erroring.
+4. **One account, many games**: the account is the top-level entity across games; characters (players) are per-game and created independently by each game.
+5. **Payments define contract only**: the four shapes stay open, and the unified-wallet assumption stays out of the contract; the sandbox channel runs the full chain first, and callbacks trust channel signatures only.
+6. **Collection/compliance off by default**: the red lines of Diagnostics and Real-name are built into the contract — disabled by default, enabled explicitly, with the data scope stated when enabled.
+7. **UI is always optional**: Core/Service/UI packages are separate; Core has no UI and no branding logic.
+8. **No any/unknown hand-waving**: public types in every SDK align with the contract; inventing fields per client is forbidden.
+9. **No real-time multiplayer, no channel aggregation**: real-time matchmaking (Nakama/Agones territory) and channel-package publishing (MSDK/QuickSDK territory) are out of scope; see the [competitive research](docs/research/competitive.md).
 
-## 文档索引
+## Documentation Index
 
-- 契约宪法(M0):[docs/contract/](docs/contract/index.md) — 基元/错误/Scope/版本/事件 + 实名/品牌/诊断域契约
-- 架构:[docs/architecture.md](docs/architecture.md) · 五层:[docs/layers.md](docs/layers.md)
-- 竞品调研:[docs/research/competitive.md](docs/research/competitive.md)
-- 路线图:[docs/roadmap.md](docs/roadmap.md) · 分批 TODO:[docs/todo.md](docs/todo.md)
+- Contract constitution (M0): [docs/contract/](docs/contract/index.md) — primitives/errors/scope/versioning/events + real-name/branding/diagnostics domain contracts
+- Architecture: [docs/architecture.md](docs/architecture.md) · Five layers: [docs/layers.md](docs/layers.md)
+- Competitive research: [docs/research/competitive.md](docs/research/competitive.md)
+- Roadmap: [docs/roadmap.md](docs/roadmap.md) · Batch TODO: [docs/todo.md](docs/todo.md)
 
 ## License
 
