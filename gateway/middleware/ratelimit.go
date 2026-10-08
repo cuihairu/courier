@@ -84,7 +84,7 @@ func RateLimit(limiter *RateLimiter) Middleware {
 	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ok, retry := limiter.Allow(clientIP(r))
+			ok, retry := limiter.Allow(ClientIP(r))
 			if !ok {
 				seconds := int(retry.Seconds())
 				if seconds < 1 {
@@ -99,8 +99,8 @@ func RateLimit(limiter *RateLimiter) Middleware {
 	}
 }
 
-// clientIP 提取客户端 IP(RemoteAddr host 部分;测试环境为 127.0.0.1)。
-func clientIP(r *http.Request) string {
+// ClientIP 提取客户端 IP(RemoteAddr host 部分;测试环境为 127.0.0.1)。
+func ClientIP(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		return r.RemoteAddr

@@ -12,6 +12,7 @@ import (
 
 	"github.com/cuihairu/courier/gateway/middleware"
 	"github.com/cuihairu/courier/gateway/providers"
+	"github.com/cuihairu/courier/gateway/providers/account"
 	"github.com/cuihairu/courier/gateway/routing"
 )
 
@@ -21,14 +22,23 @@ func main() {
 		addr = ":8080"
 	}
 
-	// Provider 注册表:M1 起各 Provider 经 reg.Register 挂入(默认提供,可换可关)。
+	// Provider 注册表:各 Provider 经 reg.Register 挂入(默认提供,可换可关)。
+	// M1:自建 AccountProvider 默认注册;接入方可经配置换掉或关闭。
 	reg := providers.NewRegistry()
+	if err := reg.Register(account.New(account.Options{})); err != nil {
+		log.Fatalf("courier gateway: 注册 AccountProvider 失败: %v", err)
+	}
 
-	// 配置驱动路由表(primary + fallbacks[]):COURIER_GATEWAY_CONFIG 指向 JSON;
-	// 未配置的域保持降级(501 COMMON_CAPABILITY_DISABLED),见 routing 包文档。
-	cfg, err := loadConfig()
-	if err != nil {
+	// 配置驱动路由表(primary + fallbacks[]):内置默认(identity → 自建账号)+
+	// COURIER_GATEWAY_CONFIG(可选,JSON,覆盖默认);未配置的域保持降级
+	// (501 COMMON_CAPABILITY_DISABLED),见 routing 包文档。
+	cfg := providers.Config{providers.CapIdentity: {Primary: account.DefaultName}}
+	if userCfg, err := loadConfig(); err != nil {
 		log.Fatalf("courier gateway: 加载路由表配置失败: %v", err)
+	} else if userCfg != nil {
+		for cap, cc := range userCfg {
+			cfg[cap] = cc // 接入方配置覆盖内置默认
+		}
 	}
 
 	// 中间件链:trace → 结构化错误 → 限流 → scope(冻结顺序,批次 2)。

@@ -28,6 +28,7 @@ const (
 	CodeRefreshReused      = "AUTH_REFRESH_REUSED"
 	CodeAccountDisabled    = "AUTH_ACCOUNT_DISABLED"
 	CodeDeviceLimit        = "AUTH_DEVICE_LIMIT"
+	CodeEmailTaken         = "AUTH_EMAIL_TAKEN"
 	CodeSessionConflict    = "SESSION_CONFLICT"
 
 	CodeRealNameRequired = "REALNAME_REQUIRED"
@@ -63,6 +64,7 @@ var codeTable = map[string]codeSpec{
 	CodeRefreshReused:      {http.StatusUnauthorized, false},
 	CodeAccountDisabled:    {http.StatusForbidden, false},
 	CodeDeviceLimit:        {http.StatusForbidden, false},
+	CodeEmailTaken:         {http.StatusConflict, false},
 	CodeSessionConflict:    {http.StatusConflict, false},
 
 	CodeRealNameRequired: {http.StatusForbidden, false},
