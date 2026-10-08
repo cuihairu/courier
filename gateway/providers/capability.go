@@ -13,6 +13,7 @@ const (
 	CapMessages      Capability = "messages"      // /v1/messages/*      推送通道   M2(无专属错误码前缀,复用通用码)
 	CapRealname      Capability = "realname"      // /v1/realname/*      实名       M2 后段
 	CapApp           Capability = "app"           // /v1/app/*           配置/品牌/版本 M3
+	CapPlayer        Capability = "player"        // /v1/player/*        玩家档案   M3
 	CapAssistant     Capability = "assistant"     // /v1/assistant/*     小助手     M4
 	CapPayments      Capability = "payments"      // /v1/payments/*      支付       M5
 )
@@ -26,6 +27,7 @@ func AllCapabilities() []Capability {
 		CapMessages,
 		CapRealname,
 		CapApp,
+		CapPlayer,
 		CapAssistant,
 		CapPayments,
 	}
