@@ -153,7 +153,8 @@ func TestServiceUiRuntime(t *testing.T) {
 		"RealNameMask.cs":        {"MaskName", "MaskIdNumber"},
 		"AppService.cs":          {"class AppService", "CheckUpdateAsync", "CheckMaintenanceAsync", "/v1/app"},
 		"AppConfigService.cs":    {"class AppConfigService", "FetchAsync", "NeedsRefetch", "/v1/app/config"},
-		"AppDto.cs":              {"class AppConfigDto", "class AppVersionDto", "class AppMaintenanceDto", "class AppEnvironmentDto"},
+		"AppDto.cs":              {"class AppConfigDto", "class AppVersionDto", "class AppMaintenanceDto", "class AppEnvironmentDto", "class BrandingDto"},
+		"BrandingService.cs":     {"class BrandingService", "FetchAsync", "NeedsRefetch", "/v1/app/branding"},
 	}
 	svcRuntime := unityPkgDir + "/com.courier.service/Runtime"
 	for file, symbols := range svcFiles {
@@ -173,8 +174,9 @@ func TestServiceUiRuntime(t *testing.T) {
 
 	// ui 包双面板在位:MonoBehaviour 骨架 + 服务门面消费 + Branding 默认标。
 	uiFiles := map[string][]string{
-		"AnnouncementPanel.cs":    {"class AnnouncementPanel : MonoBehaviour", "CourierServices", "DefaultTitle"},
-		"CustomerServicePanel.cs": {"class CustomerServicePanel : MonoBehaviour", "CourierServices", "NotifyTicketReplied"},
+		"AnnouncementPanel.cs":    {"class AnnouncementPanel : MonoBehaviour", "CourierServices", "DefaultTitle", "BrandingCatalog", "ResolveTitle"},
+		"CustomerServicePanel.cs": {"class CustomerServicePanel : MonoBehaviour", "CourierServices", "NotifyTicketReplied", "BrandingCatalog", "ResolveTitle"},
+		"BrandingCatalog.cs":      {"class BrandingCatalog", "Apply", "DefaultCompanyName", "GetPrimaryColor"},
 	}
 	uiRuntime := unityPkgDir + "/com.courier.ui/Runtime"
 	for file, symbols := range uiFiles {

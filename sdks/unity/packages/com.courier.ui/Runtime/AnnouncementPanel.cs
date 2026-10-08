@@ -64,17 +64,26 @@ namespace Courier.UI
             }
             var dto = await Services.Announcements.GetAsync(announcementId, ct);
             AnnouncementOpened?.Invoke(dto.Id);
-            ListRendered?.Invoke(BrandTitle + "\n" + Format(new List<AnnouncementDto> { dto }));
+            ListRendered?.Invoke(ResolveTitle() + "\n" + Format(new List<AnnouncementDto> { dto }));
+        }
+
+        /// <summary>品牌兜底链:远端 productName → 宿主 BrandTitle → 内置默认
+        /// (契约 branding.md「兜底规则」;消费点在 UI 包)。</summary>
+        string ResolveTitle()
+        {
+            string remote;
+            return BrandingCatalog.TryGetString("productName", out remote) &&
+                !string.IsNullOrEmpty(remote) ? remote : BrandTitle;
         }
 
         string Format(List<AnnouncementDto> items)
         {
             if (items == null || items.Count == 0)
             {
-                return BrandTitle + "\n(暂无公告)";
+                return ResolveTitle() + "\n(暂无公告)";
             }
             var sb = new System.Text.StringBuilder();
-            sb.Append(BrandTitle);
+            sb.Append(ResolveTitle());
             foreach (var item in items)
             {
                 sb.Append('\n').Append('[').Append(item.Severity).Append("] ")

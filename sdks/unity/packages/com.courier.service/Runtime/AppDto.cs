@@ -2,6 +2,7 @@
 // Core Json resolver 统一映射;items 为任意 JSON 值(JToken 原样返回,SDK 不做
 // 二次校验——接入方结构变更是使用方错误)。
 using System.Collections.Generic;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 namespace Courier.Service
@@ -11,6 +12,16 @@ namespace Courier.Service
     {
         public long ConfigVersion { get; set; }
         public Dictionary<string, JToken> Items { get; set; }
+    }
+
+    /// <summary>品牌物料:version(热生效判据)+ 业务字段透传(ExtensionData 收
+    /// 其余键,SDK 零解释;兜底规则与消费全在 UI 包)。</summary>
+    public sealed class BrandingDto
+    {
+        public long Version { get; set; }
+
+        [JsonExtensionData]
+        public IDictionary<string, JToken> Fields { get; set; }
     }
 
     /// <summary>版本检查:forceUpdate = appVersion &lt; minVersion(服务端判定)。</summary>

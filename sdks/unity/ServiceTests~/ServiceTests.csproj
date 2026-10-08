@@ -19,6 +19,9 @@
     <Compile Include="../packages/com.courier.core/Runtime/Identity/*.cs" />
     <Compile Include="../packages/com.courier.core/Runtime/Session/*.cs" />
     <Compile Include="../packages/com.courier.service/Runtime/*.cs" />
+    <!-- UI 包唯一 dotnet 可测件:BrandingCatalog 纯 C#(无 UnityEngine),品牌兜底链在此覆盖;
+         其余 UI 件(MonoBehaviour)由 packcheck 结构断言覆盖。 -->
+    <Compile Include="../packages/com.courier.ui/Runtime/BrandingCatalog.cs" />
     <Compile Include="../CoreTests~/Fakes.cs" />
   </ItemGroup>
 

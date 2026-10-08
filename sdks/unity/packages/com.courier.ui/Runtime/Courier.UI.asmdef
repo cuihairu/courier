@@ -3,7 +3,8 @@
     "rootNamespace": "Courier.UI",
     "references": [
         "Courier.Core",
-        "Courier.Service"
+        "Courier.Service",
+        "Newtonsoft.Json"
     ],
     "overrideReferences": true,
     "autoReferenced": true

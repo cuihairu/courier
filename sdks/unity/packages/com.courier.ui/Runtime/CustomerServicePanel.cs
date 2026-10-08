@@ -31,6 +31,21 @@ namespace Courier.UI
         /// <summary>当前面板关注的工单(SSE 重拉判断用)。</summary>
         public string CurrentTicketId { get { return _currentTicketId; } }
 
+        /// <summary>品牌兜底链标题:远端 productName → 宿主 BrandTitle → 内置默认
+        /// (契约 branding.md「兜底规则」;消费点在 UI 包)。</summary>
+        public string ResolveTitle()
+        {
+            string remote;
+            return BrandingCatalog.TryGetString("productName", out remote) &&
+                !string.IsNullOrEmpty(remote) ? remote : BrandTitle;
+        }
+
+        /// <summary>客服入口文案:branding supportEntry.label → Courier 默认标。</summary>
+        public string SupportEntryLabel
+        {
+            get { return BrandingCatalog.GetSupportLabel(); }
+        }
+
         /// <summary>提单并打开。category 可空(服务端缺省 OTHER)。</summary>
         public async Task OpenTicketAsync(string title, string body, string category,
             CancellationToken ct)

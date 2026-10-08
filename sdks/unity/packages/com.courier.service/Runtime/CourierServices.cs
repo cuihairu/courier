@@ -13,6 +13,7 @@ namespace Courier.Service
         public RealNameService RealName { get; }
         public AppService App { get; }
         public AppConfigService Config { get; }
+        public BrandingService Branding { get; }
 
         public CourierServices(CourierClient client)
         {
@@ -22,6 +23,7 @@ namespace Courier.Service
             RealName = new RealNameService(api);
             App = new AppService(api);
             Config = new AppConfigService(api);
+            Branding = new BrandingService(api);
         }
     }
 }
