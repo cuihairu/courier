@@ -366,3 +366,61 @@ func TestM3AppEndpoints(t *testing.T) {
 		t.Fatalf("environment: code=%d data=%+v", code, env.Data)
 	}
 }
+
+// TestM3BrandingHotSwitch 验收:品牌配置变更 → branding.updated 广播 → 重拉热切换;
+// 品牌端点匿名可达(登录页就要显示品牌)。
+func TestM3BrandingHotSwitch(t *testing.T) {
+	h := newM3Harness(t)
+	token := h.login(t, "e2e-brand")
+	events, cancel := h.openM3Stream(t, token)
+	defer cancel()
+
+	// 匿名(无 Bearer)可达,初始为空物料 + version 0。
+	req, _ := http.NewRequest(http.MethodGet, h.srv.URL+"/v1/app/branding", nil)
+	h.scopeHeaders(req)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("anonymous branding: %v", err)
+	}
+	var initial struct {
+		Data map[string]any `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&initial); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	resp.Body.Close()
+	if initial.Data["version"] != float64(0) {
+		t.Fatalf("initial branding = %v", initial.Data)
+	}
+
+	// 管理面变更 → 事件 + 重拉热切换。
+	if _, err := h.scribe.SetBranding([]byte(
+		`{"companyName":"示例互娱","theme":{"primaryColor":"#4C8DFF"}}`)); err != nil {
+		t.Fatalf("set branding: %v", err)
+	}
+	ev := awaitEvent(t, events, "branding.updated")
+	if !strings.Contains(ev.Data, `"version":1`) {
+		t.Fatalf("event data = %q", ev.Data)
+	}
+
+	req2, _ := http.NewRequest(http.MethodGet, h.srv.URL+"/v1/app/branding", nil)
+	h.scopeHeaders(req2)
+	resp2, err := http.DefaultClient.Do(req2)
+	if err != nil {
+		t.Fatalf("refetch branding: %v", err)
+	}
+	defer resp2.Body.Close()
+	var out struct {
+		Data map[string]any `json:"data"`
+	}
+	if err := json.NewDecoder(resp2.Body).Decode(&out); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if out.Data["version"] != float64(1) || out.Data["companyName"] != "示例互娱" {
+		t.Fatalf("updated branding = %v", out.Data)
+	}
+	theme, ok := out.Data["theme"].(map[string]any)
+	if !ok || theme["primaryColor"] != "#4C8DFF" {
+		t.Fatalf("theme = %v", out.Data["theme"])
+	}
+}

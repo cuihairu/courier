@@ -19,6 +19,7 @@ import (
 	"hash/fnv"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -35,6 +36,9 @@ const DefaultName = "scribe"
 
 // EventConfigUpdated 推送事件 type(契约 config.md 事件登记)。
 const EventConfigUpdated = "config.updated"
+
+// EventBrandingUpdated 推送事件 type(契约 branding.md 事件登记)。
+const EventBrandingUpdated = "branding.updated"
 
 const prefixApp = "/v1/app/"
 
@@ -112,6 +116,9 @@ type AppProvider struct {
 
 	version VersionInfo
 	maint   MaintenanceState
+
+	brandingVer int64
+	branding    map[string]json.RawMessage // 品牌业务字段(透传,零解释)
 }
 
 // New 构造 App Provider。
@@ -215,6 +222,9 @@ func (p *AppProvider) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case path == "maintenance" && r.Method == http.MethodGet:
 		p.handleMaintenance(w, r)
 		return
+	case path == "branding" && r.Method == http.MethodGet:
+		p.handleBranding(w, r)
+		return
 	case path == "environment" && r.Method == http.MethodGet:
 		p.handleEnvironment(w, r)
 		return
@@ -293,6 +303,44 @@ func (p *AppProvider) handleMaintenance(w http.ResponseWriter, _ *http.Request) 
 	}
 	p.mu.RUnlock()
 	aggregation.WriteData(w, dto)
+}
+
+// SetBranding 管理面设置品牌物料(契约 branding.md:业务字段 JSON 对象透传,
+// version 由本方法分配,业务字段不得占用);成功后广播 branding.updated(只带 version)。
+func (p *AppProvider) SetBranding(data []byte) (int64, error) {
+	fields := make(map[string]json.RawMessage)
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return 0, errInvalid("branding 须为 JSON 对象:" + err.Error())
+	}
+	if fields == nil { // "null" 反序列化成 nil map,同样拒绝
+		return 0, errInvalid("branding 须为 JSON 对象")
+	}
+	if _, reserved := fields["version"]; reserved {
+		return 0, errInvalid(`branding 业务字段不得占用 "version" 键`)
+	}
+	p.mu.Lock()
+	p.brandingVer++
+	p.branding = fields
+	v := p.brandingVer
+	p.mu.Unlock()
+
+	if p.notify != nil {
+		p.notify(EventBrandingUpdated, map[string]any{"version": v})
+	}
+	return v, nil
+}
+
+// handleBranding 品牌投影(匿名可:登录页就要显示品牌;version 与业务字段合并下发)。
+func (p *AppProvider) handleBranding(w http.ResponseWriter, _ *http.Request) {
+	p.mu.RLock()
+	v := p.brandingVer
+	out := make(map[string]json.RawMessage, len(p.branding)+1)
+	for k, raw := range p.branding {
+		out[k] = raw
+	}
+	p.mu.RUnlock()
+	out["version"] = json.RawMessage(strconv.FormatInt(v, 10))
+	aggregation.WriteData(w, out)
 }
 
 // handleEnvironment scope 回显(初始化校验;scope 由链上中间件注入)。

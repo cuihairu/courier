@@ -386,7 +386,70 @@ func TestRoutingShape(t *testing.T) {
 	if rec := call(t, p, http.MethodPost, "/v1/app/config", ""); rec.Code != http.StatusNotFound {
 		t.Fatalf("POST config: %d", rec.Code)
 	}
-	if rec := call(t, p, http.MethodGet, "/v1/app/branding", ""); rec.Code != http.StatusNotFound {
+	if rec := call(t, p, http.MethodGet, "/v1/app/telemetry", ""); rec.Code != http.StatusNotFound {
 		t.Fatalf("unknown path: %d", rec.Code)
 	}
+}
+
+func TestBrandingEndpoint(t *testing.T) {
+	var events []string
+	var datas []map[string]any
+	p := New(Options{Notify: func(eventType string, data any) {
+		events = append(events, eventType)
+		b, _ := json.Marshal(data)
+		var m map[string]any
+		_ = json.Unmarshal(b, &m)
+		datas = append(datas, m)
+	}})
+
+	// 未设置:{"version":0},空字段非错误。
+	rec := call(t, p, http.MethodGet, "/v1/app/branding", "")
+	var m map[string]any
+	decodeData(t, rec, &m)
+	if m["version"] != float64(0) || len(m) != 1 {
+		t.Fatalf("initial branding = %v", m)
+	}
+
+	// 设置 → version 1 + 业务字段透传 + 事件广播。
+	v, err := p.SetBranding([]byte(
+		`{"companyName":"示例互娱","theme":{"primaryColor":"#4C8DFF"}}`))
+	if err != nil || v != 1 {
+		t.Fatalf("set branding: v=%d err=%v", v, err)
+	}
+	rec = call(t, p, http.MethodGet, "/v1/app/branding", "")
+	var m2 map[string]any
+	decodeData(t, rec, &m2)
+	if m2["version"] != float64(1) || m2["companyName"] != "示例互娱" {
+		t.Fatalf("branding = %v", m2)
+	}
+	theme, ok := m2["theme"].(map[string]any)
+	if !ok || theme["primaryColor"] != "#4C8DFF" {
+		t.Fatalf("theme = %v(嵌套对象透传)", m2["theme"])
+	}
+
+	// 再设置 → version 单调递增。
+	if v, err := p.SetBranding([]byte(`{"companyName":"新名字"}`)); err != nil || v != 2 {
+		t.Fatalf("reset branding: v=%d err=%v", v, err)
+	}
+
+	if len(events) != 2 || events[0] != EventBrandingUpdated || events[1] != EventBrandingUpdated {
+		t.Fatalf("events = %v", events)
+	}
+	if len(datas) != 2 || datas[1]["version"] != float64(2) || len(datas[1]) != 1 {
+		t.Fatalf("event data = %v(只带 version)", datas)
+	}
+}
+
+func TestSetBrandingValidation(t *testing.T) {
+	p := New(Options{})
+	bad := func(name string, data []byte) {
+		t.Helper()
+		if _, err := p.SetBranding(data); err == nil {
+			t.Fatalf("%s: 期望报错", name)
+		}
+	}
+	bad("非 JSON", []byte(`{oops`))
+	bad("数组", []byte(`[1,2]`))
+	bad("null", []byte(`null`))
+	bad("占用 version 键", []byte(`{"version":9,"companyName":"x"}`))
 }
