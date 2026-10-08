@@ -38,9 +38,9 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 
 - 基元:primitives / errors / scope / versioning / events;域:auth(Frozen v1)、realname/branding/diagnostics(初稿已立)、announcements/support/config/payment(各里程碑前冻结)。
 
-**现仓映射**:`docs/contract/`(本仓)。
+**现仓映射**:`docs/contract/`(本仓)+ `docs/contract/fixtures/` + `tools/contractgen`(契约测试骨架:fixture 生成六端契约源,漂移即测试红)。
 
-**下一步**:M0 评审冻结(契约 v1);auth 域契约在 M1 开工前冻结。
+**下一步**:基元五件与 auth 已冻结;announcements / support / config / payment 随各里程碑开工前冻结;realname / branding / diagnostics 实现前冻结。
 
 ## L2 Core(平台无关内核)
 
@@ -153,7 +153,7 @@ Go `http.ServeMux` + 中间件链(auth → rate limit → scope → audit);`/hea
 
 | 层 | 现仓落点 | 状态 |
 | --- | --- | --- |
-| L1 SDK Contract | `docs/contract/`(基元五件 + realname/branding/diagnostics 初稿) | M0 立宪完成初稿,待评审冻结 |
+| L1 SDK Contract | `docs/contract/` + `tools/contractgen` | 基元五件 Frozen v1 + auth v1;测试骨架就位;realname/branding/diagnostics 初稿实现前冻结 |
 | L2 Core | `sdks/*/core`、`Runtime/Core` | 规划,M1 Unity 先行 |
 | L3 Platform Adapter | `sdks/{unity,ue,cocos,miniprogram,laybox,godot}`(+可选 UI/Diagnostics 包) | 规划,M1 Unity 先行 |
 | L4 Service Provider | `gateway/providers/*` | 接口形状批次 2 冻结;account 默认实现批次 3 已接入 |

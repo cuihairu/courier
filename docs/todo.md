@@ -8,13 +8,14 @@
 - [x] 定位重写:Universal Game SDK + 信使隐喻 + 站点同步
 - [x] 五层架构设计文档([docs/layers.md](./layers.md))与本分批 todo(本文档)
 
-## 批次 1 — M0 Contract 立宪(初稿完成,待评审冻结)
+## 批次 1 — M0 Contract 立宪(已完成,2026-10)
 
 - [x] 基元契约初稿:[primitives](./contract/primitives.md) / [errors](./contract/errors.md) / [scope](./contract/scope.md) / [versioning](./contract/versioning.md) / [events](./contract/events.md)
 - [x] 域契约初稿:[realname](./contract/realname.md) / [branding](./contract/branding.md) / [diagnostics](./contract/diagnostics.md)(红线与 Provider 口径内建)
-- [ ] 跨端评审(≥ Unity + 一个非 C# 端)→ 冻结升 v1
-- [ ] 契约测试骨架(各端错误枚举/DTO 对齐断言)
-- **验收**:依契约手写 DTO 无歧义(roadmap M0)
+- [x] 跨端评审(≥ Unity + 一个非 C# 端)→ 冻结升 v1(四端视角过读,6 项修订;记录见 [contract/index.md](./contract/index.md))
+- [x] 契约测试骨架(各端错误枚举/DTO 对齐断言)([fixtures](./contract/fixtures/) + `tools/contractgen` 生成六端契约源,漂移即测试红)
+- **验收**:依契约手写 DTO 无歧义(roadmap M0)——unity(dotnet 8 用例)/ cocos / miniprogram / laybox(node:test 6×3)/ ue(g++)全绿;godot 为引擎侧卡点;gateway 服务端 codeTable↔fixture 同步测试并入
+- **落地**:commit `d5dbebf`(评审+冻结 v1)/ `a60d8ed`(测试骨架);realname / branding / diagnostics 仍 Draft 初稿,实现前冻结
 
 ## 批次 2 — Gateway 瘦身骨架(M1 前置工程,已完成,2026-10)
 
