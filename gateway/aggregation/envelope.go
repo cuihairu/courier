@@ -38,6 +38,8 @@ const (
 	CodeRealNameRequired = "REALNAME_REQUIRED"
 	CodeRealNameRejected = "REALNAME_REJECTED"
 	CodeRealNamePending  = "REALNAME_PENDING_REVIEW"
+	CodeRealNameCurfew   = "REALNAME_CURFEW_BLOCKED"
+	CodeRealNameCharge   = "REALNAME_CHARGE_BLOCKED"
 
 	CodeConfigNotFound     = "CONFIG_NOT_FOUND"
 	CodeMaintenance        = "APP_MAINTENANCE"
@@ -78,6 +80,8 @@ var codeTable = map[string]codeSpec{
 	CodeRealNameRequired: {http.StatusForbidden, false},
 	CodeRealNameRejected: {http.StatusForbidden, false},
 	CodeRealNamePending:  {http.StatusForbidden, false},
+	CodeRealNameCurfew:   {http.StatusForbidden, false},
+	CodeRealNameCharge:   {http.StatusForbidden, false},
 
 	CodeConfigNotFound:     {http.StatusNotFound, false},
 	CodeMaintenance:        {http.StatusServiceUnavailable, false},

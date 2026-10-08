@@ -29,9 +29,11 @@ namespace Courier.Contract
         RealnameRequired = 20,
         RealnameRejected = 21,
         RealnamePendingReview = 22,
-        ConfigNotFound = 23,
-        AppMaintenance = 24,
-        AppVersionUnsupported = 25,
+        RealnameCurfewBlocked = 23,
+        RealnameChargeBlocked = 24,
+        ConfigNotFound = 25,
+        AppMaintenance = 26,
+        AppVersionUnsupported = 27,
     }
 
     /// <summary>错误码 → wire / HTTP / retryable 冻结映射(下标与枚举值对齐)。</summary>
@@ -70,6 +72,8 @@ namespace Courier.Contract
             new Spec("REALNAME_REQUIRED", 403, false),
             new Spec("REALNAME_REJECTED", 403, false),
             new Spec("REALNAME_PENDING_REVIEW", 403, false),
+            new Spec("REALNAME_CURFEW_BLOCKED", 403, false),
+            new Spec("REALNAME_CHARGE_BLOCKED", 403, false),
             new Spec("CONFIG_NOT_FOUND", 404, false),
             new Spec("APP_MAINTENANCE", 503, false),
             new Spec("APP_VERSION_UNSUPPORTED", 426, false),

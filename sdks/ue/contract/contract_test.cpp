@@ -24,8 +24,8 @@ static int gFailed = 0;
 int main() {
     using namespace courier;
 
-    // 冻结码数量(docs/contract/fixtures/errors.json v2 = 26)。
-    CHECK(static_cast<int>(ErrorCode::kCount) == 26, "kCount == 26");
+    // 冻结码数量(docs/contract/fixtures/errors.json v3 = 28)。
+    CHECK(static_cast<int>(ErrorCode::kCount) == 28, "kCount == 28");
 
     // 抽查冻结映射(wire / HTTP / retryable)。
     CHECK(std::strcmp(error_spec(ErrorCode::CommonInternal).wire, "COMMON_INTERNAL") == 0,
@@ -43,6 +43,12 @@ int main() {
           "AUTH_EMAIL_TAKEN 409");
     CHECK(error_spec(ErrorCode::AppVersionUnsupported).http == 426,
           "APP_VERSION_UNSUPPORTED 426");
+    CHECK(error_spec(ErrorCode::RealnameCurfewBlocked).http == 403 &&
+              !error_spec(ErrorCode::RealnameCurfewBlocked).retryable,
+          "REALNAME_CURFEW_BLOCKED 403");
+    CHECK(error_spec(ErrorCode::RealnameChargeBlocked).http == 403 &&
+              !error_spec(ErrorCode::RealnameChargeBlocked).retryable,
+          "REALNAME_CHARGE_BLOCKED 403");
     CHECK(error_spec(ErrorCode::CommonUnavailable).http == 503 &&
               error_spec(ErrorCode::CommonUnavailable).retryable,
           "COMMON_UNAVAILABLE 503 retryable");

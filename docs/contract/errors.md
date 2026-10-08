@@ -67,6 +67,8 @@
 | REALNAME_REQUIRED | 403 | false | 需要实名(未提交) |
 | REALNAME_REJECTED | 403 | false | 实名未通过 |
 | REALNAME_PENDING_REVIEW | 403 | false | 待复核(降级链全挂时的安全态) |
+| REALNAME_CURFEW_BLOCKED | 403 | false | 不可玩时段(M2 后段 realname.md 冻结新增;data 可带 nextWindowAt) |
+| REALNAME_CHARGE_BLOCKED | 403 | false | 超出充值额度(M2 后段 realname.md 冻结新增;data 可带限额字段) |
 | CONFIG_NOT_FOUND | 404 | false | 配置键不存在 |
 | APP_MAINTENANCE | 503 | false | 维护中(payload 带预计恢复时间,可选) |
 | APP_VERSION_UNSUPPORTED | 426 | false | 版本过旧(payload 带下载地址,可选) |

@@ -33,9 +33,11 @@ enum class ErrorCode {
     RealnameRequired = 20,
     RealnameRejected = 21,
     RealnamePendingReview = 22,
-    ConfigNotFound = 23,
-    AppMaintenance = 24,
-    AppVersionUnsupported = 25,
+    RealnameCurfewBlocked = 23,
+    RealnameChargeBlocked = 24,
+    ConfigNotFound = 25,
+    AppMaintenance = 26,
+    AppVersionUnsupported = 27,
     kCount  // 哨兵,非契约码
 };
 
@@ -71,6 +73,8 @@ inline const ErrorSpec& error_spec(ErrorCode code) {
         {"REALNAME_REQUIRED", 403, false},
         {"REALNAME_REJECTED", 403, false},
         {"REALNAME_PENDING_REVIEW", 403, false},
+        {"REALNAME_CURFEW_BLOCKED", 403, false},
+        {"REALNAME_CHARGE_BLOCKED", 403, false},
         {"CONFIG_NOT_FOUND", 404, false},
         {"APP_MAINTENANCE", 503, false},
         {"APP_VERSION_UNSUPPORTED", 426, false},
