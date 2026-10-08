@@ -1,17 +1,17 @@
-# Concierge Unreal Engine SDK (C++)
+# Courier Unreal Engine SDK (C++)
 
 > M2 跟进端（Unity 稳定后对齐）。UE 插件结构。
 
 ## 计划结构
 
 ```text
-Host/
+Courier/
   Source/
-    HostRuntime/
-      Public/  ConciergeClient、Auth、Announcements、Support、Assistant、Payments
+    CourierRuntime/
+      Public/  CourierClient、Auth、Announcements、Support、Assistant、Payments
       Private/
-    HostEditor/
-  Host.uplugin
+    CourierEditor/
+  Courier.uplugin
 ```
 
 ## 约定

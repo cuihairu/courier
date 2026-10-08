@@ -1,4 +1,4 @@
-# Concierge miniprogram SDK
+# Courier miniprogram SDK
 
 > 状态：规划中，待实现。
 

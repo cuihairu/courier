@@ -1,4 +1,4 @@
-# Concierge 路线图
+# Courier 路线图
 
 > 原则：每个里程碑都端到端可用（gateway + 至少一端 SDK + 验收），不做"半个功能"。
 
@@ -8,7 +8,7 @@
 
 - gateway：`accounts` / `sessions` 模块，邮箱+密码与游客（设备）两种登录方式，access/refresh token，吊销，基础限流。
 - 数据表：`accounts`、`account_credentials`、`sessions`、`devices`（GORM + AutoMigrate，同生态约定）。
-- Unity SDK 先行；微信小程序、Layabox、Godot SDK 规划中（M1+逐步补齐）：`ConciergeClient.Auth` 全流程 + token 安全存储 + 自动 refresh。
+- Unity SDK 先行；微信小程序、Layabox、Godot SDK 规划中（M1+逐步补齐）：`CourierClient.Auth` 全流程 + token 安全存储 + 自动 refresh。
 - API 契约：`docs/api/auth.md` 冻结。
 
 **验收**

@@ -25,7 +25,7 @@ func startGateway(t *testing.T) string {
 	}
 
 	addr := fmt.Sprintf("127.0.0.1:%d", port)
-	t.Setenv("CONCIERGE_GATEWAY_ADDR", addr)
+	t.Setenv("COURIER_GATEWAY_ADDR", addr)
 	go main()
 
 	baseURL := "http://" + addr

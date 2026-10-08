@@ -1,4 +1,4 @@
-# Concierge Cocos Creator SDK (TypeScript)
+# Courier Cocos Creator SDK (TypeScript)
 
 > M2 起步（Auth + Announcements），与 Unity 端同构。
 
@@ -6,7 +6,7 @@
 
 ```text
 src/
-  ConciergeClient.ts        入口：init({ gameId, env, endpoint })
+  CourierClient.ts        入口：init({ gameId, env, endpoint })
   auth/                （M2 起步）
   announcements/       （M2）
   support/             （M2 后期）

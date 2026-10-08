@@ -2,7 +2,7 @@
 layout: home
 
 hero:
-  name: Concierge
+  name: Courier
   text: 玩家服务 SDK
   tagline: 与 Croupier 配套的玩家端服务——迎接玩家、回答问题、指引方向、协助充值、处理诉求
   actions:

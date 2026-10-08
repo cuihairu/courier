@@ -1,4 +1,4 @@
-// Concierge Gateway — 玩家 API 网关。
+// Courier Gateway — 玩家 API 网关。
 // M1 起点：仅提供健康检查与模块挂载点；accounts/sessions 见 docs/roadmap.md。
 package main
 
@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	addr := os.Getenv("CONCIERGE_GATEWAY_ADDR")
+	addr := os.Getenv("COURIER_GATEWAY_ADDR")
 	if addr == "" {
 		addr = ":8080"
 	}
@@ -28,6 +28,6 @@ func main() {
 	//   /v1/assistant/*      小助手编排（M3）
 	//   /v1/payments/*       充值（M4，渠道抽象先行）
 
-	log.Printf("concierge gateway listening on %s", addr)
+	log.Printf("courier gateway listening on %s", addr)
 	log.Fatal(http.ListenAndServe(addr, mux))
 }

@@ -1,4 +1,4 @@
-# Concierge 架构
+# Courier 架构
 
 > **状态**：Draft — 项目启动架构基线，M1 实现前冻结。
 
@@ -7,11 +7,11 @@
 ```text
 ┌─────────────────────────────────────────────┐
 │ Game Client                                 │
-│  Concierge SDK (Unity C# / UE C++ / Cocos TS)    │
+│  Courier SDK (Unity C# / UE C++ / Cocos TS)    │
 └──────────────┬──────────────────────────────┘
                │ HTTPS JSON (+ WebSocket 推送, M2+)
 ┌──────────────▼──────────────────────────────┐
-│ Concierge Gateway (Go)                           │
+│ Courier Gateway (Go)                           │
 │  accounts   账号、注册/登录、实名(预留)      │
 │  sessions   token 签发/校验/吊销、设备绑定   │
 │  announcements  公告聚合 (→ herald)         │
@@ -26,7 +26,7 @@
 
 ## 关键决策
 
-1. **网关是唯一入口。** 客户端永远只和 Concierge Gateway 通信；生态后端的地址、凭证、拓扑对客户端不可见。网关负责鉴权、限流、聚合、审计前置。
+1. **网关是唯一入口。** 客户端永远只和 Courier Gateway 通信；生态后端的地址、凭证、拓扑对客户端不可见。网关负责鉴权、限流、聚合、审计前置。
 2. **协议 HTTPS JSON 优先。** 游戏客户端友好、调试友好；二进制协议不是 MVP 目标。推送（公告/客服回复）M2 起用 WebSocket，复用 chirp 的会话通道而不是自建长连接。
 3. **scope 唯一。** `game_id + env` 由客户端初始化 SDK 时指定一次，后续请求由网关注入与校验，与 Croupier/Oddsmaker 同一模型。
 4. **账号体系是 M1 核心新建。** 表：`accounts`、`account_credentials`、`sessions`、`devices`。token 采用短期 access + 长期 refresh，吊销列表进 Redis（与 chirp gateway 的 kick 能力对齐）。
@@ -36,7 +36,7 @@
 ## SDK 结构（多端同构）
 
 ```text
-ConciergeClient
+CourierClient
   .Auth        login / logout / refresh / bindDevice
   .Announcements  list / subscribe
   .Support     createTicket / listTickets / getFaq
@@ -57,7 +57,7 @@ ConciergeClient
 
 ## 与生态的边界
 
-| 能力 | Concierge 负责 | 生态负责 |
+| 能力 | Courier 负责 | 生态负责 |
 | --- | --- | --- |
 | 公告 | 玩家侧拉取/订阅 API、SDK 展示组件 | herald 投递、croupier 运营发布 |
 | 客服 | 玩家侧提单/查询 API、SDK 界面 | croupier 工单流转、坐席处理 |

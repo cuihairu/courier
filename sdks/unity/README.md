@@ -1,4 +1,4 @@
-# Concierge Unity SDK (C#)
+# Courier Unity SDK (C#)
 
 > M1 目标端。UPM 包结构。
 
@@ -6,7 +6,7 @@
 
 ```text
 Runtime/
-  ConciergeClient.cs        入口：Init(gameId, env, endpoint)
+  CourierClient.cs        入口：Init(gameId, env, endpoint)
   Auth/                login / logout / refresh / bindDevice（M1）
   Announcements/       （M2）
   Support/             （M2）

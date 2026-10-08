@@ -1,9 +1,9 @@
 import { defineConfig } from 'vitepress'
 
 export default defineConfig({
-  title: 'Concierge',
+  title: 'Courier',
   description: '玩家服务 SDK + 轻量 API 网关',
-  base: '/concierge/',
+  base: '/courier/',
   markdown: {
     lineNumbers: true
   },
@@ -23,7 +23,7 @@ export default defineConfig({
       }
     ],
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/cuihairu/concierge' }
+      { icon: 'github', link: 'https://github.com/cuihairu/courier' }
     ]
   }
 })
