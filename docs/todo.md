@@ -16,13 +16,14 @@
 - [ ] 契约测试骨架(各端错误枚举/DTO 对齐断言)
 - **验收**:依契约手写 DTO 无歧义(roadmap M0)
 
-## 批次 2 — Gateway 瘦身骨架(M1 前置工程)
+## 批次 2 — Gateway 瘦身骨架(M1 前置工程,已完成,2026-10)
 
-- [ ] 目录重构:auth / session / scope / routing / aggregation / middleware / providers(业务目录不存在,业务一律 Provider)
-- [ ] Provider 注册表接口形状冻结:`Register(registry)` + 配置驱动路由表(`primary`+`fallbacks[]`)
-- [ ] 能力降级语义:未配置 Provider → 路由不注册 / `COMMON_CAPABILITY_DISABLED`
-- [ ] 保留 `/healthz`;中间件链:trace → 结构化错误 → 限流 → scope
-- **验收**:go test 覆盖注册/降级/中间件行为;`accounts` 等业务名不出现在 gateway 一级目录
+- [x] 目录重构:auth / session / scope / routing / aggregation / middleware / providers(业务目录不存在,业务一律 Provider)
+- [x] Provider 注册表接口形状冻结:`Register(registry)` + 配置驱动路由表(`primary`+`fallbacks[]`)
+- [x] 能力降级语义:未配置 Provider → 路由不注册 / `COMMON_CAPABILITY_DISABLED`
+- [x] 保留 `/healthz`;中间件链:trace → 结构化错误 → 限流 → scope
+- **验收**:go test(含 -race)覆盖注册/降级/中间件行为;`accounts` 等业务名不出现在 gateway 一级目录
+- **落地**:commit `cdd391d`;auth/session 为 M1 占位,热重载与熔断留批次 7
 
 ## 批次 3 — M1:AccountProvider(自建)+ auth 契约
 
