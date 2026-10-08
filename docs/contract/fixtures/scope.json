@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "source": "docs/contract/scope.md(Frozen v1)",
+  "headers": {
+    "gameId": "X-Courier-Game-Id",
+    "env": "X-Courier-Env"
+  },
+  "envs": ["dev", "staging", "prod"]
+}

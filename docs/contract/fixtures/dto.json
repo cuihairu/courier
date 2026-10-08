@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "source": "docs/contract/primitives.md(Frozen v1)+ auth.md(Frozen v1)",
+  "keys": {
+    "data": "data",
+    "error": "error",
+    "traceId": "traceId",
+    "code": "code",
+    "message": "message",
+    "retryable": "retryable",
+    "items": "items",
+    "nextCursor": "nextCursor"
+  },
+  "rules": {
+    "envelope": "成功只有 data;失败只有 error + traceId,互斥;traceId 只在失败响应 body",
+    "pagination": "items + nextCursor;nextCursor 空串或缺失 = 末页",
+    "unknownFields": "未知字段与未知错误码必须容忍"
+  }
+}

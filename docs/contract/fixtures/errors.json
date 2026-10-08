@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "source": "docs/contract/errors.md 错误码表 v1(基元冻结集)",
+  "prefixes": ["COMMON", "AUTH", "SESSION", "SCOPE", "RATE", "ANNOUNCEMENT", "SUPPORT", "ASSISTANT", "PAYMENT", "REALNAME", "CONFIG", "APP", "DIAG"],
+  "codes": [
+    { "code": "COMMON_INTERNAL", "http": 500, "retryable": true },
+    { "code": "COMMON_INVALID_ARGUMENT", "http": 400, "retryable": false },
+    { "code": "COMMON_UNAUTHENTICATED", "http": 401, "retryable": false },
+    { "code": "COMMON_PERMISSION_DENIED", "http": 403, "retryable": false },
+    { "code": "COMMON_NOT_FOUND", "http": 404, "retryable": false },
+    { "code": "COMMON_CAPABILITY_DISABLED", "http": 501, "retryable": false },
+    { "code": "COMMON_UNAVAILABLE", "http": 503, "retryable": true },
+    { "code": "RATE_LIMITED", "http": 429, "retryable": true },
+    { "code": "SCOPE_MISMATCH", "http": 400, "retryable": false },
+    { "code": "AUTH_INVALID_CREDENTIALS", "http": 401, "retryable": false },
+    { "code": "AUTH_TOKEN_EXPIRED", "http": 401, "retryable": false },
+    { "code": "AUTH_TOKEN_REVOKED", "http": 401, "retryable": false },
+    { "code": "AUTH_REFRESH_REUSED", "http": 401, "retryable": false },
+    { "code": "AUTH_ACCOUNT_DISABLED", "http": 403, "retryable": false },
+    { "code": "AUTH_DEVICE_LIMIT", "http": 403, "retryable": false },
+    { "code": "AUTH_EMAIL_TAKEN", "http": 409, "retryable": false },
+    { "code": "SESSION_CONFLICT", "http": 409, "retryable": false },
+    { "code": "REALNAME_REQUIRED", "http": 403, "retryable": false },
+    { "code": "REALNAME_REJECTED", "http": 403, "retryable": false },
+    { "code": "REALNAME_PENDING_REVIEW", "http": 403, "retryable": false },
+    { "code": "CONFIG_NOT_FOUND", "http": 404, "retryable": false },
+    { "code": "APP_MAINTENANCE", "http": 503, "retryable": false },
+    { "code": "APP_VERSION_UNSUPPORTED", "http": 426, "retryable": false }
+  ]
+}
