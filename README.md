@@ -41,18 +41,6 @@ Courier 解决这个问题：
   一套后台管理所有游戏的公告、客服、充值 → 数据互通 → 统一运营
 ```
 
-## 项目家族
-
-| 项目 | 定位 | 与 Courier 的关系 |
-| --- | --- | --- |
-| [Croupier](https://github.com/cuihairu/croupier) | 游戏运营/后台 | 运营侧：公告发布、客服工单与 FAQ |
-| [Herald](https://github.com/cuihairu/herald) | 通知/公告 | 公告与通知的投递通道 |
-| [Chirp](https://github.com/cuihairu/chirp) | 实时通信 | 实时推送：SDK 推送复用其会话 |
-| [Oddsmaker](https://github.com/cuihairu/oddsmaker) | 数据分析与风控 | 登录/支付风控前置、数据回流 |
-| [Sandtable](https://github.com/cuihairu/sandtable) | 数值仿真 | 独立工具：游戏系统仿真与实验 |
-| [Beacon](https://github.com/cuihairu/beacon) | 开发者桌面工具 | 独立工具：开发状态聚合（Windows） |
-| **Courier** | **游戏客户端 SDK（本项目）** | 玩家端统一接入：账号、公告、客服、支付 |
-
 ## 架构：五层
 
 ```text
