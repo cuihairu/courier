@@ -26,6 +26,7 @@ export default defineConfig({
           { text: '路线图', link: '/roadmap' },
           { text: 'TODO', link: '/todo' },
           { text: '竞品调研', link: '/research/competitive' },
+          { text: '功能调研', link: '/research/features' },
         ]
       },
       {

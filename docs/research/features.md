@@ -37,10 +37,10 @@
 | F03 | 账号注销与数据删除 | 完整注销流程 + 下游数据级联删除(GDPR `erasure`、应用商店均要求**游戏内可达**的入口) | 必备 | [XDSDK 注销流程](https://sdk-docs.xindong.com/)、[商店政策口径](https://privacyterms.io/privacy-policy-for-mobile-game) | ✅ 核心 |
 | F04 | 跨平台身份贯通 | 同一玩家在 PC/主机/手机共享进度与身份,以平台 ID 为 key 回捞存档 | 常见 | [EOS Connect](https://github.com/api-evangelist/epic-games/blob/main/apis.yml)、[PGS 质量清单 1.4](https://developer.android.com/games/pgs/quality)、[AccelByte 15+ 平台](https://accelbyte.io/) | ✅ 核心 |
 | F05 | 游戏自绘登录 UI / SDK 不带 UI | SDK 只给数据与回调,UI 由游戏实现;或提供可选默认 UI | 常见 | [XDSDK UI 剥离趋势](https://sdk-docs.xindong.com/)、[MSDK 公告只给数据不给 UI](https://docs.msdk.qq.com/v5/zh-CN/Module/Notice.html) | ✅ 核心(UI 永远可选) |
-| F06 | 会话/设备历史与账号状态 | 多端会话记录、活跃/闲置/封禁状态、异地登录提示 | 加分 | [自建后端能力清单](https://sumcircle.com/custom-gaming-backend-solution) | 🔌 Provider |
+| F06 | 匿名登录与静默自动登录 | 先进游戏后补账号:匿名 sign-in、平台侧免 UI 自动认证,之后再绑定正式身份 | 必备 | [Unity Authentication 匿名/平台登录](https://docs.unity.com/en-us/services-web-apis/client-auth)、[PGS 自动认证质量项 1.1](https://developer.android.com/games/pgs/quality) | ✅ 核心 |
 | F07 | 账号风控与防刷 | 设备指纹、异常登录检测、封号/解封、权限(封玩法/封排行榜)分级 | 常见 | [运营工具处罚类型](https://cloud.tencent.com/developer/article/1978643)、[BACKND 举报与处罚](https://backnd.com/en/) | 🔌 Provider |
 
-**Courier 取舍**:F01–F05 是 M1 认证契约的正身(账号是公司级实体、`player` 是 game 维度实体,见 [scope.md](../contract/scope.md));F06/F07 走 Provider,不进核心契约。
+**Courier 取舍**:F01–F06 是 M1 认证契约的正身(账号是公司级实体、`player` 是 game 维度实体,见 [scope.md](../contract/scope.md));F07 风控走 Provider,不进核心契约。
 
 ## 2. 会话、令牌与调用安全
 
@@ -106,7 +106,7 @@
 | F37 | 远程推送 push | APNs / FCM / 国内厂商通道;本地+远程两类;通知栏与应用内消息两种形态 | 必备 | [MSDK 推送模块](https://docs.msdk.qq.com/v5/zh-CN/Module/Push.html)、[UGS Push](https://docs.unity.com/en-us/push-notifications/get-started) | 🔌 Provider(默认 chirp,可换) |
 | F38 | 按账号/标签定向推送 | 设备注册之外再绑账号,支持标签(性别/年龄/偏好)分群投放 | 常见 | MSDK `setAccount` + 标签推送、[UGS campaign](https://docs.unity.com/en-us/push-notifications/get-started) | 🔌 Provider |
 | F39 | 本地通知 / 定时提醒 | 客户端本地排程(体力恢复、活动倒计时),不依赖网络 | 常见 | MSDK 本地推送、UGS Mobile Notifications | 🔌 Provider |
-| F40 | 触达效果统计 | 发送 / 展示 / 点击漏斗,回流归因到活动 | 常见 | [FCM 报表口径](https://firebase.google.com/posts/2019/03/everything-we-announced-at-game/)、UGS `notificationOpened` 事件 | 🔌 Provider |
+| F40 | 触达效果统计 | 发送 / 展示 / 点击漏斗,回流归因到活动 | 常见 | [FCM 投递与报表](https://firebase.google.com/docs/cloud-messaging)、UGS `notificationOpened` 事件 | 🔌 Provider |
 
 **Courier 取舍**:公告/跑马灯是 Courier 的**核心正身**(「公告递送到游戏客户端」),只给数据不带 UI;推送整条链路是 Provider,且**不自建长连接通道**(roadmap 非目标)。
 
@@ -117,7 +117,7 @@
 | F41 | 游戏内客服会话 / 工单 | 不离开客户端即可提问、提交工单、查看处理进度 | 常见 | [Helpshift 游戏内 SDK](https://www.helpshift.com/blog/mobile-game-support-sdk/)、[Zendesk for Unity](https://www.zendesk.com/blog/unity-zendesk-partnership/)、[BACKND 工单](https://backnd.com/en/) | ✅ 核心 |
 | F42 | FAQ / 知识库自助 | 客户端内检索与浏览,命中即免工单(deflection) | 常见 | Zendesk 帮助中心、Helpshift Quicksearch | ✅ 核心 |
 | F43 | 上下文自动附带 | 自动带上 player ID、平台、build 号、关卡、购买历史,省去「你的 ID 是多少」 | 常见 | [Theyymes 上下文透传](https://theymes.com/for/gaming)、[Helpshift 上下文](https://www.helpshift.com/blog/mobile-game-support-sdk/) | ✅ 核心 |
-| F44 | 玩家意见反馈与日志上传 | 一键反馈 + 附带截图与客户端日志,便于复现 | 常见 | [MSDK Bugly 系模块](https://docs.msdk.qq.com/v5/zh-CN/Module/Modules.html)、[GamePush 玩家反馈](https://gamepush.com/en/backend/) | ✅ 核心 |
+| F44 | 玩家意见反馈与日志上传 | 一键反馈 + 附带截图与客户端日志,便于复现 | 常见 | [MSDK 模块化选装](https://docs.msdk.qq.com/v5/zh-CN/Module/Modules.html)、[GamePush 玩家反馈](https://gamepush.com/en/backend/) | ✅ 核心 |
 | F45 | 举报与处罚申诉 | 玩家举报、封禁通知、申诉入口与处理闭环 | 常见 | [EOS Reports / Sanctions appeal](https://github.com/EpicGames/EOS-Getting-Started)、[BACKND 举报处罚](https://backnd.com/en/) | ✅ 核心 |
 | F46 | 客服侧补单 / 补偿 | 客服按账号查询交易、补发道具、退款处理 | 常见 | [客服补偿购买场景](https://theymes.com/for/gaming)、[玩家支持工具对比](https://playerdriven.io/blog/best-player-support-tools-for-game-studios-in-2026) | ✅ 核心 |
 
@@ -130,7 +130,7 @@
 | F47 | 远程配置 / Feature Flag | 不发版改数值、开关玩法;支持灰度放量与**秒级回滚** | 必备 | [Firebase Remote Config](https://firebase.google.com/docs/remote-config)、[UGS Remote Config](https://cloud-code-sdk-documentation.cloud.unity3d.com/) | ✅ 核心 |
 | F48 | 分群与条件定向 | 按版本、语言、受众、设备、自定义条件下发不同配置 | 常见 | [Firebase 分群与条件](https://firebase.google.com/docs/remote-config)、MSDK 公告过滤同思路 | ✅ 核心 |
 | F49 | A/B 实验 | 对照组自动生成、指标显著性判定,配合 Crashlytics/分析看稳定性 | 常见 | [Firebase A/B Testing](https://firebase.google.com/products/remote-config)、[ByteBrew A/B](https://github.com/ByteBrewIO/ByteBrewAndroidSDK) | 🔌 Provider |
-| F50 | 配置版本历史与回滚 | 保留多版本模板,一键回退;记录改动人 | 常见 | [Remote Config 变更历史(300 版/90 天)](https://firebase.google.com/posts/2018/08/in-app-messaging-crashlytics) | ✅ 核心 |
+| F50 | 配置版本历史与回滚 | 保留多版本模板、记录改动人、一键回退到历史版本 | 常见 | [Firebase Remote Config](https://firebase.google.com/docs/remote-config) | ✅ 核心 |
 | F51 | GM / 运营工具面 | 用户信息查询、资源发放、开/关服与维护、白名单、功能开关、处罚 | 必备(运营侧) | [《版本运营与 GM 工具》](https://cloud.tencent.com/developer/article/1978643)、[BACKND 管理端](https://backnd.com/en/) | ⬜ 不做界面(默认 Croupier,API 保留) |
 
 **Courier 取舍**:配置/开关的**下发链路**是核心(Gateway 只递送数据,UI 永远可选);运营**界面**不自建,默认 Provider Croupier——与 roadmap 非目标一致。
@@ -144,7 +144,7 @@
 | F54 | 买量归因 | 渠道安装归因、SKAN、深链/延迟深链回传 | 常见 | AppsFlyer / Adjust(AppsFlyer/Adjust 为行业通识,见 [归因口径](https://newagesysit.com/mobile-gaming-application-development-services/)) | ⬜ 不做(垂直领域) |
 | F55 | 崩溃与性能监控 | 崩溃聚类、面包屑、按 build/版本分布、告警到 Slack/Jira | 必备 | [Firebase Crashlytics](https://firebase.google.com/docs/games/setup)、[XDSDK 集成 Crashlytics](https://sdk-docs.xindong.com/) | 🔌 Provider |
 | F56 | 服务端/SDK 遥测 | 调用量、延迟、状态码、SDK 自身健康度 | 常见 | [EOS QoS metrics](https://endlessrunner.co.uk/privacy-policies/epic-online-services-developer-terms)、[AccelByte Game Telemetry](https://github.com/api-evangelist/accelbyte/blob/main/README.md) | ✅ 核心(diagnostics 契约) |
-| F57 | 数据导出 | 导出到 BigQuery/S3/自建仓,支持审计与二次分析 | 加分 | [Crashlytics 导出 BigQuery](https://firebase.google.com/posts/2018/08/in-app-messaging-crashlytics)、[AIS 数据仓库](https://www.metaplay.io/comparisons/metaplay-vs-accelbyte) | 🔌 Provider |
+| F57 | 数据导出 | 导出到 BigQuery/S3/自建仓,支持审计与二次分析 | 加分 | [Crashlytics 数据导出](https://firebase.google.com/docs/crashlytics)、[AIS 数据仓库](https://www.metaplay.io/comparisons/metaplay-vs-accelbyte) | 🔌 Provider |
 
 **Courier 取舍**:Courier **不自建分析产品**(F52–F55 全部 Provider 化,或干脆交给游戏已有的分析栈);只保证 F56 的诊断契约——SDK 自身可观测,才能谈「递送成功」。
 
@@ -177,12 +177,12 @@
 
 | ID | 功能 | 典型能力 | 常见度 | 代表实现 | 取舍 |
 | --- | --- | --- | --- | --- | --- |
-| F69 | 多引擎一等公民 | Unity / Unreal / Godot / 原生 / C++ 各自 SDK,契约行为跨端一致 | 必备 | [Nakama 多引擎 SDK](https://github.com/heroiclabs/nakama)、[EOS C/C# + Unity/Unreal 插件](https://onlineservices.epicgames.com/sdk?lang=en-US)、[AWS Unity/Unreal/Godot](https://d1.awsstatic.com/events/Summits/reinvent2023/GAM302-R_Build-scalable-cross-platform-game-backends-on-AWS-REPEAT.pdf) | ✅ 核心(五层中的 SDK Contract) |
+| F69 | 多引擎一等公民 | Unity / Unreal / Godot / 原生 / C++ 各自 SDK,契约行为跨端一致 | 必备 | [Nakama 多引擎 SDK](https://github.com/heroiclabs/nakama)、[EOS SDK 下载与 Unity/Unreal 插件](https://dev.epicgames.com/documentation/en-us/epic-online-services)、[AWS Unity/Unreal/Godot](https://d1.awsstatic.com/events/Summits/reinvent2023/GAM302-R_Build-scalable-cross-platform-game-backends-on-AWS-REPEAT.pdf) | ✅ 核心(五层中的 SDK Contract) |
 | F70 | 模块化按需选装 | 只引需要的模块,可拆可删,不为用不到的功能付体积 | 必备 | [MSDK 模块选装](https://docs.msdk.qq.com/v5/zh-CN/Module/Modules.html)、[AccelByte 模块分层](https://www.metaplay.io/comparisons/metaplay-vs-accelbyte) | ✅ 核心(Provider/可选包) |
 | F71 | UI 可选 / 游戏自绘 | SDK 无强制 UI;默认 UI 作为可选包 | 常见 | XDSDK UI 剥离、MSDK 公告只给数据 | ✅ 核心 |
 | F72 | 初始化与生命周期 | 单次 `Init({gameId, env, endpoint})`;启动、登录态变化、切后台的确定回调 | 必备 | [Courier scope 契约](../contract/scope.md)、UGS 初始化要求 | ✅ 核心 |
 | F73 | 弱网重试与离线降级 | 超时/断网的重试与退避;公告等只读内容的本地缓存兜底 | 常见 | [离线-同步口径](https://developer.android.com/games/pgs/quality)(本地先存、认证后同步) | ✅ 核心 |
-| F74 | 日志与诊断开关 | 可调日志级别、请求追踪 ID、可上报 SDK 自身错误 | 必备 | [EOS SDK 日志分析](https://onlineservices.epicgames.com/sdk?lang=en-US)、[Courier diagnostics 契约](../contract/diagnostics.md) | ✅ 核心 |
+| F74 | 日志与诊断开关 | 可调日志级别、请求追踪 ID、可上报 SDK 自身错误 | 必备 | [EOS SDK 与文档](https://dev.epicgames.com/documentation/en-us/epic-online-services)、[Courier diagnostics 契约](../contract/diagnostics.md) | ✅ 核心 |
 | F75 | 沙箱 / 测试环境 | dev/staging/prod 隔离;商店沙箱收据;mock 与 fixtures 供 CI | 必备 | [Courier scope 三环境](../contract/scope.md)、商店 sandbox 验真 | ✅ 核心 |
 | F76 | 多语言与本地化 | 内容按语种下发,SDK 文案可本地化 | 常见 | [MSDK 公告 language 字段](https://docs.msdk.qq.com/v5/zh-CN/Module/Notice.html)、[多语言客服](https://theymes.com/for/gaming) | ✅ 核心 |
 
@@ -192,7 +192,9 @@
 
 ## 13. 横向结论
 
-**① 必备项集中在五条链路。** 把 `必备` 标记铺开看,游戏 SDK 的刚性功能只有五条:登录与绑定(F01/F02)、服务端验签(F09/F20/F21)、实名合规(F27–F30)、公告与推送(F34/F37)、支付履约与补发(F19/F22/F24/F25/F26)。**其中四条正好落在 Courier 的定位里**——这不是巧合,是「服务递送」这个品类的边界本来就由这些链路划出。
+> **统计(2026-10-08)**:本文共 **14 节**、**76 项功能**(F01–F76);取舍分布 ✅ 核心 47 项 / 🔌 Provider 13 项 / ❓ 待议 9 项 / ⬜ 不做 7 项。
+
+**① 必备项集中在五条链路。** 把 `必备` 标记铺开看,游戏 SDK 的刚性功能只有五条:登录与绑定(F01/F02)、服务端验签(F09/F20/F21)、实名合规(F27–F30)、公告与推送(F34/F37)、支付履约与补发(F19/F22/F24/F25/F26)。**五条全部落在 Courier 的定位之内**(推送那段走 Provider,递送语义不变)——这不是巧合,是「服务递送」这个品类的边界本来就由这些链路划出。
 
 **② 「递送」类功能几乎都是「数据 + 回调」,UI 一律后置。** MSDK 公告明说只给数据、UI 自定;XDSDK 把登录 UI 剥给游戏自绘;Helpshift/Zendesk 的客服 SDK 反而带 UI(因为客服 UI 是它们的产品本体)。**规律:越是后端递送型功能,SDK 越不该带 UI;越是垂直 SaaS,SDK 越靠 UI 绑定。** Courier 属于前者,支持 [competitive.md](./competitive.md) 的「UI 永远可选」。
 
