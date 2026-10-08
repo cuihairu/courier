@@ -59,6 +59,7 @@
 | AUTH_REFRESH_REUSED | 401 | false | refresh token 重放(安全事件,应重登) |
 | AUTH_ACCOUNT_DISABLED | 403 | false | 账号禁用 |
 | AUTH_DEVICE_LIMIT | 403 | false | 设备数超限 |
+| AUTH_EMAIL_TAKEN | 409 | false | 邮箱已被注册(M1 auth.md 冻结新增) |
 | SESSION_CONFLICT | 409 | false | 会话冲突(异地踢出等) |
 | REALNAME_REQUIRED | 403 | false | 需要实名(未提交) |
 | REALNAME_REJECTED | 403 | false | 实名未通过 |

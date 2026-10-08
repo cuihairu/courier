@@ -37,6 +37,7 @@ export default defineConfig({
           { text: 'Scope', link: '/contract/scope' },
           { text: '版本', link: '/contract/versioning' },
           { text: '事件', link: '/contract/events' },
+          { text: '认证(M1)', link: '/contract/auth' },
           { text: '实名', link: '/contract/realname' },
           { text: '品牌', link: '/contract/branding' },
           { text: '诊断', link: '/contract/diagnostics' },
