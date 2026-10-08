@@ -6,7 +6,11 @@
 
 「跨引擎客户端 SDK + 服务递送聚合」这个品类在开源世界是空位:开源强在游戏服务器(Nakama),商业强在渠道聚合(MSDK/QuickSDK/XDSDK),**没有人把「账号 + 公告 + 客服 + 支付 + 合规 + 配置」当作跨引擎统一契约来管**。Courier 取这个位;同时明确不做实时多人/匹配与渠道聚合。
 
+![竞品取位图:品类空位在「开源 × 服务递送」象限](./assets/competitive-position.svg)
+
 ## 开源直接对标
+
+> **结论先行:开源阵营没有「服务型聚合 SDK」——最近的 Nakama 是另一个物种,其余要么停滞要么绑云。**
 
 | 项目 | 定位 | 星数 | 活跃度(最后推送) | 与 Courier 的差异 |
 | --- | --- | --- | --- | --- |
@@ -26,6 +30,8 @@ Nakama 是这个领域质量最高的开源项目,值得尊重也有明确边界
 
 ## 商业参照(闭源,看方向不看代码)
 
+> **结论先行:商业聚合证明了需求真实,且共同趋势是「模块化选装 + UI 剥离给游戏 + 合规内置」——三条都与 Courier 设计互相印证。**
+
 | 产品 | 切入点 | 对 Courier 的启示 |
 | --- | --- | --- |
 | [腾讯 MSDK](https://docs.msdk.qq.com/) | 登录渠道(WeChat/QQ/Facebook/GameCenter/GooglePlay)、支付、Bugly 等全部**插件化按需选装**(GCloud 管理端下载时选模块,见[模块说明](https://docs.msdk.qq.com/v5/zh-CN/Module/Modules.html)、[PC 接入](https://docs.msdk.qq.com/v5/zh-CN/Access/PC.html)) | 「按需选装」验证了 Courier 的 Provider/可选包设计;商业聚合证明了需求真实存在 |
@@ -42,3 +48,20 @@ Nakama 值得抄的是工程面:每个引擎一等公民、示例与文档齐平
 
 **3. 边界:实时与渠道,不做。**
 实时多人/匹配/大厅服务器是 Nakama / Agones 的地盘,Courier 不碰;渠道包聚合联运是 MSDK / QuickSDK / XDSDK 的地盘,Courier 不碰。Courier 是「玩家世界与游戏服务生态之间的门」:服务递送层。这条边界同时写进 [roadmap 非目标](../roadmap.md)。
+
+## 可参考分析
+
+> **结论先行:9 个对标对象里 6 条可参考/可借鉴(全部已或将有本仓落点),3 条不适用(边界佐证)。**
+
+| 对象/做法 | 判定 | 为什么 | 落到本仓哪里 |
+| --- | --- | --- | --- |
+| Nakama 的多引擎工程实践(每引擎一等公民、契约行为跨端一致) | ✅ 可参考 | 「跨端一致」是本品类最稀缺的承诺,Nakama 证明了它在开源世界可维护 | 五层架构与 L1 契约测试骨架(`tools/contractgen` 六端生成、漂移即测试红,[todo 批次 1](../todo.md) 已落地);各端 Adapter 按批次推进 |
+| Nakama 实时多人/匹配/大厅/聊天 | ⬜ 不适用 | 玩法服务器能力,Courier 定位是服务递送层;做进去就是第二个 Nakama | [roadmap 非目标](../roadmap.md)(已登记,维持) |
+| OpenGB 的模块化可脚本化后端 | ⚠️ 可借鉴(反面) | 方向与 Courier 最接近却停滞、被 Rivet 吸收——教训:**先冻结契约、小核心大生态**,否则插件仓失焦 | M0「契约先行」(实现动工前基元+auth+M2 三域已冻结);Provider 接口形状批次 2 冻结而非开放生长 |
+| XtraLife 开源 BaaS | ⬜ 不适用 | 无公告/客服/合规面且事实上停止维护,无工程可抄 | —(仅作品类停滞旁证) |
+| Playgama Bridge 的 20+ 平台适配组织 | ⚠️ 可借鉴 | 它抽象「发布平台」、Courier 抽象「服务后端」,是两个品类;但其「平台差异全部压进一层适配」的组织方式值得镜鉴 | L3 Adapter 边界([layers.md](../layers.md)):平台差异只进 Adapter,Core 不碰平台(packcheck 结构验收守) |
+| AWS Game Backend Framework | ⬜ 不适用 | 云绑定基础设施模板,与「云中立、SDK 优先」定位相反 | —(反衬云中立原则;Gateway/Provider 不绑云) |
+| MSDK 插件化按需选装 | ✅ 可参考 | 商业聚合验证了「不为用不到的功能付体积」是真实付费需求 | Provider 可换可关原则 + UPM 三包(core/service/ui,[todo 批次 5](../todo.md) 已落位);Diagnostics/UI 永远可选 |
+| QuickSDK 的服务端 token 验签口径 | ✅ 可参考 | 「客户端凭证不可信、必须服务端验证」跨品类成立(登录凭证与支付收据同理) | [auth.md](../contract/auth.md) Token 模型(Bearer+轮换+吊销,已冻结);支付收据验真留 M5 契约落点 |
+| XDSDK 实名防沉迷(模块剥离给 TapSDK) | ✅ 可参考 | 国内合规是上架硬门槛,「实名做成默认路径而非扩展模块」被头部发行验证 | [realname.md](../contract/realname.md) 契约 + [todo 批次 7](../todo.md) 热插拔/降级链/熔断;红线(默认关、开启明示数据范围)已写进契约宪法 |
+| XDSDK/MSDK 的登录 UI 剥离趋势 | ✅ 可参考 | 递送型 SDK 不该绑 UI 是行业共同走向 | `com.courier.ui` 独立可选包;Core 无品牌逻辑、无强制 UI(layers.md L2/L3 边界) |

@@ -7,6 +7,8 @@
 
 ## 0. 样本与方法
 
+> **结论先行:14 类样本覆盖云 BaaS / 联运聚合 / 垂直 SaaS / 合规口径四个象限,足以锚定「一个游戏 SDK 该有哪些功能」的全集。**
+
 | 样本 | 类型 | 覆盖的功能面 |
 | --- | --- | --- |
 | [Nakama](https://github.com/heroiclabs/nakama) | 开源游戏服务器 | 账号链接、存档、排行榜、内购验真(详见 [competitive.md](./competitive.md)) |
@@ -30,6 +32,8 @@
 
 ## 1. 账号与身份
 
+> **结论先行:登录聚合、绑定转正、匿名先行(F01/F02/F06)是全品类必备——M1 链路已按契约落地。**
+
 | ID | 功能 | 典型能力 | 常见度 | 代表实现 | 取舍 |
 | --- | --- | --- | --- | --- | --- |
 | F01 | 登录方式聚合 | 游客、自建账号、手机号/邮箱、第三方 OAuth(Apple / Google / Steam / 微信 / QQ / Facebook);对游戏暴露统一登录接口 | 必备 | [Nakama 身份链接](https://deepwiki.com/heroiclabs/nakama-godot/3-nakama-game-backend)、[XDSDK 账户管理](https://sdk-docs.xindong.com/)、[MSDK 模块](https://docs.msdk.qq.com/v5/zh-CN/Module/Modules.html) | ✅ 核心 |
@@ -44,6 +48,8 @@
 
 ## 2. 会话、令牌与调用安全
 
+> **结论先行:本节无争议全是核心——客户端凭证不可信、服务端验签是铁律。**
+
 | ID | 功能 | 典型能力 | 常见度 | 代表实现 | 取舍 |
 | --- | --- | --- | --- | --- | --- |
 | F08 | access / refresh token 与自动续期 | 短期访问令牌 + 会话令牌续签,过期静默刷新,不打断游戏 | 必备 | [Unity Authentication 令牌](https://docs.unity.com/en-us/services-web-apis/client-auth)、Nakama session refresh | ✅ 核心 |
@@ -55,6 +61,8 @@
 **Courier 取舍**:整节都是核心——这正是 [competitive.md](./competitive.md) 结论 3 里「客户端凭证必须服务端验证」的同一口径。
 
 ## 3. 玩家数据与存档
+
+> **结论先行:玩家档案进核心,云存档留给 Provider——不做统一钱包式假设。**
 
 | ID | 功能 | 典型能力 | 常见度 | 代表实现 | 取舍 |
 | --- | --- | --- | --- | --- | --- |
@@ -68,6 +76,8 @@
 **Courier 取舍**:F16 / F18 进「玩家」面核心;F13–F15 存档面留给 Provider,不做统一钱包式假设。
 
 ## 4. 支付与商业化
+
+> **结论先行:支付的价值在「递送」(验真/幂等/履约/补发),不在收银台。**
 
 | ID | 功能 | 典型能力 | 常见度 | 代表实现 | 取舍 |
 | --- | --- | --- | --- | --- | --- |
@@ -84,6 +94,8 @@
 
 ## 5. 合规与未成年人保护
 
+> **结论先行:国内实名四件套是上架硬门槛,必须做成默认路径而非可选包。**
+
 | ID | 功能 | 典型能力 | 常见度 | 代表实现 | 取舍 |
 | --- | --- | --- | --- | --- | --- |
 | F27 | 实名认证 | 对接官方实名系统(国内中宣部防沉迷实名认证),以开发者主体上报 | 必备(国内) | [TapTap 合规认证](https://developer.taptap.cn/docs/sdk/anti-addiction/features/)、[MSDK 实名制](https://sdk.kurogames.com/p/sdk_list.html)、[Courier realname 契约](../contract/realname.md) | ✅ 核心 |
@@ -97,6 +109,8 @@
 **Courier 取舍**:国内合规(实名/时长/额度/上报)是**必备项而非可选包**——印证 [competitive.md](./competitive.md) 对 XDSDK 的判断;海外合规(年龄门/同意/注销)与 F03 一起构成账号面的默认能力。
 
 ## 6. 消息与触达:公告 / 推送 / 应用内消息
+
+> **结论先行:公告是核心正身,推送链路 Provider 化;应用内通道(M2 messages)契约已冻结。**
 
 | ID | 功能 | 典型能力 | 常见度 | 代表实现 | 取舍 |
 | --- | --- | --- | --- | --- | --- |
@@ -112,6 +126,8 @@
 
 ## 7. 客服与玩家反馈
 
+> **结论先行:工单 + FAQ + 上下文透传是客服三件套,与支付流水天然咬合(M2 support 契约已冻结)。**
+
 | ID | 功能 | 典型能力 | 常见度 | 代表实现 | 取舍 |
 | --- | --- | --- | --- | --- | --- |
 | F41 | 游戏内客服会话 / 工单 | 不离开客户端即可提问、提交工单、查看处理进度 | 常见 | [Helpshift 游戏内 SDK](https://www.helpshift.com/blog/mobile-game-support-sdk/)、[Zendesk for Unity](https://www.zendesk.com/blog/unity-zendesk-partnership/)、[BACKND 工单](https://backnd.com/en/) | ✅ 核心 |
@@ -125,6 +141,8 @@
 
 ## 8. 运营配置与实验
 
+> **结论先行:下发链路是核心、运营界面不自建——递送层不做所有层的界面。**
+
 | ID | 功能 | 典型能力 | 常见度 | 代表实现 | 取舍 |
 | --- | --- | --- | --- | --- | --- |
 | F47 | 远程配置 / Feature Flag | 不发版改数值、开关玩法;支持灰度放量与**秒级回滚** | 必备 | [Firebase Remote Config](https://firebase.google.com/docs/remote-config)、[UGS Remote Config](https://cloud-code-sdk-documentation.cloud.unity3d.com/) | ✅ 核心 |
@@ -136,6 +154,8 @@
 **Courier 取舍**:配置/开关的**下发链路**是核心(Gateway 只递送数据,UI 永远可选);运营**界面**不自建,默认 Provider Croupier——与 roadmap 非目标一致。
 
 ## 9. 数据、崩溃与归因
+
+> **结论先行:全垂直领域不自建,Courier 只保 SDK 自身可观测(diagnostics 契约)。**
 
 | ID | 功能 | 典型能力 | 常见度 | 代表实现 | 取舍 |
 | --- | --- | --- | --- | --- | --- |
@@ -150,6 +170,8 @@
 
 ## 10. 进度、成就与留存玩法
 
+> **结论先行:本节是玩法不是服务,全列待议防范围失控;仅 F62 邮件/礼包码值得后续评估。**
+
 | ID | 功能 | 典型能力 | 常见度 | 代表实现 | 取舍 |
 | --- | --- | --- | --- | --- | --- |
 | F58 | 排行榜 | 全局/好友/周期榜(日周赛季),自定义排序、分页、按 owner 过滤 | 必备 | [Nakama 排行榜](https://deepwiki.com/heroiclabs/nakama-godot/3-nakama-game-backend)、[EOS Leaderboards](https://github.com/api-evangelist/epic-games/blob/main/apis.yml)、[UGS Leaderboards](https://docs.unity.com/en-us/services) | ❓ 待议 |
@@ -163,6 +185,8 @@
 
 ## 11. 社交与实时(边界参考,列而不做)
 
+> **结论先行:整节是 roadmap 非目标,与 Nakama/Agones 划界。**
+
 | ID | 功能 | 典型能力 | 常见度 | 代表实现 | 取舍 |
 | --- | --- | --- | --- | --- | --- |
 | F64 | 好友与在线状态 | 好友列表、在线/离线、屏蔽名单 | 常见 | [EOS Friends/Presence/Blocklist](https://github.com/api-evangelist/epic-games/blob/main/apis.yml)、Nakama friends | ⬜ 不做 |
@@ -174,6 +198,8 @@
 **Courier 取舍**:整节是 roadmap [非目标](../roadmap.md),与 Nakama/Agones 划清边界;Courier 只做它们与玩家世界之间的**递送层**,两者可共存。
 
 ## 12. SDK 工程与交付
+
+> **结论先行:八条全是核心,正是「抄 Nakama 工程面 + MSDK 插件化」两条结论的落地清单。**
 
 | ID | 功能 | 典型能力 | 常见度 | 代表实现 | 取舍 |
 | --- | --- | --- | --- | --- | --- |
@@ -194,6 +220,8 @@
 
 > **统计(2026-10-08)**:本文共 **14 节**、**76 项功能**(F01–F76);取舍分布 ✅ 核心 47 项 / 🔌 Provider 13 项 / ❓ 待议 9 项 / ⬜ 不做 7 项。
 
+![76 项功能:取舍分布与五条刚性链路](./assets/features-outcome.svg)
+
 **① 必备项集中在五条链路。** 把 `必备` 标记铺开看,游戏 SDK 的刚性功能只有五条:登录与绑定(F01/F02)、服务端验签(F09/F20/F21)、实名合规(F27–F30)、公告与推送(F34/F37)、支付履约与补发(F19/F22/F24/F25/F26)。**五条全部落在 Courier 的定位之内**(推送那段走 Provider,递送语义不变)——这不是巧合,是「服务递送」这个品类的边界本来就由这些链路划出。
 
 **② 「递送」类功能几乎都是「数据 + 回调」,UI 一律后置。** MSDK 公告明说只给数据、UI 自定;XDSDK 把登录 UI 剥给游戏自绘;Helpshift/Zendesk 的客服 SDK 反而带 UI(因为客服 UI 是它们的产品本体)。**规律:越是后端递送型功能,SDK 越不该带 UI;越是垂直 SaaS,SDK 越靠 UI 绑定。** Courier 属于前者,支持 [competitive.md](./competitive.md) 的「UI 永远可选」。
@@ -209,3 +237,30 @@
 - 竞品取位、星数、三条结论 → [competitive.md](./competitive.md)(本文不重复)。
 - 非目标与里程碑 → [roadmap.md](../roadmap.md)。
 - 跨端契约基元 → [contract/](../contract/index.md)(scope / auth / errors / diagnostics / realname)。
+
+## 14. 可参考分析(逐条判定与落点)
+
+> **结论先行:76 项中,已落地验证 8 项、可参考 12 项、可借鉴 5 项、不适用 12 组(其余为表内已判定的待议/Provider 项);可参考项全部给出本仓落点。**
+
+判定口径:**可参考** = 应当且能够进入本仓设计/排期(给落点);**可借鉴** = 方向或教训有价值但形态不照搬;**不适用** = 与「服务递送」定位冲突,明确不做。
+
+| 条目 | 判定 | 为什么 | 落到本仓哪里 |
+| --- | --- | --- | --- |
+| F01/F02/F06 登录聚合、绑定转正、匿名先行 | ✅ 可参考(已落地) | 五条刚性链路之一,M1 全链路(游客→绑定→登出→轮换→吊销拒绝)已双向验证 | [auth.md](../contract/auth.md) Frozen v1;[todo](../todo.md) 批次 3(gateway e2e)/ 批次 4(Unity Core 48 用例) |
+| F05/F71 SDK 不带 UI、游戏自绘 | ✅ 可参考(已落地) | 调研核心规律②:递送型 SDK 越不该带 UI,头部商业产品都在剥离 | UPM 三包 `core/service/ui`([todo 批次 5](../todo.md) 落位);`com.courier.ui` 永远可选 |
+| F08/F09/F11 令牌轮换、服务端验签、统一错误码 | ✅ 可参考(已落地) | 同为刚性链路;客户端可判定「重试/降级/终止」的错误分类是 SDK 品格 | [primitives/errors/auth](../contract/index.md) 冻结;批次 4 RetryPolicy + EnvelopeParser(wire 兜底) |
+| F27–F30 实名、时段、额度、S2S 上报 | ✅ 可参考 | 国内上架硬门槛;时段/额度/S2S 三件必须进契约字段与端点,不能只写在正文 | 落点建议:[realname.md](../contract/realname.md) 从 Draft 升冻结时(todo 批次 7)把 F28 时段查询、F29 额度校验、F30 服务端上报写入端点表与错误码 |
+| F31 年龄门与家长同意(海外) | ⚠️ 可借鉴 | 商店政策硬门槛,但当前主战场优先级在国内合规;架构上同属「账号合规面」 | 落点建议:realname.md v1.1 预留 `consent` 组(只加不改);批次 7 之后按出海需求评估 |
+| F34/F35 公告系统 + 定向过滤 | ✅ 可参考(部分已落地) | M2 已冻结公告契约(severity/可见期);定向过滤(OS/版本/渠道)是运营刚需但 v1 未入 | 落点建议:[announcement.md](../contract/announcement.md) v1.1 以 `filters` 对象追加(只加不改);croupier/herald 管理面先行内部承载 |
+| F36 跑马灯 / 滚服播报 | ⚠️ 可借鉴 | 与公告同源不同呈现,不值得独立端点 | 落点建议:复用 [messages.md](../contract/messages.md) 事件流(`announcement.published` data),UI 包公告栏按 `severity=CRITICAL` 渲染跑马灯——零新契约 |
+| F37 厂商推送通道(APNs/FCM) | ⬜ 不适用(本期) | roadmap 非目标:不自建长连接之外的厂商通道;M2 走应用内 SSE 已够公告/客服时效 | [messages.md](../contract/messages.md)(应用内通道);厂商通道留后续独立域契约 |
+| F41/F42/F46 工单、FAQ、客服补单 | ✅ 可参考(已落地) | 客服递送正身,与支付流水咬合 | [support.md](../contract/support.md) Frozen v1;todo 批次 6 croupier Provider |
+| F43 上下文自动附带 | ✅ 可参考 | 省「你的 ID 是多少」是客服 SDK 最大价值点之一,且实现成本极低 | 落点建议:support.md v1.1 给 `POST /tickets` 增可选 `context` 对象(build/版本/关卡);M2 croupier 先以服务端 extras 承载 |
+| F44 一键反馈 + 日志上传 | ⚠️ 可借鉴 | 依赖诊断上报链路与对象存储,超出 M2 范围 | 落点建议:批次 8 Diagnostics 契约冻结时与 support 联动定义;附件存储走 Provider,不进契约 |
+| F47/F48/F50 远程配置、条件定向、版本回滚 | ✅ 可参考 | M3 正身;「秒级回滚」是运营刚需,下发链路必须有版本语义 | 落点建议:todo 批次 8;`contract/config.md` 开工前冻结(键值模型 + 版本 + 灰度字段),样本口径以 Firebase/UGS 为准 |
+| F49 A/B 实验 | ⬜ 不适用(本期) | 实验平台是垂直领域,自建投入产出差 | 留 Provider;契约不建 |
+| F51 GM/运营工具界面 | ⬜ 不适用(界面) | 结论④:做递送层的人不做所有层的界面 | croupier API 面保留;界面归 Provider 管理面(roadmap 非目标) |
+| F52–F55 分析、崩溃、归因 | ⬜ 不适用(自建) | 成熟厂商林立;SDK 只保自身可观测 | [diagnostics.md](../contract/diagnostics.md)(F56);其余交给游戏自有分析栈或 Provider |
+| F58–F63 排行榜/成就/赛季/邮件 | ⬜ 不适用(本期) | 玩法系统非服务递送,是最大范围风险(结论⑤) | §10 维持待议;仅 F62 邮件/礼包码在批次 9 后按需评估(与消息面相邻) |
+| F64–F68 社交与实时 | ⬜ 不适用 | roadmap 非目标,与 Nakama/Agones 划界 | — |
+| F69–F76 多引擎、模块化、生命周期、弱网、沙箱、日志、多语言 | ✅ 可参考(已落地) | 结论②「抄 Nakama 工程面 + MSDK 插件化」的落地清单,本仓已按八条施工 | 契约测试骨架(六端生成)、UPM 三包、RetryPolicy、scope 三环境(dev/staging/prod)、events 生命周期、diagnostics 开关 |

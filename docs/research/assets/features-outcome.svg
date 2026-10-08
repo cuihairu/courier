@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 420" font-family="'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif">
+  <rect width="880" height="420" fill="#ffffff"/>
+  <text x="24" y="36" font-size="19" font-weight="700" fill="#1f2937">76 项功能盘点:取舍分布与五条刚性链路(2026-10-08)</text>
+
+  <!-- left: distribution -->
+  <text x="40" y="76" font-size="15" font-weight="700" fill="#374151">取舍分布(共 76 项)</text>
+  <g font-size="14" fill="#374151">
+    <text x="40" y="112">✅ 核心</text>
+    <rect x="130" y="98" width="230" height="20" rx="4" fill="#059669"/>
+    <text x="368" y="113" font-weight="700">47</text>
+    <text x="40" y="152">🔌 Provider</text>
+    <rect x="130" y="138" width="64" height="20" rx="4" fill="#3b82f6"/>
+    <text x="202" y="153" font-weight="700">13</text>
+    <text x="40" y="192">❓ 待议</text>
+    <rect x="130" y="178" width="44" height="20" rx="4" fill="#f59e0b"/>
+    <text x="182" y="193" font-weight="700">9</text>
+    <text x="40" y="232">⬜ 不做</text>
+    <rect x="130" y="218" width="34" height="20" rx="4" fill="#9ca3af"/>
+    <text x="172" y="233" font-weight="700">7</text>
+  </g>
+  <text x="40" y="278" font-size="13" fill="#6b7280">条宽 ∝ 数量;「必备」标记全部落在 ✅ 与 🔌,</text>
+  <text x="40" y="298" font-size="13" fill="#6b7280">❓ 待议集中在第 10 节玩法系统(最大范围风险)。</text>
+
+  <!-- divider -->
+  <line x1="440" y1="70" x2="440" y2="380" stroke="#e5e7eb"/>
+
+  <!-- right: five rigid chains -->
+  <text x="480" y="76" font-size="15" font-weight="700" fill="#374151">五条刚性链路(「必备」项的分布)</text>
+  <g font-size="14">
+    <rect x="480" y="92" width="360" height="40" rx="6" fill="#eef2ff" stroke="#c7d2fe"/>
+    <text x="496" y="117" fill="#3730a3">① 登录与绑定(F01/F02/F06)</text>
+    <rect x="480" y="142" width="360" height="40" rx="6" fill="#eef2ff" stroke="#c7d2fe"/>
+    <text x="496" y="167" fill="#3730a3">② 服务端验签(F09/F20/F21)</text>
+    <rect x="480" y="192" width="360" height="40" rx="6" fill="#eef2ff" stroke="#c7d2fe"/>
+    <text x="496" y="217" fill="#3730a3">③ 实名合规(F27–F30,国内硬门槛)</text>
+    <rect x="480" y="242" width="360" height="40" rx="6" fill="#eef2ff" stroke="#c7d2fe"/>
+    <text x="496" y="267" fill="#3730a3">④ 公告与推送(F34/F37)</text>
+    <rect x="480" y="292" width="360" height="40" rx="6" fill="#eef2ff" stroke="#c7d2fe"/>
+    <text x="496" y="317" fill="#3730a3">⑤ 支付履约与补发(F19/F22/F24–F26)</text>
+  </g>
+  <polygon points="660,342 660,356 652,356 668,372 684,356 676,356 676,342" fill="#059669" opacity="0"/>
+  <rect x="480" y="344" width="360" height="36" rx="6" fill="#ecfdf5" stroke="#059669"/>
+  <text x="660" y="367" font-size="14" font-weight="700" fill="#065f46" text-anchor="middle">五条全部落在 Courier「服务递送」定位之内</text>
+</svg>

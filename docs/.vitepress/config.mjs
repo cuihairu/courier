@@ -16,6 +16,7 @@ export default defineConfig({
       { text: '契约', link: '/contract/' },
       { text: '路线图', link: '/roadmap' },
       { text: '竞品调研', link: '/research/competitive' },
+      { text: '功能调研', link: '/research/features' },
     ],
     sidebar: [
       {
@@ -30,7 +31,7 @@ export default defineConfig({
         ]
       },
       {
-        text: '契约(M0)',
+        text: '契约',
         items: [
           { text: '总纲', link: '/contract/' },
           { text: '基元', link: '/contract/primitives' },
@@ -39,6 +40,9 @@ export default defineConfig({
           { text: '版本', link: '/contract/versioning' },
           { text: '事件', link: '/contract/events' },
           { text: '认证(M1)', link: '/contract/auth' },
+          { text: '公告(M2)', link: '/contract/announcement' },
+          { text: '客服(M2)', link: '/contract/support' },
+          { text: '推送(M2)', link: '/contract/messages' },
           { text: '实名', link: '/contract/realname' },
           { text: '品牌', link: '/contract/branding' },
           { text: '诊断', link: '/contract/diagnostics' },
