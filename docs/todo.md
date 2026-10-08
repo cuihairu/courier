@@ -66,12 +66,13 @@
 - **验收**:roadmap M2 实名验收项——契约 realname.md Frozen v1(F27–F30 端点表 + 错误码 v3,调研「可参考分析」落点兑现);治理引擎 `providers/router`(降级链保序、熔断开路/半开探测、路由表原子热重载在途按旧表完成,业务结果不计失败,9 例 -race);warden 自建核验(SHA-256 指纹不存明文、幂等、F28 窗口、F29 分龄限额、S2S 上报幂等月累计,14 例);e2e 6 例含「主熔断→fallback 接管→全挂 PENDING_REVIEW」经 HTTP 与热重载不中断;默认关闭经 main 注册但不配路由表(接入方显式开启);Unity 侧 RealNameService(501 转 null 不报错)+ RealNameMask 统一脱敏 + 五态面板(ServiceTests 36 例)
 - **落地**:契约 `e835ff2`;网关 `e926626`;客户端 `a3dc311`;云厂商适配(阿里云/慧眼/易盾/Webhook)按接入方需要接同一 `router.RealNameProvider` 形状;进程级配置热重载触发(SIGHUP 等)留部署面
 
-## 批次 8 — M3:Config / Player / App / Branding / Diagnostics
+## 批次 8 — M3:Config / Player / App / Branding / Diagnostics(已完成,2026-10)
 
-- [ ] ConfigProvider(条件匹配 + 热生效);Player Profile;Courier.App
-- [ ] BrandingProvider(config 同管道);UI 包消费品牌;构建期物料指引
-- [ ] Diagnostics 可选包(四类 Provider 适配;默认全关,no-op 零开销)
-- **验收**:roadmap M3 验收项
+- [x] ConfigProvider(条件匹配 + 热生效);Player Profile;Courier.App
+- [x] BrandingProvider(config 同管道);UI 包消费品牌;构建期物料指引
+- [x] Diagnostics 可选包(四类 Provider 适配;默认全关,no-op 零开销)
+- **验收**:roadmap M3 验收项——契约 config/app/branding/player/diagnostics 五件 Frozen v1(player 零新增错误码,复用通用码;diagnostics 红线内建:默认全关/开启明示/关闭即零上报/永不反噬)。网关 scribe(config/app/branding 同管道,条件投影缺省维度跳过 + fnv64 灰度分桶 + 版本全局单调、branding 键值透传 + version 保留键、维护门白名单内建)+ archivist(档案懒建/修剪校验、角色绑定幂等 + scope 隔离 + ≤50/账号/游戏、fail-closed);e2e 五例:配置热生效(命中端 items 变化/未命中端不变)、维护拦新会话不拦既有流与 app 域、版本/环境端点、品牌热切换。Unity:AppService/AppConfigService/BrandingService/PlayerService(501 → 空结果或 null 不进报错路径)+ UI BrandingCatalog 兜底链(远端 productName > 宿主 BrandTitle > 内置默认)双面板标题热切换;diagnostics 可选包 `com.courier.diagnostics`(四类接口 + 自有端点直发,DiagnosticsTests 11 例:默认零上报/逐类开启逐类生效/关闭立即归零/≤1KB 与原始类型校验/失败静默不反噬),核心三包不依赖它(packcheck 双向守卫)
+- **落地**:契约 `569fc8b`(config+app)/ `60adb4c`(branding+事件登记)/ `a91c179`(player)/ `164e9e4`(diagnostics);网关 `33c5c18`(scribe+维护门+config e2e)/ `a3be6f7`(branding 端点+e2e)/ `72bf15c`(archivist);客户端 `c7fdf63`(App/Config)/ `cbaa42d`(Branding+UI)/ `43118be`(Player)/ `43ed745`(diagnostics 包);Sentry/OTLP 生态适配与构建期物料模板随各端模板工程落档
 
 ## 批次 9 — M4:Assistant;批次 10 — M5:Payment
 
