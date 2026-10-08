@@ -1,0 +1,94 @@
+# 错误契约
+
+> 状态:Draft v0。跨 Unity / UE / Cocos / Godot 的错误一致性是 Universal SDK 的核心价值:同一 `code` 在各端映射为同一枚举、同一重试语义。
+
+## 错误体
+
+```json
+{
+  "error": {
+    "code": "AUTH_TOKEN_EXPIRED",
+    "message": "session expired",
+    "retryable": false
+  },
+  "traceId": "4bf92f3577b34da6a3ce929d0e0e4736"
+}
+```
+
+- `code`:机器可读,`<域>_<原因>` 大写下划线,各端映射为枚举后做分支判断的唯一依据。
+- `message`:人读,可随语言变化,**不得**用于客户端分支判断。
+- `retryable`:`true` 时客户端可按退避策略自动重试;配合 `Retry-After` header(秒)。
+
+## 域前缀注册表
+
+`COMMON` / `AUTH` / `SESSION` / `SCOPE` / `RATE` / `ANNOUNCEMENT` / `SUPPORT` / `ASSISTANT` / `PAYMENT` / `REALNAME` / `CONFIG` / `APP` / `DIAG`
+
+新域必须先在此注册前缀,再定义具体码。
+
+## HTTP 状态映射
+
+| HTTP | 语义 |
+| --- | --- |
+| 400 | 参数/格式错误 |
+| 401 | 未认证(凭证无效/过期/吊销) |
+| 403 | 已认证但无权限/被拒(实名未过、账号禁用) |
+| 404 | 资源不存在 |
+| 409 | 冲突(会话/状态竞争) |
+| 426 | 版本过旧需升级 |
+| 429 | 限流 |
+| 500 | 内部错误 |
+| 501 | 能力未开启(降级信号,见下) |
+| 503 | 依赖不可用/维护中 |
+
+## 错误码表 v0(最小冻结集)
+
+| code | HTTP | retryable | 说明 |
+| --- | --- | --- | --- |
+| COMMON_INTERNAL | 500 | true | 内部错误 |
+| COMMON_INVALID_ARGUMENT | 400 | false | 参数错误 |
+| COMMON_UNAUTHENTICATED | 401 | false | 未认证 |
+| COMMON_PERMISSION_DENIED | 403 | false | 无权限 |
+| COMMON_NOT_FOUND | 404 | false | 资源不存在 |
+| COMMON_CAPABILITY_DISABLED | 501 | false | **能力未接入/已关闭(降级信号)** |
+| COMMON_UNAVAILABLE | 503 | true | 依赖不可用 |
+| RATE_LIMITED | 429 | true | 限流,遵守 Retry-After |
+| SCOPE_MISMATCH | 400 | false | scope 不一致(见 scope.md) |
+| AUTH_INVALID_CREDENTIALS | 401 | false | 凭证错误 |
+| AUTH_TOKEN_EXPIRED | 401 | false | access token 过期(应 refresh) |
+| AUTH_TOKEN_REVOKED | 401 | false | token 被吊销(应重登) |
+| AUTH_REFRESH_REUSED | 401 | false | refresh token 重放(安全事件,应重登) |
+| AUTH_ACCOUNT_DISABLED | 403 | false | 账号禁用 |
+| AUTH_DEVICE_LIMIT | 403 | false | 设备数超限 |
+| SESSION_CONFLICT | 409 | false | 会话冲突(异地踢出等) |
+| REALNAME_REQUIRED | 403 | false | 需要实名(未提交) |
+| REALNAME_REJECTED | 403 | false | 实名未通过 |
+| REALNAME_PENDING_REVIEW | 403 | false | 待复核(降级链全挂时的安全态) |
+| CONFIG_NOT_FOUND | 404 | false | 配置键不存在 |
+| APP_MAINTENANCE | 503 | false | 维护中(payload 带预计恢复时间,可选) |
+| APP_VERSION_UNSUPPORTED | 426 | false | 版本过旧(payload 带下载地址,可选) |
+
+各域业务错误码随该域契约冻结;本表 code 一经冻结不得改语义。
+
+## 降级信号:COMMON_CAPABILITY_DISABLED
+
+Provider 未接入或被配置关闭时,网关返回 `501 COMMON_CAPABILITY_DISABLED`。这是**能力关闭**,不是故障:
+
+- SDK 将其映射为「能力不可用」状态(查询接口返回空/未启用,不抛异常路径)。
+- 接入方据此可安全地隐藏对应 UI,而不是处理报错。
+- 这是「不因未接某供应商而残废」原则的落点:缺 Provider = 该能力安静地不存在。
+
+## 客户端跨端映射(示例)
+
+```csharp
+if (error.Code == ErrorCode.TokenExpired) { /* refresh */ }
+```
+
+```cpp
+if (error.code == ErrorCode::TokenExpired) { /* refresh */ }
+```
+
+```typescript
+if (error.code === ErrorCode.TokenExpired) { /* refresh */ }
+```
+
+各端枚举命名随本端语言习惯,取值集合与本文档一一对应;契约测试保证不漂移。
