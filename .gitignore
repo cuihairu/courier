@@ -41,3 +41,7 @@ sdks/unity/ContractTests~/obj/
 !sdks/unity/CoreTests~/*.csproj
 sdks/unity/CoreTests~/bin/
 sdks/unity/CoreTests~/obj/
+# Unity Service 测试工程(批次 6,同上豁免策略)
+!sdks/unity/ServiceTests~/*.csproj
+sdks/unity/ServiceTests~/bin/
+sdks/unity/ServiceTests~/obj/

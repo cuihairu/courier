@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 批次 6 service 包纯逻辑单测:dotnet test,不依赖 Unity 运行时。
+       被测源码 = Core(Runtime 去 Adapter)+ Service 全量;助手复用 CoreTests~/Fakes.cs。
+       UI 包(UnityEngine)不参与 dotnet 编译,由 packcheck 结构断言覆盖。 -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <AssemblyName>Courier.ServiceTests</AssemblyName>
+    <RootNamespace>Courier.ServiceTests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="../packages/com.courier.core/Runtime/*.cs" />
+    <Compile Include="../packages/com.courier.core/Runtime/Core/*.cs" />
+    <Compile Include="../packages/com.courier.core/Runtime/Core/Contract/*.cs" />
+    <Compile Include="../packages/com.courier.core/Runtime/Identity/*.cs" />
+    <Compile Include="../packages/com.courier.core/Runtime/Session/*.cs" />
+    <Compile Include="../packages/com.courier.service/Runtime/*.cs" />
+    <Compile Include="../CoreTests~/Fakes.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+</Project>

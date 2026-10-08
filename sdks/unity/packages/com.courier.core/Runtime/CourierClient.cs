@@ -22,6 +22,10 @@ namespace Courier
         public IdentityService Identity { get { return _identity; } }
         public SessionService Session { get { return _session; } }
 
+        /// <summary>L2 通道口:供服务包(com.courier.service)门面复用同一 ApiClient
+        /// (token/刷新/信封/重试不重复装配)。业务代码勿直接持有——域调用走服务包。</summary>
+        public ApiClient Api { get { return _api; } }
+
         public CourierClient(CourierConfig config, ITransport transport, ITokenStore tokenStore,
             IClock clock = null, RetryPolicy retry = null)
         {

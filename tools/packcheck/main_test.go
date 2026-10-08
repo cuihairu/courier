@@ -71,6 +71,16 @@ func TestUPMPackages(t *testing.T) {
 	}
 }
 
+// hasRef:asmdef references 是否含指定程序集。
+func hasRef(list []string, want string) bool {
+	for _, r := range list {
+		if r == want {
+			return true
+		}
+	}
+	return false
+}
+
 // asmdef 隔离:纯 Core 不引平台件;Adapter 显式依赖 Core。
 func TestAsmDefIsolation(t *testing.T) {
 	var core, adapter struct {
@@ -100,6 +110,77 @@ func TestAsmDefIsolation(t *testing.T) {
 	for _, ref := range core.References {
 		if strings.HasPrefix(ref, "Courier.") {
 			t.Errorf("Courier.Core asmdef 不得引用 Courier.* 程序集,发现 %q", ref)
+		}
+	}
+}
+
+// 批次 6:service/ui 包 Runtime 落位——service 四域件 + SSE 解析器(dotnet 可测),
+// UI 双面板(引擎件,结构断言);依赖方向 service→core、ui→service 双重约束;
+// service 包延续 L2 纯净(零平台引用),UnityEngine 只许出现在 ui 包。
+func TestServiceUiRuntime(t *testing.T) {
+	var svcAsm struct {
+		Name       string   `json:"name"`
+		References []string `json:"references"`
+	}
+	readJSON(t, unityPkgDir+"/com.courier.service/Runtime/Courier.Service.asmdef", &svcAsm)
+	if svcAsm.Name != "Courier.Service" {
+		t.Errorf("service asmdef name = %q", svcAsm.Name)
+	}
+	if !hasRef(svcAsm.References, "Courier.Core") {
+		t.Error("Courier.Service 必须引用 Courier.Core")
+	}
+
+	var uiAsm struct {
+		Name       string   `json:"name"`
+		References []string `json:"references"`
+	}
+	readJSON(t, unityPkgDir+"/com.courier.ui/Runtime/Courier.UI.asmdef", &uiAsm)
+	if uiAsm.Name != "Courier.UI" {
+		t.Errorf("ui asmdef name = %q", uiAsm.Name)
+	}
+	if !hasRef(uiAsm.References, "Courier.Service") || !hasRef(uiAsm.References, "Courier.Core") {
+		t.Error("Courier.UI 必须引用 Courier.Service + Courier.Core")
+	}
+
+	// service 包源码件在位且关键符号齐(域服务/门面/SSE 解析/DTO)。
+	svcFiles := map[string][]string{
+		"AnnouncementService.cs": {"class AnnouncementService", "ListAsync", "/v1/announcements"},
+		"SupportService.cs":      {"class SupportService", "CreateTicketAsync", "AppendMessageAsync", "/v1/support/"},
+		"SseParser.cs":           {"class SseParser", "FeedLine", "SseEvent"},
+		"ServiceDto.cs":          {"class AnnouncementDto", "class TicketDto", "class FaqDto", "class PageDto"},
+		"CourierServices.cs":     {"class CourierServices", "Announcements", "Support"},
+	}
+	svcRuntime := unityPkgDir + "/com.courier.service/Runtime"
+	for file, symbols := range svcFiles {
+		data, err := os.ReadFile(filepath.Join(repoRoot, svcRuntime, file))
+		if err != nil {
+			t.Fatalf("read %s: %v", file, err)
+		}
+		for _, sym := range symbols {
+			if !strings.Contains(string(data), sym) {
+				t.Errorf("service/%s 缺关键符号 %q", file, sym)
+			}
+		}
+		if strings.Contains(string(data), "UnityEngine") || strings.Contains(string(data), "UnityEditor") {
+			t.Errorf("service/%s 含平台引用(service 包必须保持 dotnet 可测纯净)", file)
+		}
+	}
+
+	// ui 包双面板在位:MonoBehaviour 骨架 + 服务门面消费 + Branding 默认标。
+	uiFiles := map[string][]string{
+		"AnnouncementPanel.cs":     {"class AnnouncementPanel : MonoBehaviour", "CourierServices", "DefaultTitle"},
+		"CustomerServicePanel.cs":  {"class CustomerServicePanel : MonoBehaviour", "CourierServices", "NotifyTicketReplied"},
+	}
+	uiRuntime := unityPkgDir + "/com.courier.ui/Runtime"
+	for file, symbols := range uiFiles {
+		data, err := os.ReadFile(filepath.Join(repoRoot, uiRuntime, file))
+		if err != nil {
+			t.Fatalf("read %s: %v", file, err)
+		}
+		for _, sym := range symbols {
+			if !strings.Contains(string(data), sym) {
+				t.Errorf("ui/%s 缺关键符号 %q", file, sym)
+			}
 		}
 	}
 }
@@ -159,6 +240,7 @@ func TestAdapterSymbols(t *testing.T) {
 func TestTestProjectIncludesResolve(t *testing.T) {
 	projects := []string{
 		"sdks/unity/CoreTests~/CoreTests.csproj",
+		"sdks/unity/ServiceTests~/ServiceTests.csproj",
 		"sdks/unity/ContractTests~/ContractTests.csproj",
 	}
 	for _, proj := range projects {
@@ -167,11 +249,11 @@ func TestTestProjectIncludesResolve(t *testing.T) {
 			t.Fatalf("read %s: %v", proj, err)
 		}
 		content := string(data)
-		if strings.Contains(content, "Adapter") {
-			t.Errorf("%s 不得编译 Adapter(UnityEngine 代码,dotnet 编不过)", proj)
-		}
 		for _, line := range strings.Split(content, "\n") {
 			idx := strings.Index(line, "Include=\"")
+			if idx >= 0 && strings.Contains(line, "Adapter") {
+				t.Errorf("%s 不得编译 Adapter(UnityEngine 代码,dotnet 编不过)", proj)
+			}
 			if idx < 0 {
 				continue
 			}

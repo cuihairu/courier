@@ -1,0 +1,10 @@
+{
+    "name": "Courier.UI",
+    "rootNamespace": "Courier.UI",
+    "references": [
+        "Courier.Core",
+        "Courier.Service"
+    ],
+    "overrideReferences": true,
+    "autoReferenced": true
+}
