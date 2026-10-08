@@ -108,9 +108,9 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 
 - 每域一个 Provider 接口 + `Register(registry)` 注册;接口与实现分离,默认实现可整体替换。
 
-**现仓映射**:`gateway/providers/`(接口形状批次 2 冻结;`account/` 为 AccountProvider 默认实现,批次 3)。
+**现仓映射**:`gateway/providers/`(接口形状批次 2 冻结;`account/` AccountProvider 批次 3;`herald/` `croupier/` `chirp/` 三域默认实现批次 6,Notify 钩子装配解耦——发布/回复事件经注入的 `Publish` 进 chirp Hub,Provider 互不 import)。
 
-**下一步**:公告/客服等 Provider 随 M2 接入;路由表热重载与熔断(批次 7)。
+**下一步**:RealName 热插拔(降级链/熔断,批次 7);Config/Branding/Diagnostics 随 M3 接入(批次 8)。
 
 ## L5 Gateway(入口治理层,服务端)
 
@@ -135,9 +135,9 @@ gateway/
 
 Go `http.ServeMux` + 中间件链(auth → rate limit → scope → audit);`/healthz`;`/v1/{domain}/*`。
 
-**现仓映射**:`gateway/{cmd,routing,middleware,scope,aggregation}`(批次 2 骨架)+ `auth`/`session`(批次 3 实装,Bearer→身份注入/会话验证);降级语义与中间件链已有测试覆盖。
+**现仓映射**:`gateway/{cmd,routing,middleware,scope,aggregation}`(批次 2 骨架)+ `auth`/`session`(批次 3 实装,Bearer→身份注入/会话验证)+ `e2e`(批次 6,M2 全链路验收);能力驱动路由 `/v1/{capability}/` 随 Provider 注册自动挂载,未配置 = 501 降级;降级语义与中间件链已有测试覆盖。
 
-**下一步**:持久化存储与多实例限流协同(M1 后续);路由表热重载(批次 7)。
+**下一步**:持久化存储与多实例限流协同;路由表热重载(批次 7)。
 
 ## 依赖规则
 
@@ -153,11 +153,11 @@ Go `http.ServeMux` + 中间件链(auth → rate limit → scope → audit);`/hea
 
 | 层 | 现仓落点 | 状态 |
 | --- | --- | --- |
-| L1 SDK Contract | `docs/contract/` + `tools/contractgen` | 基元五件 Frozen v1 + auth v1;测试骨架就位;realname/branding/diagnostics 初稿实现前冻结 |
+| L1 SDK Contract | `docs/contract/` + `tools/contractgen` | 基元五件 Frozen v1 + auth v1 + M2 三域(announcement/support/messages)v1;错误码 v2(26 码);realname/branding/diagnostics 初稿实现前冻结 |
 | L2 Core | `sdks/unity/packages/com.courier.core/Runtime/{Core,Identity,Session}` | Unity 批次 4 落位(状态机+auth 域,48 用例);其余端规划 |
-| L3 Platform Adapter | `sdks/unity/packages/com.courier.core/Runtime/Adapter`(+UPM 三包骨架;`tools/packcheck`) | Unity 批次 5 落位(传输/安全存储/前后台);其余五端规划 |
-| L4 Service Provider | `gateway/providers/*` | 接口形状批次 2 冻结;account 默认实现批次 3 已接入 |
-| L5 Gateway | `gateway/{cmd,routing,middleware,scope,aggregation,auth,session}` | 批次 2 骨架完成;auth/session 批次 3 实装 |
+| L3 Platform Adapter | `sdks/unity/packages/com.courier.core/Runtime/Adapter`(+UPM 三包;`tools/packcheck`) | Unity 批次 5 落位(传输/安全存储/前后台);批次 6 service 包域服务+SSE 解析(17 用例)、ui 包双面板;SSE 流式传输留引擎卡点 |
+| L4 Service Provider | `gateway/providers/*` | 接口形状批次 2 冻结;account 批次 3;herald/croupier/chirp 批次 6(M2 三域,e2e 验收) |
+| L5 Gateway | `gateway/{cmd,routing,middleware,scope,aggregation,auth,session,e2e}` | 批次 2 骨架;auth/session 批次 3;能力驱动路由+SSE 通道+e2e 批次 6 |
 
 ## 演进原则
 
