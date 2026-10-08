@@ -1,6 +1,6 @@
 # 基元契约:Request / Response / Pagination / Timestamp / ID / TraceID
 
-> 状态:Draft v0。本文档定义所有域契约共用的线格式基元;域契约不得另造。
+> 状态:Frozen v1(2026-10-08,M0 跨端评审冻结)。本文档定义所有域契约共用的线格式基元;域契约不得另造。
 
 ## Response 信封
 
@@ -31,14 +31,15 @@
 ## Timestamp
 
 - RFC 3339 UTC,毫秒精度:`2026-10-08T03:20:00.123Z`。
-- 字段名以 `_at` 结尾(`created_at`、`expires_at`)。
-- 时长/间隔用毫秒整数,字段名以 `_ms` 结尾(`timeout_ms`)。
+- wire key 一律 camelCase,以 `At` 结尾(`createdAt`、`expiresAt`)、以 `Ms` 结尾(`timeoutMs`)。
+- 各端属性名随语言习惯(C# `CreatedAt` 等),序列化键以本文为准。
 
 ## TraceID
 
 - 32 位 hex,兼容 W3C Trace Context(`traceparent` header 可选支持)。
-- 每个响应 body 必带 `traceId`;客户端上报问题时应附带它。
-- 请求可携带 `X-Request-Id`(客户端生成,幂等去重可用),网关原样回传。
+- `traceId` 只出现在**失败响应** body(见「Response 信封」互斥规则);成功响应不携带它。
+- 请求可携带 `X-Request-Id`(客户端生成,幂等/关联 ID),网关以响应头原样回传;**不与 traceId 混用**。
+- 客户端上报问题时附带失败响应的 `traceId`,或用 `X-Request-Id` 关联请求时序。
 
 ## Pagination
 
@@ -58,3 +59,4 @@ Cursor 基,不用页码:
 - 可选字段缺省即未设置;不区分「null」与「缺失」,客户端按缺失处理。
 - 布尔字段两态,不用三态。
 - 枚举一律大写下划线字符串(`"PENDING_REVIEW"`),各端映射为本端枚举;禁止魔术数字上连线。
+  唯一例外:scope 的 `env` 取值为小写(`dev`/`staging`/`prod`,见 [scope.md](./scope.md))。

@@ -1,6 +1,6 @@
 # 事件契约
 
-> 状态:Draft v0。定义事件信封、生命周期事件与推送通道语义;具体业务事件随域契约注册。
+> 状态:Frozen v1(2026-10-08,M0 跨端评审冻结;具体业务事件随域契约注册)。定义事件信封、生命周期事件与推送通道语义。
 
 ## 事件信封
 
@@ -13,7 +13,7 @@
 }
 ```
 
-- `type`:小写点分 `<domain>.<event>`,域名词与错误契约的域前缀对应(小写形式)。
+- `type`:`<domain>.<event>` 两段小写点分,多词用下划线(`lifecycle.token_expired`);域名与错误契约的域前缀对应(小写形式)。
 - `id`:全局唯一,客户端按 id 幂等去重。
 - `payload` 结构由各域契约定义,信封层不感知。
 
@@ -32,18 +32,18 @@
 | `lifecycle.initialized` | Init 完成,进入 Ready |
 | `lifecycle.suspended` | 切后台/断网,进入 Suspended |
 | `lifecycle.resumed` | 恢复,重新可用 |
-| `lifecycle.tokenExpired` | access 过期,自动 refresh 开始 |
-| `lifecycle.signedOut` | 登出/被踢,回到 Ready(未认证) |
-| `lifecycle.accountSwitched` | 切换账号 |
+| `lifecycle.token_expired` | access 过期,自动 refresh 开始 |
+| `lifecycle.signed_out` | 登出/被踢,回到 Ready(未认证) |
+| `lifecycle.account_switched` | 切换账号 |
 
 ## 已注册业务事件
 
 | type | 域契约 | 说明 |
 | --- | --- | --- |
 | `announcement.published` | announcements(M2) | 新公告 |
-| `support.ticketReplied` | support(M2) | 工单新回复 |
+| `support.ticket_replied` | support(M2) | 工单新回复 |
 | `config.updated` | config(M3) | 远程配置变更 |
-| `app.maintenanceChanged` | app(M3) | 维护状态变化 |
-| `app.forceUpdate` | app(M3) | 强更通知 |
+| `app.maintenance_changed` | app(M3) | 维护状态变化 |
+| `app.force_update` | app(M3) | 强更通知 |
 
 注册新事件 = 域契约变更,走 [总纲](./index.md) 变更流程。

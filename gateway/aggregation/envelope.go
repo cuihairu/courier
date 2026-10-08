@@ -1,7 +1,7 @@
 // Package aggregation 按契约输出响应信封(源:docs/contract/primitives.md、errors.md)。
 //
 // 成功 {"data":...};失败 {"error":{code,message,retryable},"traceId":...};二者互斥。
-// 错误码 → HTTP/retryable 映射转录自 docs/contract/errors.md v0 冻结表,
+// 错误码 → HTTP/retryable 映射转录自 docs/contract/errors.md v1 冻结表,
 // 域业务码随该域契约冻结时在 codeTable 登记。
 package aggregation
 
@@ -10,7 +10,7 @@ import (
 	"net/http"
 )
 
-// 契约冻结错误码(源:docs/contract/errors.md 错误码表 v0)。
+// 契约冻结错误码(源:docs/contract/errors.md 错误码表 v1)。
 const (
 	CodeInternal           = "COMMON_INTERNAL"
 	CodeInvalidArgument    = "COMMON_INVALID_ARGUMENT"
@@ -46,7 +46,7 @@ type codeSpec struct {
 	retryable bool
 }
 
-// codeTable 转录自 docs/contract/errors.md 错误码表 v0;表内 code 语义冻结。
+// codeTable 转录自 docs/contract/errors.md 错误码表 v1;表内 code 语义冻结。
 var codeTable = map[string]codeSpec{
 	CodeInternal:           {http.StatusInternalServerError, true},
 	CodeInvalidArgument:    {http.StatusBadRequest, false},
