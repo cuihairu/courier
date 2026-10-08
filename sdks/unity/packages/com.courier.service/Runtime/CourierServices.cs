@@ -14,6 +14,7 @@ namespace Courier.Service
         public AppService App { get; }
         public AppConfigService Config { get; }
         public BrandingService Branding { get; }
+        public PlayerService Player { get; }
 
         public CourierServices(CourierClient client)
         {
@@ -24,6 +25,7 @@ namespace Courier.Service
             App = new AppService(api);
             Config = new AppConfigService(api);
             Branding = new BrandingService(api);
+            Player = new PlayerService(api);
         }
     }
 }
