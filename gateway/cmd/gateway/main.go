@@ -1,13 +1,18 @@
 // Courier Gateway — 玩家 API 网关。
-// 职责是入口治理（auth/session/scope/routing/aggregation/middleware），不含业务目录：
-// 业务一律经 providers/ 下的 Provider 接口接入，目录规划见 docs/architecture.md「Gateway:入口治理,不含业务」。
+//
+// 入口治理(auth/session/scope/routing/aggregation/middleware),业务一律经
+// providers/ 的 Provider 接口接入,不设业务目录;目录形状见 docs/architecture.md
+// 「Gateway:入口治理,不含业务」。能力域与挂载点见 providers/capability.go。
 package main
 
 import (
-	"encoding/json"
 	"log"
 	"net/http"
 	"os"
+
+	"github.com/cuihairu/courier/gateway/middleware"
+	"github.com/cuihairu/courier/gateway/providers"
+	"github.com/cuihairu/courier/gateway/routing"
 )
 
 func main() {
@@ -16,21 +21,33 @@ func main() {
 		addr = ":8080"
 	}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
-	})
+	// Provider 注册表:M1 起各 Provider 经 reg.Register 挂入(默认提供,可换可关)。
+	reg := providers.NewRegistry()
 
-	// 路由挂载点（按 docs/architecture.md；未配置的 Provider 对应路由不注册，客户端得到 COMMON_CAPABILITY_DISABLED）：
-	//   /v1/identity/*       AccountProvider（默认：自建 accounts/sessions，M1）
-	//   /v1/announcements/*  AnnouncementProvider（默认：herald，M2）
-	//   /v1/support/*        SupportProvider（默认：croupier，M2）
-	//   /v1/realname/*       RealNameProvider（默认：关闭，M2 后段）
-	//   /v1/app/*            ConfigProvider / BrandingProvider（M3）
-	//   /v1/assistant/*      AssistantProvider（M4）
-	//   /v1/payments/*       PaymentProvider（M5，仅契约先行）
+	// 配置驱动路由表(primary + fallbacks[]):COURIER_GATEWAY_CONFIG 指向 JSON;
+	// 未配置的域保持降级(501 COMMON_CAPABILITY_DISABLED),见 routing 包文档。
+	cfg, err := loadConfig()
+	if err != nil {
+		log.Fatalf("courier gateway: 加载路由表配置失败: %v", err)
+	}
+
+	// 中间件链:trace → 结构化错误 → 限流 → scope(冻结顺序,批次 2)。
+	chain := middleware.Chain(middleware.NewRateLimiter(120, 60))
+	handler := routing.New(reg, cfg, chain)
 
 	log.Printf("courier gateway listening on %s", addr)
-	log.Fatal(http.ListenAndServe(addr, mux))
+	log.Fatal(http.ListenAndServe(addr, handler))
+}
+
+// loadConfig 读取 COURIER_GATEWAY_CONFIG(可选)指向的 JSON 路由表;未设置 = 全部能力降级。
+func loadConfig() (providers.Config, error) {
+	path := os.Getenv("COURIER_GATEWAY_CONFIG")
+	if path == "" {
+		return nil, nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	return providers.LoadConfig(data)
 }

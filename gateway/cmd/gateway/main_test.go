@@ -43,6 +43,84 @@ func startGateway(t *testing.T) string {
 	}
 }
 
+// TestGatewayCapabilityDegradation 批次 2 端到端验收:空注册表 + 无配置时,
+// 已知能力域挂载但返回 501 降级信封;业务名前缀不挂载。
+func TestGatewayCapabilityDegradation(t *testing.T) {
+	baseURL := startGateway(t)
+
+	get := func(path string, headers map[string]string) (*http.Response, []byte) {
+		t.Helper()
+		req, err := http.NewRequest(http.MethodGet, baseURL+path, nil)
+		if err != nil {
+			t.Fatalf("构造请求失败: %v", err)
+		}
+		for k, v := range headers {
+			req.Header.Set(k, v)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("请求 %s 失败: %v", path, err)
+		}
+		defer resp.Body.Close()
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("读响应体失败: %v", err)
+		}
+		return resp, body
+	}
+
+	t.Run("能力域未配置 → 501 降级信封", func(t *testing.T) {
+		resp, body := get("/v1/announcements/list", map[string]string{
+			"X-Courier-Game-Id": "game_demo",
+			"X-Courier-Env":     "prod",
+		})
+		if resp.StatusCode != http.StatusNotImplemented {
+			t.Fatalf("状态码 = %d, 期望 501 (body=%s)", resp.StatusCode, body)
+		}
+		var env struct {
+			Error struct {
+				Code      string `json:"code"`
+				Retryable bool   `json:"retryable"`
+			} `json:"error"`
+			TraceID string `json:"traceId"`
+		}
+		if err := json.Unmarshal(body, &env); err != nil {
+			t.Fatalf("解析信封失败: %v (body=%s)", err, body)
+		}
+		if env.Error.Code != "COMMON_CAPABILITY_DISABLED" || env.Error.Retryable {
+			t.Errorf("error = %+v, 期望 COMMON_CAPABILITY_DISABLED retryable=false", env.Error)
+		}
+		if len(env.TraceID) != 32 {
+			t.Errorf("traceId = %q, 期望 32-hex", env.TraceID)
+		}
+	})
+
+	t.Run("缺 scope → 400 COMMON_INVALID_ARGUMENT", func(t *testing.T) {
+		resp, body := get("/v1/app/config", nil)
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Fatalf("状态码 = %d, 期望 400 (body=%s)", resp.StatusCode, body)
+		}
+	})
+
+	t.Run("业务名前缀不挂载 → 404", func(t *testing.T) {
+		resp, body := get("/v1/accounts/list", nil)
+		if resp.StatusCode != http.StatusNotFound {
+			t.Fatalf("状态码 = %d, 期望 404 (body=%s)", resp.StatusCode, body)
+		}
+		var env struct {
+			Error struct {
+				Code string `json:"code"`
+			} `json:"error"`
+		}
+		if err := json.Unmarshal(body, &env); err != nil {
+			t.Fatalf("解析信封失败: %v (body=%s)", err, body)
+		}
+		if env.Error.Code != "COMMON_NOT_FOUND" {
+			t.Errorf("error.code = %q, 期望 COMMON_NOT_FOUND", env.Error.Code)
+		}
+	})
+}
+
 func TestGatewayHealthz(t *testing.T) {
 	baseURL := startGateway(t)
 
