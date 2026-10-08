@@ -148,9 +148,12 @@ func TestServiceUiRuntime(t *testing.T) {
 		"SupportService.cs":      {"class SupportService", "CreateTicketAsync", "AppendMessageAsync", "/v1/support/"},
 		"SseParser.cs":           {"class SseParser", "FeedLine", "SseEvent"},
 		"ServiceDto.cs":          {"class AnnouncementDto", "class TicketDto", "class FaqDto", "class PageDto"},
-		"CourierServices.cs":     {"class CourierServices", "Announcements", "Support", "RealName"},
+		"CourierServices.cs":     {"class CourierServices", "Announcements", "Support", "RealName", "App", "Config"},
 		"RealNameService.cs":     {"class RealNameService", "SubmitAsync", "CurfewAsync", "/v1/realname"},
 		"RealNameMask.cs":        {"MaskName", "MaskIdNumber"},
+		"AppService.cs":          {"class AppService", "CheckUpdateAsync", "CheckMaintenanceAsync", "/v1/app"},
+		"AppConfigService.cs":    {"class AppConfigService", "FetchAsync", "NeedsRefetch", "/v1/app/config"},
+		"AppDto.cs":              {"class AppConfigDto", "class AppVersionDto", "class AppMaintenanceDto", "class AppEnvironmentDto"},
 	}
 	svcRuntime := unityPkgDir + "/com.courier.service/Runtime"
 	for file, symbols := range svcFiles {
