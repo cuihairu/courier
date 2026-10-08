@@ -47,6 +47,13 @@ data: {"id":"ann_...","title":"...","body":"...","severity":"INFO","publishedAt"
 | `announcement.published` | announcement([announcement.md](./announcement.md)) | 运营发布可见公告 |
 | `support.ticket_replied` | `{ "ticketId": "tkt_..." }` | 坐席回复/关单工单;客户端拉取详情增量展示 |
 
+M3 追加(与拉取 DTO 不同构:只带版本号,客户端重拉比对——同 config/branding 契约定):
+
+| event | data | 触发 |
+| --- | --- | --- |
+| `config.updated` | `{ "configVersion": 7 }`([config.md](./config.md)) | 管理面发布新配置版本 |
+| `branding.updated` | `{ "version": 3 }`([branding.md](./branding.md)) | 管理面变更品牌物料 |
+
 新事件随域契约冻结在此登记;`type` 冻结后不改,废弃事件服务端停发、类型保留。
 
 ## 语义规则
