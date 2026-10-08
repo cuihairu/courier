@@ -57,9 +57,9 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 
 - `CourierClient.Init({ gameId, env, endpoint })` → 按域子模块;域接口与 L1 一一对应。
 
-**现仓映射**:`sdks/unity Runtime/Core`、`sdks/cocos src/core`(规划);其余端同构。
+**现仓映射**:`sdks/unity/Runtime/Core`(状态机/API 客户端/错误归一/重试)+ `Runtime/Identity`/`Runtime/Session`(auth 域)+ `Runtime/CourierClient`(门面)+ `CoreTests~`(45 用例,xunit);`sdks/cocos src/core`(规划);其余端同构。
 
-**下一步**:M1 Unity Core 先行(状态机 + Auth 域),纯逻辑单测覆盖。
+**下一步**:M1 Unity 已就位;Identity/Session 之外域(Player/App/…)随 M2+ 按需扩。
 
 ## L3 Platform Adapter(平台绑定层)
 
@@ -154,7 +154,7 @@ Go `http.ServeMux` + 中间件链(auth → rate limit → scope → audit);`/hea
 | 层 | 现仓落点 | 状态 |
 | --- | --- | --- |
 | L1 SDK Contract | `docs/contract/` + `tools/contractgen` | 基元五件 Frozen v1 + auth v1;测试骨架就位;realname/branding/diagnostics 初稿实现前冻结 |
-| L2 Core | `sdks/*/core`、`Runtime/Core` | 规划,M1 Unity 先行 |
+| L2 Core | `sdks/unity/Runtime/{Core,Identity,Session}`、`CourierClient.cs` | Unity 批次 4 落位(状态机+auth 域,45 用例);其余端规划 |
 | L3 Platform Adapter | `sdks/{unity,ue,cocos,miniprogram,laybox,godot}`(+可选 UI/Diagnostics 包) | 规划,M1 Unity 先行 |
 | L4 Service Provider | `gateway/providers/*` | 接口形状批次 2 冻结;account 默认实现批次 3 已接入 |
 | L5 Gateway | `gateway/{cmd,routing,middleware,scope,aggregation,auth,session}` | 批次 2 骨架完成;auth/session 批次 3 实装 |

@@ -34,13 +34,14 @@
 - **验收**:roadmap M1 服务端项——go test(含 -race)覆盖结构化错误全码路径与登录限流(429 + Retry-After);e2e 全链路(游客→绑定→登出→轮换→重放吊销→拒绝)
 - **落地**:commit `3c24cfc`(契约)/ `39b5007`(实装);持久化与多实例限流协同随 M1 后续
 
-## 批次 4 — M1:Unity Core(L2)
+## 批次 4 — M1:Unity Core(L2)(已完成,2026-10)
 
-- [ ] `CourierClient` 门面 + Identity/Session 域
-- [ ] 生命周期状态机(Uninitialized→…→PlayerReady、Suspended/Resuming)+ 生命周期事件
-- [ ] ITransport / ITokenStore / IClock 注入接口;重试与超时
-- [ ] 纯逻辑单测(不依赖 Unity 运行时)
-- **验收**:状态机全事件单测;与 auth 契约字段 100% 对齐
+- [x] `CourierClient` 门面 + Identity/Session 域
+- [x] 生命周期状态机(Uninitialized→…→PlayerReady、Suspended/Resuming)+ 生命周期事件
+- [x] ITransport / ITokenStore / IClock 注入接口;重试与超时
+- [x] 纯逻辑单测(不依赖 Unity 运行时)
+- **验收**:状态机全事件单测;与 auth 契约字段 100% 对齐——xunit 45 用例:转移表逐行断言+8 非法转移、契约事件仅 6 个、guest 请求体逐字段/会话 DTO 全字段 wire 对齐、bind Bearer、失败信封 typed 枚举回 Ready、TOKEN_EXPIRED 自动 refresh 轮换重放、REUSED 吊销清场+signed_out、Init 恢复三态(有效被动/expired refresh 清场/expired access 轮换)
+- **落地**:commit `8b9ed8a`;Newtonsoft(DateParseHandling.None 保 RFC3339 原文)入 Runtime,平台实现留批次 5
 
 ## 批次 5 — M1:Unity Adapter + 三包骨架(L3)
 
