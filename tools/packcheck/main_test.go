@@ -148,7 +148,9 @@ func TestServiceUiRuntime(t *testing.T) {
 		"SupportService.cs":      {"class SupportService", "CreateTicketAsync", "AppendMessageAsync", "/v1/support/"},
 		"SseParser.cs":           {"class SseParser", "FeedLine", "SseEvent"},
 		"ServiceDto.cs":          {"class AnnouncementDto", "class TicketDto", "class FaqDto", "class PageDto"},
-		"CourierServices.cs":     {"class CourierServices", "Announcements", "Support"},
+		"CourierServices.cs":     {"class CourierServices", "Announcements", "Support", "RealName"},
+		"RealNameService.cs":     {"class RealNameService", "SubmitAsync", "CurfewAsync", "/v1/realname"},
+		"RealNameMask.cs":        {"MaskName", "MaskIdNumber"},
 	}
 	svcRuntime := unityPkgDir + "/com.courier.service/Runtime"
 	for file, symbols := range svcFiles {
@@ -168,8 +170,8 @@ func TestServiceUiRuntime(t *testing.T) {
 
 	// ui 包双面板在位:MonoBehaviour 骨架 + 服务门面消费 + Branding 默认标。
 	uiFiles := map[string][]string{
-		"AnnouncementPanel.cs":     {"class AnnouncementPanel : MonoBehaviour", "CourierServices", "DefaultTitle"},
-		"CustomerServicePanel.cs":  {"class CustomerServicePanel : MonoBehaviour", "CourierServices", "NotifyTicketReplied"},
+		"AnnouncementPanel.cs":    {"class AnnouncementPanel : MonoBehaviour", "CourierServices", "DefaultTitle"},
+		"CustomerServicePanel.cs": {"class CustomerServicePanel : MonoBehaviour", "CourierServices", "NotifyTicketReplied"},
 	}
 	uiRuntime := unityPkgDir + "/com.courier.ui/Runtime"
 	for file, symbols := range uiFiles {
