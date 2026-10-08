@@ -16,19 +16,15 @@
 Courier 是信使：它不是某一种具体业务，而是替游戏把各种服务能力送到客户端。
 
 ```text
-Game Client
-     │
-     │
-  Courier
-     │
-     ├── Account
-     ├── Session
-     ├── Player
-     ├── Message
-     ├── Announcement
-     ├── Support
-     ├── Payment
-     └── Other Services
+ Account  Session  Player  Message  Announcement  Support  Payment
+         （各服务能力 ← 生态后端：herald、croupier、chirp、oddsmaker）
+                             │
+                             ▼ 取件
+                       Courier（信使）
+                             │
+                             ▼ 送达
+                       Game Client
+        Unity / Unreal / Cocos / Godot / 小程序 / Layabox
 ```
 
 ## 场景
@@ -47,14 +43,15 @@ Courier 解决这个问题：
 
 ## 项目家族
 
-```text
-Croupier    → 游戏运营/后台
-Herald      → 通知/公告
-Chirp       → 实时通信
-Courier     → 游戏客户端 SDK
-Sandtable   → 数值仿真
-Beacon      → 开发者桌面工具
-```
+| 项目 | 定位 | 与 Courier 的关系 |
+| --- | --- | --- |
+| [Croupier](https://github.com/cuihairu/croupier) | 游戏运营/后台 | 运营侧：公告发布、客服工单与 FAQ |
+| [Herald](https://github.com/cuihairu/herald) | 通知/公告 | 公告与通知的投递通道 |
+| [Chirp](https://github.com/cuihairu/chirp) | 实时通信 | 实时推送：SDK 推送复用其会话 |
+| [Oddsmaker](https://github.com/cuihairu/oddsmaker) | 数据分析与风控 | 登录/支付风控前置、数据回流 |
+| [Sandtable](https://github.com/cuihairu/sandtable) | 数值仿真 | 独立工具：游戏系统仿真与实验 |
+| [Beacon](https://github.com/cuihairu/beacon) | 开发者桌面工具 | 独立工具：开发状态聚合（Windows） |
+| **Courier** | **游戏客户端 SDK（本项目）** | 玩家端统一接入：账号、公告、客服、支付 |
 
 ## 架构：五层
 
@@ -66,7 +63,7 @@ Service Provider 服务提供者（账号、消息、公告、客服、支付…
 Gateway          玩家 API 网关（Go：鉴权、限流、聚合、路由到生态后端）
 ```
 
-设计文档见 [docs/architecture.md](docs/architecture.md)，路线图见 [docs/roadmap.md](docs/roadmap.md)。
+分层设计（各层职责/边界/接口/现仓映射）见 [docs/layers.md](docs/layers.md)，分批落地见 [docs/todo.md](docs/todo.md)；总体架构见 [docs/architecture.md](docs/architecture.md)，路线图见 [docs/roadmap.md](docs/roadmap.md)。
 
 ## 定位
 
@@ -121,7 +118,7 @@ sdks/
   miniprogram/  微信小程序 SDK（JavaScript）
   laybox/    Layabox SDK（TypeScript/JavaScript）
   godot/     Godot SDK（GDScript/C#）
-docs/       架构、路线图、API 契约
+docs/       架构、五层设计、路线图、TODO、API 契约
 ```
 
 ## 设计边界
@@ -136,7 +133,7 @@ docs/       架构、路线图、API 契约
 
 ## 路线图
 
-见 [docs/roadmap.md](docs/roadmap.md)。架构见 [docs/architecture.md](docs/architecture.md)。
+见 [docs/roadmap.md](docs/roadmap.md)。架构见 [docs/architecture.md](docs/architecture.md)，五层设计见 [docs/layers.md](docs/layers.md)。
 
 ## License
 

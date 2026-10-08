@@ -1,6 +1,6 @@
 # Courier 架构
 
-> **状态**：Draft — 项目启动架构基线，M1 实现前冻结。
+> **状态**：Draft — 项目启动架构基线，M1 实现前冻结。分层细化（SDK Contract / Core / Platform Adapter / Service Provider / Gateway）见 [layers.md](./layers.md)，分批落地见 [todo.md](./todo.md)。
 
 ## 总体形态
 
