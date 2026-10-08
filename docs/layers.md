@@ -57,7 +57,7 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 
 - `CourierClient.Init({ gameId, env, endpoint })` → 按域子模块;域接口与 L1 一一对应。
 
-**现仓映射**:`sdks/unity/Runtime/Core`(状态机/API 客户端/错误归一/重试)+ `Runtime/Identity`/`Runtime/Session`(auth 域)+ `Runtime/CourierClient`(门面)+ `CoreTests~`(45 用例,xunit);`sdks/cocos src/core`(规划);其余端同构。
+**现仓映射**:`sdks/unity/packages/com.courier.core/Runtime`(Core/ 状态机与 API 客户端、Identity/ Session/ auth 域、CourierClient.cs 门面、Core/Contract/ 生成物);`CoreTests~`(48 用例,xunit);`sdks/cocos src/core`(规划);其余端同构。
 
 **下一步**:M1 Unity 已就位;Identity/Session 之外域(Player/App/…)随 M2+ 按需扩。
 
@@ -77,7 +77,7 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 
 - ITokenStore:Unity 加密存储 / UE 平台凭证 / Cocos localStorage / 微信 storage / Layabox、Godot 平台存储;ITransport:各平台网络栈。
 
-**现仓映射**:`sdks/{unity,ue,cocos,miniprogram,laybox,godot}`(六端)。
+**现仓映射**:Unity 先行——`sdks/unity/packages/com.courier.core/Runtime/Adapter`(UnityWebRequest 传输 / SecureTokenStore 加密存储 / ApplicationLifecycleMonitor 前后台),`tools/packcheck` 结构验收;UPM 三包(core/service/ui)骨架就位;其余五端规划。
 
 **下一步**:M1 Unity UPM 骨架(Core/Service/UI 三包目录就位,UI 包可空)。
 
@@ -154,8 +154,8 @@ Go `http.ServeMux` + 中间件链(auth → rate limit → scope → audit);`/hea
 | 层 | 现仓落点 | 状态 |
 | --- | --- | --- |
 | L1 SDK Contract | `docs/contract/` + `tools/contractgen` | 基元五件 Frozen v1 + auth v1;测试骨架就位;realname/branding/diagnostics 初稿实现前冻结 |
-| L2 Core | `sdks/unity/Runtime/{Core,Identity,Session}`、`CourierClient.cs` | Unity 批次 4 落位(状态机+auth 域,45 用例);其余端规划 |
-| L3 Platform Adapter | `sdks/{unity,ue,cocos,miniprogram,laybox,godot}`(+可选 UI/Diagnostics 包) | 规划,M1 Unity 先行 |
+| L2 Core | `sdks/unity/packages/com.courier.core/Runtime/{Core,Identity,Session}` | Unity 批次 4 落位(状态机+auth 域,48 用例);其余端规划 |
+| L3 Platform Adapter | `sdks/unity/packages/com.courier.core/Runtime/Adapter`(+UPM 三包骨架;`tools/packcheck`) | Unity 批次 5 落位(传输/安全存储/前后台);其余五端规划 |
 | L4 Service Provider | `gateway/providers/*` | 接口形状批次 2 冻结;account 默认实现批次 3 已接入 |
 | L5 Gateway | `gateway/{cmd,routing,middleware,scope,aggregation,auth,session}` | 批次 2 骨架完成;auth/session 批次 3 实装 |
 

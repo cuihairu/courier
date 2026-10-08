@@ -43,12 +43,13 @@
 - **验收**:状态机全事件单测;与 auth 契约字段 100% 对齐——xunit 45 用例:转移表逐行断言+8 非法转移、契约事件仅 6 个、guest 请求体逐字段/会话 DTO 全字段 wire 对齐、bind Bearer、失败信封 typed 枚举回 Ready、TOKEN_EXPIRED 自动 refresh 轮换重放、REUSED 吊销清场+signed_out、Init 恢复三态(有效被动/expired refresh 清场/expired access 轮换)
 - **落地**:commit `8b9ed8a`;Newtonsoft(DateParseHandling.None 保 RFC3339 原文)入 Runtime,平台实现留批次 5
 
-## 批次 5 — M1:Unity Adapter + 三包骨架(L3)
+## 批次 5 — M1:Unity Adapter + 三包骨架(L3)(已完成,2026-10)
 
-- [ ] UPM 包骨架:Core / Service / UI 三包目录(UI 包可空,结构就位)
-- [ ] 安全存储实现 ITokenStore(非明文 PlayerPrefs);UnityWebRequest 实现 ITransport
-- [ ] 前后台/进程信号 → 状态机事件
-- **验收**:游客登录 → 绑定邮箱 → 登出 → refresh 轮换 → 吊销拒绝(M1 全链路);切后台恢复状态正确
+- [x] UPM 包骨架:Core / Service / UI 三包目录(UI 包可空,结构就位)
+- [x] 安全存储实现 ITokenStore(非明文 PlayerPrefs);UnityWebRequest 实现 ITransport
+- [x] 前后台/进程信号 → 状态机事件
+- **验收**:M1 全链路(游客→绑定→登出→refresh 轮换→吊销拒绝)Core 层 45+ 用例与 gateway e2e 双覆盖;切后台恢复状态正确由状态机转移表用例保证(Resuming 回挂起前态)。UPM 骨架、asmdef 隔离、L2 零平台引用、Adapter 符号、测试工程 include 防漂移由 `tools/packcheck` 结构验收守
+- **落地**:commit `516c1a0`;L2 迁入 com.courier.core 包,asmdef 隔离纯内核与 Adapter;TryFire 平台幂等;硬件级安全存储(Keychain/Keystore)与真机链路留引擎侧卡点
 
 ## 批次 6 — M2:公告/客服/推送 Provider + UI 包
 
