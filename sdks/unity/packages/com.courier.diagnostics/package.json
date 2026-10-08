@@ -1,0 +1,13 @@
+{
+  "name": "com.courier.diagnostics",
+  "version": "0.1.0",
+  "displayName": "Courier Diagnostics",
+  "description": "Courier — Universal Game SDK 诊断可选包(M3,契约 docs/contract/diagnostics.md Frozen v1)。四类能力(Crash/Trace/Performance/Analytics)默认全关,未配置即 no-op 零开销;开启即直发自托管端点,不经 Courier 网关。核心包/服务包/UI 包均不依赖本包。",
+  "unity": "2021.3",
+  "author": {
+    "name": "cuihairu"
+  },
+  "dependencies": {
+    "com.courier.core": "0.1.0"
+  }
+}

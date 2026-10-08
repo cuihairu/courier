@@ -251,6 +251,7 @@ func TestTestProjectIncludesResolve(t *testing.T) {
 		"sdks/unity/CoreTests~/CoreTests.csproj",
 		"sdks/unity/ServiceTests~/ServiceTests.csproj",
 		"sdks/unity/ContractTests~/ContractTests.csproj",
+		"sdks/unity/DiagnosticsTests~/DiagnosticsTests.csproj",
 	}
 	for _, proj := range projects {
 		data, err := os.ReadFile(filepath.Join(repoRoot, proj))
@@ -279,6 +280,67 @@ func TestTestProjectIncludesResolve(t *testing.T) {
 			if len(matches) == 0 {
 				t.Errorf("%s include %q 未命中任何文件(base=%s)", proj, pattern, base)
 			}
+		}
+	}
+}
+
+// 批次 8:diagnostics 可选包落位(契约 diagnostics.md Frozen v1 红线)——
+// 包元数据 + asmdef(core 依赖、不自动引用);四类接口与默认关语义在位;
+// L4 纯净(零平台引用,dotnet 可测);核心三包不依赖它(可选性双向约束)。
+func TestDiagnosticsPackage(t *testing.T) {
+	var pkg packageJSON
+	readJSON(t, unityPkgDir+"/com.courier.diagnostics/package.json", &pkg)
+	if pkg.Name != "com.courier.diagnostics" {
+		t.Errorf("package.json name = %q", pkg.Name)
+	}
+	if pkg.Depends["com.courier.core"] == "" {
+		t.Error("com.courier.diagnostics 必须依赖 com.courier.core(ITransport/Json)")
+	}
+
+	var asm struct {
+		Name           string   `json:"name"`
+		References     []string `json:"references"`
+		AutoReferenced bool     `json:"autoReferenced"`
+	}
+	readJSON(t, unityPkgDir+"/com.courier.diagnostics/Runtime/Courier.Diagnostics.asmdef", &asm)
+	if asm.Name != "Courier.Diagnostics" {
+		t.Errorf("asmdef name = %q", asm.Name)
+	}
+	if !hasRef(asm.References, "Courier.Core") {
+		t.Error("Courier.Diagnostics 必须引用 Courier.Core")
+	}
+	if asm.AutoReferenced {
+		t.Error("可选包不得 autoReferenced(未接入方零编译零开销)")
+	}
+
+	// 四类接口 + 默认关/no-op 语义 + wire 要点(指标注册表、去 query)。
+	diagFiles := map[string][]string{
+		"DiagnosticsOptions.cs": {"enum DiagnosticsCategory", "class DiagnosticsOptions", "AnyEnabled", "class DiagnosticsResource"},
+		"DiagnosticsHub.cs":     {"class DiagnosticsHub", "Disabled", "SetEnabled", "interface ICrashDiagnostics", "interface ITraceDiagnostics", "interface IPerformanceDiagnostics", "interface IAnalyticsDiagnostics"},
+		"HttpReporters.cs":      {"class CrashReporter", "class TraceReporter", "class PerformanceReporter", "class AnalyticsReporter", "startup_duration_ms", "frame_jank_ms", "network_rtt_ms", "StripQuery"},
+	}
+	diagRuntime := unityPkgDir + "/com.courier.diagnostics/Runtime"
+	for file, symbols := range diagFiles {
+		data, err := os.ReadFile(filepath.Join(repoRoot, diagRuntime, file))
+		if err != nil {
+			t.Fatalf("read %s: %v", file, err)
+		}
+		for _, sym := range symbols {
+			if !strings.Contains(string(data), sym) {
+				t.Errorf("diagnostics/%s 缺关键符号 %q", file, sym)
+			}
+		}
+		if strings.Contains(string(data), "UnityEngine") || strings.Contains(string(data), "UnityEditor") {
+			t.Errorf("diagnostics/%s 含平台引用(可选包保持 dotnet 可测纯净)", file)
+		}
+	}
+
+	// 可选性反向约束:核心三包不携带诊断(package.json 依赖 + asmdef 引用都不许)。
+	for _, name := range []string{"com.courier.core", "com.courier.service", "com.courier.ui"} {
+		var p packageJSON
+		readJSON(t, unityPkgDir+"/"+name+"/package.json", &p)
+		if p.Depends["com.courier.diagnostics"] != "" {
+			t.Errorf("%s 不得依赖 com.courier.diagnostics(诊断是可选包)", name)
 		}
 	}
 }
