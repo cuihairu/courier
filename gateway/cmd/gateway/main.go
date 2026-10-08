@@ -17,6 +17,7 @@ import (
 	"github.com/cuihairu/courier/gateway/providers/chirp"
 	"github.com/cuihairu/courier/gateway/providers/croupier"
 	"github.com/cuihairu/courier/gateway/providers/herald"
+	"github.com/cuihairu/courier/gateway/providers/warden"
 	"github.com/cuihairu/courier/gateway/routing"
 )
 
@@ -36,7 +37,15 @@ func main() {
 	chirpP := chirp.New(chirp.Options{RequireAuth: reqAuth})
 	heraldP := herald.New(herald.Options{RequireAuth: reqAuth, Notify: chirpP.Hub().Publish})
 	croupierP := croupier.New(croupier.Options{RequireAuth: reqAuth, Notify: chirpP.Hub().Publish})
-	for _, h := range []providers.Handler{acc, heraldP, croupierP, chirpP} {
+	// 实名(M2 后段,批次 7):注册 warden(自建核验),但默认路由表不含 realname
+	// ——契约红线「默认关闭」;接入方在 COURIER_GATEWAY_CONFIG 显式配置
+	// {"realname":{"primary":"warden"}} 开启,S2S 上报凭证经
+	// COURIER_REALNAME_S2S_TOKEN(缺省 = S2S 端点 fail-closed)。
+	wardenP := warden.New(warden.Options{
+		RequireAuth: reqAuth,
+		S2SToken:    os.Getenv("COURIER_REALNAME_S2S_TOKEN"),
+	})
+	for _, h := range []providers.Handler{acc, heraldP, croupierP, chirpP, wardenP} {
 		if err := reg.Register(h); err != nil {
 			log.Fatalf("courier gateway: 注册 %s 失败: %v", h.Name(), err)
 		}
