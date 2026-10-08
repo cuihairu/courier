@@ -53,6 +53,9 @@ func New(opts Options) *AccountProvider {
 // Store 暴露存储(运维观测/测试用)。
 func (p *AccountProvider) Store() *Store { return p.store }
 
+// Verifier 暴露会话验证器(main 装配其他 Provider 的 Bearer 校验用)。
+func (p *AccountProvider) Verifier() auth.Verifier { return p.verifier }
+
 // Name 供应商标识。
 func (p *AccountProvider) Name() string { return p.name }
 

@@ -10,9 +10,13 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/cuihairu/courier/gateway/auth"
 	"github.com/cuihairu/courier/gateway/middleware"
 	"github.com/cuihairu/courier/gateway/providers"
 	"github.com/cuihairu/courier/gateway/providers/account"
+	"github.com/cuihairu/courier/gateway/providers/chirp"
+	"github.com/cuihairu/courier/gateway/providers/croupier"
+	"github.com/cuihairu/courier/gateway/providers/herald"
 	"github.com/cuihairu/courier/gateway/routing"
 )
 
@@ -23,16 +27,31 @@ func main() {
 	}
 
 	// Provider 注册表:各 Provider 经 reg.Register 挂入(默认提供,可换可关)。
-	// M1:自建 AccountProvider 默认注册;接入方可经配置换掉或关闭。
+	// M1:自建 AccountProvider;M2:herald(公告)/ croupier(客服)/ chirp(推送)。
+	// 接入方可经配置换掉或关闭任何一个。
 	reg := providers.NewRegistry()
-	if err := reg.Register(account.New(account.Options{})); err != nil {
-		log.Fatalf("courier gateway: 注册 AccountProvider 失败: %v", err)
+	acc := account.New(account.Options{})
+	// 会话校验器:身份域自建,M2 三域共享(通道/工单都为已认证玩家服务)。
+	reqAuth := auth.RequireAuth(acc.Verifier())
+	chirpP := chirp.New(chirp.Options{RequireAuth: reqAuth})
+	heraldP := herald.New(herald.Options{RequireAuth: reqAuth, Notify: chirpP.Hub().Publish})
+	croupierP := croupier.New(croupier.Options{RequireAuth: reqAuth, Notify: chirpP.Hub().Publish})
+	for _, h := range []providers.Handler{acc, heraldP, croupierP, chirpP} {
+		if err := reg.Register(h); err != nil {
+			log.Fatalf("courier gateway: 注册 %s 失败: %v", h.Name(), err)
+		}
 	}
 
-	// 配置驱动路由表(primary + fallbacks[]):内置默认(identity → 自建账号)+
+	// 配置驱动路由表(primary + fallbacks[]):内置默认(identity → 自建账号,
+	// announcements/support/messages → 各默认供应商)+
 	// COURIER_GATEWAY_CONFIG(可选,JSON,覆盖默认);未配置的域保持降级
 	// (501 COMMON_CAPABILITY_DISABLED),见 routing 包文档。
-	cfg := providers.Config{providers.CapIdentity: {Primary: account.DefaultName}}
+	cfg := providers.Config{
+		providers.CapIdentity:      {Primary: account.DefaultName},
+		providers.CapAnnouncements: {Primary: herald.DefaultName},
+		providers.CapSupport:       {Primary: croupier.DefaultName},
+		providers.CapMessages:      {Primary: chirp.DefaultName},
+	}
 	if userCfg, err := loadConfig(); err != nil {
 		log.Fatalf("courier gateway: 加载路由表配置失败: %v", err)
 	} else if userCfg != nil {

@@ -71,7 +71,7 @@ func TestGatewayCapabilityDegradation(t *testing.T) {
 	}
 
 	t.Run("能力域未配置 → 501 降级信封", func(t *testing.T) {
-		resp, body := get("/v1/announcements/list", map[string]string{
+		resp, body := get("/v1/realname/verify", map[string]string{
 			"X-Courier-Game-Id": "game_demo",
 			"X-Courier-Env":     "prod",
 		})
