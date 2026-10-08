@@ -45,3 +45,7 @@ sdks/unity/CoreTests~/obj/
 !sdks/unity/ServiceTests~/*.csproj
 sdks/unity/ServiceTests~/bin/
 sdks/unity/ServiceTests~/obj/
+# Unity Diagnostics 测试工程(批次 8,同上豁免策略)
+!sdks/unity/DiagnosticsTests~/*.csproj
+sdks/unity/DiagnosticsTests~/bin/
+sdks/unity/DiagnosticsTests~/obj/
