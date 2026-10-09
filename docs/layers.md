@@ -16,7 +16,7 @@
  L5 Gateway           唯一入口:auth / session / scope / routing / aggregation / middleware
  L4 Service Provider  Provider 接口 + 默认实现(默认供应商可换可关)
  ───────────────────────── 生 态 ────────────────────────────
-   默认供应商(仅以 Provider 角色存在):herald(公告) croupier(客服) chirp(推送) oddsmaker(风控) scribe(配置/品牌) archivist(档案) sage(助手)
+   默认供应商(仅以 Provider 角色存在):herald(公告) croupier(客服) chirp(推送) oddsmaker(风控) scribe(配置/品牌) archivist(档案) sage(助手) teller(支付)
 ```
 
 L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不依赖任何层。
@@ -36,11 +36,11 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 
 **接口形状**
 
-- 基元:primitives / errors / scope / versioning / events;域:auth(Frozen v1)、announcement/support/messages(Frozen v1)、realname(Frozen v1)、config/app/branding/player/diagnostics(Frozen v1 · M3)、assistant(Frozen v1 · M4)、payment(各里程碑前冻结)。
+- 基元:primitives / errors / scope / versioning / events;域:auth(Frozen v1)、announcement/support/messages(Frozen v1)、realname(Frozen v1)、config/app/branding/player/diagnostics(Frozen v1 · M3)、assistant(Frozen v1 · M4)、payment(Frozen v1 · M5)。
 
 **现仓映射**:`docs/contract/`(本仓)+ `docs/contract/fixtures/` + `tools/contractgen`(契约测试骨架:fixture 生成六端契约源,漂移即测试红)。
 
-**下一步**:基元五件、auth、M2 三域、realname、M3 五域(config/app/branding/player/diagnostics)、assistant(M4)均已冻结;payment 随 M5 开工前冻结。
+**下一步**:基元五件、auth、M2 三域、realname、M3 五域(config/app/branding/player/diagnostics)、assistant(M4)、payment(M5)均已冻结;新域随新里程碑开工前冻结。
 
 ## L2 Core(平台无关内核)
 
@@ -99,6 +99,7 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 | BrandingProvider | 品牌素材下发 | scribe(与 config 同管道) |
 | PlayerProvider | 账号档案 + 账号↔角色映射 | archivist(scope 隔离) |
 | AssistantProvider | FAQ 检索问答(命中原样快照不生成) | sage(转人工复用 support 域;LLM 预留默认不依赖) |
+| PaymentsProvider | 订单-回调支付(服务端定价;渠道签名即认证) | teller(沙箱渠道;真实渠道按同一回调签名面接入) |
 | DiagnosticsProvider | 诊断上报 | 默认关闭;客户端可选包直发自托管端点(Sentry/GlitchTip/OTLP 生态),不经网关 |
 
 **边界**
@@ -110,9 +111,9 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 
 - 每域一个 Provider 接口 + `Register(registry)` 注册;接口与实现分离,默认实现可整体替换。
 
-**现仓映射**:`gateway/providers/`(接口形状批次 2 冻结;`account/` AccountProvider 批次 3;`herald/` `croupier/` `chirp/` 三域默认实现批次 6,Notify 钩子装配解耦——发布/回复事件经注入的 `Publish` 进 chirp Hub,Provider 互不 import;`router/` 治理引擎 + `warden/` 实名自建核验批次 7——降级链/熔断/热重载首个完整落地,后续域复用;`scribe/` config/app/branding 同管道 + `archivist/` 玩家档案批次 8——M3 热生效/维护门/品牌热切换 e2e 验收;`sage/` 小助手批次 9——M4 检索问答/命中率统计/转人工 e2e 验收)。
+**现仓映射**:`gateway/providers/`(接口形状批次 2 冻结;`account/` AccountProvider 批次 3;`herald/` `croupier/` `chirp/` 三域默认实现批次 6,Notify 钩子装配解耦——发布/回复事件经注入的 `Publish` 进 chirp Hub,Provider 互不 import;`router/` 治理引擎 + `warden/` 实名自建核验批次 7——降级链/熔断/热重载首个完整落地,后续域复用;`scribe/` config/app/branding 同管道 + `archivist/` 玩家档案批次 8——M3 热生效/维护门/品牌热切换 e2e 验收;`sage/` 小助手批次 9——M4 检索问答/命中率统计/转人工 e2e 验收;`teller/` 支付批次 10——M5 服务端定价/回调 HMAC 签名面/断单对账 e2e 验收)。
 
-**下一步**:Diagnostics 为客户端可选包(不经网关,批次 8 落 `sdks/unity/packages/com.courier.diagnostics`);payments 随 M5 接入。
+**下一步**:Diagnostics 为客户端可选包(不经网关,批次 8 落 `sdks/unity/packages/com.courier.diagnostics`);payments 批次 10 已接入(teller)。
 
 ## L5 Gateway(入口治理层,服务端)
 
@@ -157,8 +158,8 @@ Go `http.ServeMux` + 中间件链(auth → rate limit → scope → audit);`/hea
 | --- | --- | --- |
 | L1 SDK Contract | `docs/contract/` + `tools/contractgen` | 基元五件 Frozen v1 + auth v1 + M2 三域 v1 + realname v1 + M3 五域(config/app/branding/player/diagnostics)v1 + assistant(M4)v1;错误码 v3 |
 | L2 Core | `sdks/unity/packages/com.courier.core/Runtime/{Core,Identity,Session}` | Unity 批次 4 落位(状态机+auth 域,48 用例);其余端规划 |
-| L3 Platform Adapter | `sdks/unity/packages/com.courier.core/Runtime/Adapter`(+UPM 包;`tools/packcheck`) | Unity 批次 5 落位(传输/安全存储/前后台);批次 6 service 域服务+SSE 解析、ui 面板;批次 8 App/Config/Branding/Player 域服务 + diagnostics 可选包(默认全关 no-op);批次 9 Assistant 域服务 + 助手面板(转人工);SSE 流式传输留引擎卡点 |
-| L4 Service Provider | `gateway/providers/*` | 接口形状批次 2 冻结;account 批次 3;herald/croupier/chirp 批次 6(M2 三域,e2e 验收);router 治理引擎 + warden 实名批次 7;scribe + archivist 批次 8(M3,e2e 验收);sage 批次 9(M4,e2e 验收) |
+| L3 Platform Adapter | `sdks/unity/packages/com.courier.core/Runtime/Adapter`(+UPM 包;`tools/packcheck`) | Unity 批次 5 落位(传输/安全存储/前后台);批次 6 service 域服务+SSE 解析、ui 面板;批次 8 App/Config/Branding/Player 域服务 + diagnostics 可选包(默认全关 no-op);批次 9 Assistant 域服务 + 助手面板(转人工);批次 10 Payment 域服务(下单/轮询);SSE 流式传输留引擎卡点 |
+| L4 Service Provider | `gateway/providers/*` | 接口形状批次 2 冻结;account 批次 3;herald/croupier/chirp 批次 6(M2 三域,e2e 验收);router 治理引擎 + warden 实名批次 7;scribe + archivist 批次 8(M3,e2e 验收);sage 批次 9(M4,e2e 验收);teller 批次 10(M5,e2e 验收) |
 | L5 Gateway | `gateway/{cmd,routing,middleware,scope,aggregation,auth,session,e2e}` | 批次 2 骨架;auth/session 批次 3;能力驱动路由+SSE 通道+e2e 批次 6;维护门批次 8 |
 
 ## 演进原则

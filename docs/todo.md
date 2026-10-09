@@ -77,7 +77,7 @@
 ## 批次 9 — M4:Assistant;批次 10 — M5:Payment
 
 - [x] FAQ 检索问答 + 转人工(M4)(已完成,2026-10)
-- [ ] Payment Contract 冻结(Order/Purchase/Receipt + 四形态)+ 沙箱渠道全链路(M5)
+- [x] Payment Contract 冻结(订单/回调 + 四形态)+ 沙箱渠道全链路(M5)(已完成,2026-10)
 
 ### 批次 9 落地(M4,2026-10)
 
@@ -86,6 +86,14 @@
 - [x] Unity AssistantService(未命中即结果对象、501→null 隐藏入口)+ AssistantPanel(AskAsync 渲染 + TransferToHumanAsync 一键提单,标题 `[助手]` 前缀);packcheck 守三面板
 - **验收**:roadmap M4——常见问题命中率可统计(QueryStats + 单测/e2e 断言);转人工链路端到端(e2e)
 - **落地**:契约 `1104081`;网关 `2481383`(sage+e2e)/ `786b14b`(stats);客户端 `9b45f9e`(service)/ `1047bb1`(UI 面板);持久化知识库与跨实例统计聚合、LLM 供应商接入随部署面
+
+### 批次 10 落地(M5,2026-10)
+
+- [x] payment.md Frozen v1:订单-回调模型(下单只收 skuId 服务端定价;渠道回调签名即认证——X-Payment-Signature = hex HMAC-SHA256(secret, rawBody),验证先于 body 解析,伪造/错钥/未配密钥一律 403 fail-closed);四形态(DIRECT_PURCHASE/ACCOUNT_WALLET/GAME_WALLET/EXTERNAL_PAYMENT)只是订单标注不产生不同状态机;状态机 CREATED→PAID→DELIVERED / CREATED|PAID→CLOSED;发货失败订单停 PAID 不丢单,管理面对账重发(断单可对账恢复);回调幂等不二次发货;归属 404 不泄露存在性;PAYMENT 域 5 码入 errors.md v4(全端 contractgen 同步)
+- [x] teller 默认供应商:价格表管理面(AddSku 改价不影响已建订单)、下单(风控前置 RiskCheck→403)、S2S 回调(恒时比较、幂等受理、paidAt 透传)、Reconcile 对账(停 PAID 枚举重发)、CloseOrder(DELIVERED 不可关→409 PAYMENT_ORDER_STATE);e2e 四例:全链(价格表投影/服务端定价防伪造金额字段/发货指令含定价事实/详情列表无 payToken)、签名面(缺头/错钥/篡改全部 403 订单停 CREATED)、断单对账恢复、风控拒绝+未知订单回调 404
+- [x] Unity PaymentService(SKU 投影/下单/列表/详情轮询,501→null 隐藏商城 UI;payToken 只在下单响应出现,消费归渠道 SDK,契约不解释;金额原样渲染不做客户端计算)+ ServiceTests 6 例;packcheck 守 service 包新件
+- **验收**:roadmap M5——服务端定价(客户端无法改价)、回调签名面 fail-closed(单测+e2e 三伪造形态)、断单对账恢复(e2e)、回调幂等不二次发货(单测+e2e)
+- **落地**:契约 `9df7ba7`(payment v1 + errors v4);网关 `ddcbd03`(teller+e2e);客户端 `fff7125`(service);真实渠道接入、订单持久化与定时对账、支付推送事件(v1.1 预留)随部署面
 
 ## 明确不做
 
