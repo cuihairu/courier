@@ -167,6 +167,16 @@
 - [x] 测试:11 例与 unity DiagnosticsTests 一一对应(默认零上报/Disabled 共享/没端点即关/逐类生效+wire 形状/breadcrumb 环+清/trace 去 query+固定集/指标注册表+两维度/校验违例零发送/失败静默不反噬/运行时关+清/运行时开需端点);`node --test` 102 例全绿(+11)
 - **落地**:单增量(本批);Sentry/OTLP 适配与直发端点联调随部署面
 
+## 批次 21 — 维护态自定位(告警/漂移/脆弱点)
+
+- [x] 依赖安全告警清零(`7bd102a`):Dependabot 五条告警(vite ×3 / esbuild / katex)——vitepress 1.x 钉 vite ^5.4.14 够不到 6.4.3 修复版致其自更新失败;npm overrides 钉 vite 6.4.4 / esbuild 0.25.12 / katex 0.18.10,告警全部自动关闭;docs 本地构建验证
+- [x] 站点导航补缺(`3dca0c4`):config/app/player/assistant/payment 五个 Frozen 契约页未入侧边栏(站点浏览不可达)
+- [x] 路线图状态补记(`92c64aa`):M1–M5 按 M0 惯例补「已完成」标记;M4 过时的「后移」清除(助手批次 9 已全量交付);M5 注明真实渠道沙箱随部署面
+- [x] e2e 脆弱点(`9d24f7d`):m2 推送时序 50ms sleep 删除(chirp 在 WriteHeader 前同步注册订阅者,openStream 返回即订阅建立,sleep 防的是不可能竞态);realname rnStub 按值拷贝锁(go vet copylocks;go test 默认 vet 子集不含故 CI 漏网)改指针语义
+- [x] CI vet 门禁(`160b047`):go job 增根模块 + gateway 两步 go vet(堵 copylocks 类盲区)
+- [x] Provider 文档漂移(`621c5dc`):`oddsmaker`(代码零存在)全仓清除,architecture/layers/README 双语/contract 总纲统一对齐真实注册名——courier-account(+courier-account-alt 第二实现)、warden(实名,原「默认关闭」口径过时)、scribe/archivist/sage/teller 入表;风控行删除(无此能力域,支付沙箱期前置风控随部署面);诊断行改为「直发不经网关(契约红线)」
+- **落地**:六增量全绿推送;维护态残留项 = 部署面(需真实凭据/环境)+ Godot(已拍板停靠),环境内告警/漂移/脆弱点已清零
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。
