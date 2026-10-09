@@ -23,3 +23,4 @@ run contract contract/contract_test.cpp -Icontract
 run json core/json_test.cpp -Icore -Icontract
 run core core/core_test.cpp -Icore -Icontract
 run lifecycle core/lifecycle_test.cpp -Icore -Icontract
+run service service/service_test.cpp -Iservice -Icore -Icontract
