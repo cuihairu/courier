@@ -148,7 +148,7 @@ func TestServiceUiRuntime(t *testing.T) {
 		"SupportService.cs":      {"class SupportService", "CreateTicketAsync", "AppendMessageAsync", "/v1/support/"},
 		"SseParser.cs":           {"class SseParser", "FeedLine", "SseEvent"},
 		"ServiceDto.cs":          {"class AnnouncementDto", "class TicketDto", "class FaqDto", "class PageDto"},
-		"CourierServices.cs":     {"class CourierServices", "Announcements", "Support", "RealName", "App", "Config", "Player"},
+		"CourierServices.cs":     {"class CourierServices", "Announcements", "Support", "RealName", "App", "Config", "Player", "Assistant"},
 		"RealNameService.cs":     {"class RealNameService", "SubmitAsync", "CurfewAsync", "/v1/realname"},
 		"RealNameMask.cs":        {"MaskName", "MaskIdNumber"},
 		"AppService.cs":          {"class AppService", "CheckUpdateAsync", "CheckMaintenanceAsync", "/v1/app"},
@@ -157,6 +157,8 @@ func TestServiceUiRuntime(t *testing.T) {
 		"BrandingService.cs":     {"class BrandingService", "FetchAsync", "NeedsRefetch", "/v1/app/branding"},
 		"PlayerService.cs":       {"class PlayerService", "GetProfileAsync", "UpdateProfileAsync", "BindCharacterAsync", "/v1/player"},
 		"PlayerDto.cs":           {"class PlayerProfileDto", "class PlayerCharacterDto", "class PlayerCharactersPageDto"},
+		"AssistantService.cs":    {"class AssistantService", "QueryAsync", "/v1/assistant"},
+		"AssistantDto.cs":        {"class AssistantQueryDto", "class AssistantAnswerDto"},
 	}
 	svcRuntime := unityPkgDir + "/com.courier.service/Runtime"
 	for file, symbols := range svcFiles {
