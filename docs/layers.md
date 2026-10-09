@@ -57,9 +57,9 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 
 - `CourierClient.Init({ gameId, env, endpoint })` → 按域子模块;域接口与 L1 一一对应。
 
-**现仓映射**:`sdks/unity/packages/com.courier.core/Runtime`(Core/ 状态机与 API 客户端、Identity/ Session/ auth 域、CourierClient.cs 门面、Core/Contract/ 生成物);`CoreTests~`(48 用例,xunit);`sdks/cocos src/core`(transport/apiClient/session/identity,courierClient.ts 门面)+ `src/service`(九域客户端,`CourierServices` 门面,node:test 41 例);其余端同构。
+**现仓映射**:`sdks/unity/packages/com.courier.core/Runtime`(Core/ 状态机与 API 客户端、Identity/ Session/ auth 域、CourierClient.cs 门面、Core/Contract/ 生成物);`CoreTests~`(48 用例,xunit);`sdks/cocos src/core`(transport/apiClient/session/identity,courierClient.ts 门面)+ `src/service`(九域客户端,`CourierServices` 门面,node:test 41 例);`sdks/ue/core`(纯 ISO C++17 header-only:json 解析器、transport/apiClient/session/identity/lifecycle/courierClient)+ `sdks/ue/service`(SSE 解析器 + 九域客户端,`run_tests.sh` 六套 g++ 独立编译全绿);其余端同构。
 
-**下一步**:M1 Unity 已就位;cocos TS 端 core+service 全域落地(M2-M5 契约面)+ 生命周期状态机 + 微信小游戏适配器;其余平台适配器(UE/Godot)与真机联调随需求扩。
+**下一步**:M1 Unity 已就位;cocos TS 端 core+service 全域落地(M2-M5 契约面)+ 生命周期状态机 + 微信小游戏适配器;UE C++ 端 core+service 全域落地(M2-M5 契约面,纯逻辑 g++ 验证);其余平台适配器(UE/Godot)与真机联调随需求扩。
 
 ## L3 Platform Adapter(平台绑定层)
 
@@ -157,7 +157,7 @@ Go `http.ServeMux` + 中间件链(auth → rate limit → scope → audit);`/hea
 | 层 | 现仓落点 | 状态 |
 | --- | --- | --- |
 | L1 SDK Contract | `docs/contract/` + `tools/contractgen` | 基元五件 Frozen v1 + auth v1 + M2 三域 v1 + realname v1 + M3 五域(config/app/branding/player/diagnostics)v1 + assistant(M4)v1;错误码 v3 |
-| L2 Core | `sdks/unity/packages/com.courier.core/Runtime/{Core,Identity,Session}` | Unity 批次 4 落位(状态机+auth 域,48 用例);其余端规划 |
+| L2 Core | `sdks/unity/packages/com.courier.core/Runtime/{Core,Identity,Session}`;`sdks/cocos/src/core`;`sdks/ue/core` | Unity 批次 4 落位(状态机+auth 域,48 用例);cocos TS 批次 12-13 落位(core+service 全域,node:test 83 例);UE C++ 批次 14 落位(core+service 全域,纯 ISO C++17 header-only,g++ 六套全绿) |
 | L3 Platform Adapter | `sdks/unity/packages/com.courier.core/Runtime/Adapter`(+UPM 包;`tools/packcheck`) | Unity 批次 5 落位(传输/安全存储/前后台);批次 6 service 域服务+SSE 解析、ui 面板;批次 8 App/Config/Branding/Player 域服务 + diagnostics 可选包(默认全关 no-op);批次 9 Assistant 域服务 + 助手面板(转人工);批次 10 Payment 域服务(下单/轮询);SSE 流式传输留引擎卡点 |
 | L4 Service Provider | `gateway/providers/*` | 接口形状批次 2 冻结;account 批次 3;herald/croupier/chirp 批次 6(M2 三域,e2e 验收);router 治理引擎 + warden 实名批次 7;scribe + archivist 批次 8(M3,e2e 验收);sage 批次 9(M4,e2e 验收);teller 批次 10(M5,e2e 验收) |
 | L5 Gateway | `gateway/{cmd,routing,middleware,scope,aggregation,auth,session,e2e}` | 批次 2 骨架;auth/session 批次 3;能力驱动路由+SSE 通道+e2e 批次 6;维护门批次 8 |

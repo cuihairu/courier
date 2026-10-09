@@ -115,6 +115,15 @@
 - [x] 测试:零依赖 `node --test` 83 例全绿(契约 6 / core+lifecycle 53 / service 17 / wechat 7;fake wx 结构类型注入)+ 全链组合例(wechat 适配器 × CourierClient:登录落盘、切后台挂起、冷启动恢复)
 - **落地**:core `ce974f7`、适配器 `e6cf491`;UE/Godot 适配器、真机联调随部署面
 
+## 批次 14 — UE(C++)core + service 层
+
+- [x] json 基础(`13aab75`):手写 RFC 8259 解析器(深度限制/代理对/前导零拒绝)+ dump,零依赖;`json_test.cpp` 覆盖转义/Unicode/边界
+- [x] core(`225ad01` + `1377e60`,unity Core 同构,纯 ISO C++17 header-only 零外部依赖):Transport/TokenStore 注入接口、ApiClient(scope 头恒发、匿名本地预检不发包、信封解析、空/非 JSON 体按状态码兜底、Retry-After 优先退避、AUTH_TOKEN_EXPIRED 刷新重放一次不计重试)、SessionService(重入保护刷新、REUSED/REVOKED 清库、尽力而为登出)、IdentityService(guest/register/login 匿名 + bind Bearer 采纳会话)、LifecycleMachine(九态十触发严格迁移表 + 契约事件面)、CourierClient 门面(认证流守卫 Ready/SignedOut、失败 AuthFailed 回退可重试);`url_encode` 入共享 types
+- [x] service M2(`f5b160e`,unity CourierServices 同构):SSE 帧解析器(注释/多行 data/未知字段容忍/reset 断线重连)、announcements(list/get wire 形状 + typed 404 不重试)、support(提单 category 缺省不下发、详情 ticket+messages、追加 CLOSED 409 不重试、FAQ 关键词 URL 编码)
+- [x] service M3/M4/M5(`3cc859a`):app(三端点匿名;503 APP_MAINTENANCE typed 返,501→null 跳过检查)、config(缓存 + needs_refetch version 判据;501→v0 空结果用内建默认值)、branding(匿名透传零解释 + version 判据)、player(PATCH 空串键不下发;501→null)、assistant(未命中非错误 matched=false+suggestTransfer;501→null)、payments(下单只收 skuId 服务端定价;payToken 仅下单响应;发货感知=轮询 DELIVERED;归属 404 typed 不重试)、realname(姓名/证件号只传输一次不缓存不落盘;curfew/charge-check 前置校验;501→null)
+- [x] 测试:`sdks/ue/run_tests.sh` 全绿(contract/json/core/lifecycle/service/service2 六套,g++ -std=c++17 -Wall -Wextra 独立编译,零外部依赖)
+- **落地**:json `13aab75`、core `225ad01` + `1377e60`、service M2 `f5b160e`、service M3/M4/M5 `3cc859a`;UE 引擎集成面(HttpModule 适配、UObject 包装、.uplugin)无编译链未验证——如实报,不假装
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。
