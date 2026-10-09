@@ -33,7 +33,12 @@ src/
                         远端 productName → 宿主 brandTitle → 内置默认)+ 三面板骨架
                         (公告栏/客服/助手):只做编排与纯文本产出,渲染经回调交游戏侧,
                         不绑死 UI 框架;typed 错误经 onError(wire code) 出口
-tests/                  零依赖 node --test(契约 6 / core+lifecycle 53 / service 17 / wechat 7 / ui 8,共 91 例)
+  diagnostics/          可选诊断包(unity com.courier.diagnostics 同构,契约 diagnostics.md):
+                        crash/trace/performance/analytics 四类独立开关,默认全关零开销;
+                        直发接入方自有端点(不经网关,不复用认证 Transport 语义);
+                        失败静默不重试不缓存,breadcrumb 环形 20 关闭即清空,
+                        trace 只记 path 去 query,埋点 props 原始类型单条 ≤1KB 违例抛使用方错
+tests/                  零依赖 node --test(契约 6 / core+lifecycle 53 / service 17 / wechat 7 / ui 8 / diagnostics 11,共 102 例)
 ```
 
 ## 约定

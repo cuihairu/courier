@@ -156,6 +156,17 @@
 - [x] 测试:gateway 全套 17 包绿(accountalt 单测:codec 编解码/篡改拒绝/签名密钥校验/代际重放;switchable 重定向;-race 干净)
 - **落地**:`d0936eb`(第二实现+e2e);契约 v1.1 随 docs 提交;接入方启用第二实现 = `{"identity":{"primary":"courier-account-alt"}}` 一行配置
 
+## 批次 19 — CI 测试门禁
+
+- [x] `.github/workflows/tests.yml`(`d44e23a`):push(main)/PR 全仓门禁——Go(contractgen 根模块 + gateway 模块)/ Node 24 原生 TS(cocos/miniprogram/laybox 矩阵,零依赖 node --test)/ UE(ISO C++17 g++ headless);unity 诚实排除(需引擎本体,本地 Unity Test Runner 跑,注释写明);并发组防叠跑;首跑(run 37975643056)全绿
+- **落地**:单增量 `d44e23a`;此前只有 deploy-docs.yml,测试只有本地跑——门禁补齐后每增量三栈自动回归
+
+## 批次 20 — cocos 诊断可选包
+
+- [x] `src/diagnostics/`(unity com.courier.diagnostics 同构,契约 diagnostics.md Frozen v1):diagnosticsTypes(四类 enabled+endpoint,默认全关;resource 宿主注入缺省不下发)/ httpReporters(自有端点直发单条一请求,失败静默不重试不缓存;crash breadcrumb 环形 20 随报清空;trace 去 query + resource 固定属性集 service.name=courier.sdk;performance 三注册指标维度仅 platform+appVersion;analytics 名称 1-64、props 原始类型运行时校验、单条 ≤1KB 违例抛使用方错不静默截断)/ diagnosticsHub(Disabled 共享零实例;reporter 懒建;setEnabled 关立即生效并清上下文,开需端点已配)
+- [x] 测试:11 例与 unity DiagnosticsTests 一一对应(默认零上报/Disabled 共享/没端点即关/逐类生效+wire 形状/breadcrumb 环+清/trace 去 query+固定集/指标注册表+两维度/校验违例零发送/失败静默不反噬/运行时关+清/运行时开需端点);`node --test` 102 例全绿(+11)
+- **落地**:单增量(本批);Sentry/OTLP 适配与直发端点联调随部署面
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。
