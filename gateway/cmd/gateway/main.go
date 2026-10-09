@@ -61,9 +61,11 @@ func main() {
 	// 支付(M5,批次 10):teller(自建沙箱渠道)——服务端定价 + 渠道回调 HMAC 校验
 	// (签名即认证,不走 Bearer;密钥未配置 = 回调 fail-closed 403);
 	// 真实渠道按同一回调签名面接入,发货经 Deliver 钩子由接入方落地。
+	// v1.1:paid/delivered 状态转移经 Notify 广播(载荷只含 orderId,拉取兜底)。
 	tellerP := teller.New(teller.Options{
 		RequireAuth:   reqAuth,
 		ChannelSecret: os.Getenv("COURIER_PAYMENTS_CHANNEL_SECRET"),
+		Notify:        chirpP.Hub().Publish,
 	})
 	for _, h := range []providers.Handler{acc, heraldP, croupierP, chirpP, wardenP, scribeP, archivistP, sageP, tellerP} {
 		if err := reg.Register(h); err != nil {

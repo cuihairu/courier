@@ -31,15 +31,20 @@ type envelope struct {
 	} `json:"error"`
 }
 
-func harness(t *testing.T, secret string, deliver func(Delivery) error, risk func(string, int64) error) (*PaymentsProvider, *string) {
+func harness(t *testing.T, secret string, deliver func(Delivery) error, risk func(string, int64) error, notify ...func(string, any)) (*PaymentsProvider, *string) {
 	t.Helper()
 	cur := new(string)
 	*cur = "acc_1"
+	var hook func(string, any)
+	if len(notify) > 0 {
+		hook = notify[0]
+	}
 	p := New(Options{
 		Clock:         func() time.Time { return time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC) },
 		ChannelSecret: secret,
 		Deliver:       deliver,
 		RiskCheck:     risk,
+		Notify:        hook,
 		RequireAuth: func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				ctx := auth.WithIdentity(r.Context(), auth.Identity{AccountID: *cur, SessionID: "ses_1"})
@@ -371,6 +376,83 @@ func TestCloseOrder_StateMachine(t *testing.T) {
 		map[string]string{"X-Payment-Signature": sign("s3cret", []byte(body))})
 	if err := p2.CloseOrder(oid.Data.ID); err == nil || err.Error() != "PAYMENT_ORDER_STATE" {
 		t.Fatalf("关已发货单 = %v", err)
+	}
+}
+
+// TestCallback_PublishesTransitions v1.1 推送:只报状态转移(重复受理不重发),
+// 载荷只含 orderId;发货失败停 PAID 只发 paid,对账恢复补发 delivered。
+func TestCallback_PublishesTransitions(t *testing.T) {
+	type evt struct {
+		typ     string
+		orderID string
+	}
+	var evts []evt
+	rec := func(typ string, data any) {
+		if e, ok := data.(orderEventDTO); ok {
+			evts = append(evts, evt{typ, e.OrderID})
+		}
+	}
+	fail := true
+	p, cur := harness(t, "s3cret", func(Delivery) error {
+		if fail {
+			return errRisk("下游挂了")
+		}
+		return nil
+	}, nil, rec)
+	seedSkus(p)
+	_, rec1 := createOrder(t, p, cur, "sku_gem_60")
+	var oid struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec1.Body.Bytes(), &oid); err != nil {
+		t.Fatal(err)
+	}
+
+	// 受理:paid + delivered?——发货失败停 PAID,只发 paid。
+	body := `{"orderId":"` + oid.Data.ID + `","paidAt":"2026-10-09T12:00:01Z"}`
+	rc := call(t, p, http.MethodPost, "/v1/payments/callback", body,
+		map[string]string{"X-Payment-Signature": sign("s3cret", []byte(body))})
+	if rc.Code != 200 {
+		t.Fatalf("回调 = %d %s", rc.Code, rc.Body.String())
+	}
+	if len(evts) != 1 || evts[0].typ != EventPaid || evts[0].orderID != oid.Data.ID {
+		t.Fatalf("断单事件 = %+v, want [paid %s]", evts, oid.Data.ID)
+	}
+
+	// 幂等重复回调:受理不重发事件。
+	call(t, p, http.MethodPost, "/v1/payments/callback", body,
+		map[string]string{"X-Payment-Signature": sign("s3cret", []byte(body))})
+	if len(evts) != 1 {
+		t.Fatalf("重复回调不应重发事件 = %+v", evts)
+	}
+
+	// 对账恢复 → delivered 补发。
+	fail = false
+	if attempted, delivered := p.Reconcile(); attempted != 1 || delivered != 1 {
+		t.Fatalf("Reconcile = (%d,%d)", attempted, delivered)
+	}
+	if len(evts) != 2 || evts[1].typ != EventDelivered || evts[1].orderID != oid.Data.ID {
+		t.Fatalf("对账事件 = %+v, want [.., delivered %s]", evts, oid.Data.ID)
+	}
+
+	// 同步发货成功路径:paid + delivered 顺序发。
+	_, rec2 := createOrder(t, p, cur, "sku_gem_60")
+	var oid2 struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec2.Body.Bytes(), &oid2); err != nil {
+		t.Fatal(err)
+	}
+	body2 := `{"orderId":"` + oid2.Data.ID + `"}`
+	call(t, p, http.MethodPost, "/v1/payments/callback", body2,
+		map[string]string{"X-Payment-Signature": sign("s3cret", []byte(body2))})
+	if len(evts) != 4 || evts[2].typ != EventPaid || evts[3].typ != EventDelivered ||
+		evts[2].orderID != oid2.Data.ID || evts[3].orderID != oid2.Data.ID {
+		t.Fatalf("成功路径事件 = %+v, want [paid,delivered]×%s", evts, oid2.Data.ID)
 	}
 }
 

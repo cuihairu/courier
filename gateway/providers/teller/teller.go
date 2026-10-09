@@ -67,7 +67,16 @@ type Options struct {
 	// RiskCheck 下单风控前置(大额/异常频次;非 nil 且返回 err → 403 PAYMENT_RISK_REJECTED)。
 	// nil = 不拦。
 	RiskCheck func(accountID string, amountCents int64) error
+	// Notify 推送钩子(v1.1 推送事件:payment.paid / payment.delivered,接 chirp.Hub)。
+	// 载荷只含 orderId(广播提示,业务字段归拉取端点);nil = 不推送。
+	Notify func(eventType string, data any)
 }
+
+// 推送事件 type(契约 payment.md v1.1「推送事件」;events.md 登记)。
+const (
+	EventPaid      = "payment.paid"
+	EventDelivered = "payment.delivered"
+)
 
 // Delivery 发货指令(管理面钩子入参;AmountCents 为服务端定价事实)。
 type Delivery struct {
@@ -108,6 +117,7 @@ type PaymentsProvider struct {
 	channelSecret string
 	deliver       func(Delivery) error
 	riskCheck     func(string, int64) error
+	notify        func(eventType string, data any)
 
 	mu      sync.Mutex
 	skus    map[string]skuRecord // skuID → 价格表(管理面登记)
@@ -134,6 +144,9 @@ func New(opts Options) *PaymentsProvider {
 	if opts.RequireAuth != nil {
 		authMW = opts.RequireAuth
 	}
+	if opts.Notify == nil {
+		opts.Notify = func(string, any) {} // 默认 no-op:未接通道 = 不推送(拉取兜底)
+	}
 	return &PaymentsProvider{
 		name:          opts.Name,
 		clock:         opts.Clock,
@@ -141,6 +154,7 @@ func New(opts Options) *PaymentsProvider {
 		channelSecret: opts.ChannelSecret,
 		deliver:       opts.Deliver,
 		riskCheck:     opts.RiskCheck,
+		notify:        opts.Notify,
 		skus:          make(map[string]skuRecord),
 		orders:        make(map[string]*orderRecord),
 		byOwner:       make(map[string][]string),
@@ -180,13 +194,19 @@ func (p *PaymentsProvider) Reconcile() (attempted, delivered int) {
 	}
 	sort.Slice(stuck, func(i, j int) bool { return stuck[i].CreatedAt.Before(stuck[j].CreatedAt) })
 	now := p.clock()
+	var recovered []string
 	for _, o := range stuck {
 		attempted++
 		if p.deliverOrderLocked(o, now) {
 			delivered++
+			recovered = append(recovered, o.ID)
 		}
 	}
 	p.mu.Unlock()
+	// 对账恢复的发货同样推送 delivered(v1.1:含对账恢复的重发)。
+	for _, id := range recovered {
+		p.notify(EventDelivered, orderEventDTO{OrderID: id})
+	}
 	return attempted, delivered
 }
 
@@ -375,8 +395,14 @@ func (p *PaymentsProvider) handleCallback(w http.ResponseWriter, r *http.Request
 	o.Status = StatusPaid
 	o.PaidAt = &paidAt
 	o.UpdatedAt = paidAt
-	p.deliverOrderLocked(o, paidAt) // 发货失败不回滚 PAID:停 PAID 等对账(契约红线 6)
+	deliveredNow := p.deliverOrderLocked(o, paidAt) // 发货失败不回滚 PAID:停 PAID 等对账(契约红线 6)
 	p.mu.Unlock()
+
+	// 推送只报状态转移,不报受理(幂等重复回调走上面提前返回,不重发事件)。
+	p.notify(EventPaid, orderEventDTO{OrderID: o.ID})
+	if deliveredNow {
+		p.notify(EventDelivered, orderEventDTO{OrderID: o.ID})
+	}
 
 	// 回调本身已受理(200);发货进度看订单状态(轮询)。
 	aggregation.WriteData(w, orderDTOOf(o, false))
@@ -467,6 +493,11 @@ type orderDTO struct {
 type orderPageDTO struct {
 	Items      []orderDTO `json:"items"`
 	NextCursor string     `json:"nextCursor"`
+}
+
+// orderEventDTO 推送事件载荷(v1.1 最小提示:只含 orderId;广播信道无归属,业务字段不下发)。
+type orderEventDTO struct {
+	OrderID string `json:"orderId"`
 }
 
 // orderDTOOf 订单快照;withToken 仅下单响应回传 payToken(契约:只出现一次)。

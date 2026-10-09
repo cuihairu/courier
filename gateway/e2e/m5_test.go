@@ -5,6 +5,8 @@
 package e2e
 
 import (
+	"bufio"
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -14,11 +16,13 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/cuihairu/courier/gateway/auth"
 	"github.com/cuihairu/courier/gateway/middleware"
 	"github.com/cuihairu/courier/gateway/providers"
 	"github.com/cuihairu/courier/gateway/providers/account"
+	"github.com/cuihairu/courier/gateway/providers/chirp"
 	"github.com/cuihairu/courier/gateway/providers/teller"
 	"github.com/cuihairu/courier/gateway/routing"
 )
@@ -38,9 +42,11 @@ func newM5Harness(t *testing.T, deliver func(teller.Delivery) error, risk func(s
 	reg := providers.NewRegistry()
 	acc := account.New(account.Options{Iterations: 1000})
 	reqAuth := auth.RequireAuth(acc.Verifier())
+	chirpP := chirp.New(chirp.Options{RequireAuth: reqAuth, Heartbeat: time.Second})
 	tellerP := teller.New(teller.Options{
 		RequireAuth:   reqAuth,
 		ChannelSecret: m5ChannelSecret,
+		Notify:        chirpP.Hub().Publish,
 		Deliver: func(d teller.Delivery) error {
 			h.delivers = append(h.delivers, d)
 			if deliver != nil {
@@ -51,13 +57,14 @@ func newM5Harness(t *testing.T, deliver func(teller.Delivery) error, risk func(s
 		RiskCheck: risk,
 	})
 	h.teller = tellerP
-	for _, hd := range []providers.Handler{acc, tellerP} {
+	for _, hd := range []providers.Handler{acc, chirpP, tellerP} {
 		if err := reg.Register(hd); err != nil {
 			t.Fatalf("register: %v", err)
 		}
 	}
 	cfg := providers.Config{
 		providers.CapIdentity: {Primary: account.DefaultName},
+		providers.CapMessages: {Primary: chirp.DefaultName},
 		providers.CapPayments: {Primary: tellerP.Name()},
 	}
 	chain := middleware.Chain(middleware.NewRateLimiter(120, 60))
@@ -369,4 +376,157 @@ func TestM5RiskRejectAndUnknownCallbackOrder(t *testing.T) {
 	if code != http.StatusNotFound || !strings.Contains(body, "PAYMENT_ORDER_NOT_FOUND") {
 		t.Fatalf("未知订单回调: %d %s", code, body)
 	}
+}
+
+// m5SseEvent SSE 单事件(帧解析,同 m2 形状)。
+type m5SseEvent struct {
+	Type string
+	Data string
+}
+
+// m5OpenStream 打开 SSE 流;返回事件通道。
+func (h *m5Harness) m5OpenStream(t *testing.T, token string) (<-chan m5SseEvent, context.CancelFunc) {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, h.srv.URL+"/v1/messages/stream", nil)
+	req.Header.Set("X-Courier-Game-Id", "game_demo")
+	req.Header.Set("X-Courier-Env", "prod")
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("open stream: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		t.Fatalf("stream status = %d, body = %s", resp.StatusCode, body)
+	}
+	events := make(chan m5SseEvent, 16)
+	go func() {
+		defer close(events)
+		defer resp.Body.Close()
+		scanner := bufio.NewScanner(resp.Body)
+		var cur m5SseEvent
+		for scanner.Scan() {
+			line := scanner.Text()
+			switch {
+			case line == "":
+				if cur.Type != "" {
+					events <- cur
+				}
+				cur = m5SseEvent{}
+			case strings.HasPrefix(line, "event: "):
+				cur.Type = strings.TrimPrefix(line, "event: ")
+			case strings.HasPrefix(line, "data: "):
+				cur.Data = strings.TrimPrefix(line, "data: ")
+			}
+		}
+	}()
+	return events, cancel
+}
+
+// m5AwaitEvent 等指定类型事件(5s 上限)。
+func m5AwaitEvent(t *testing.T, events <-chan m5SseEvent, typ string) m5SseEvent {
+	t.Helper()
+	deadline := time.After(5 * time.Second)
+	for {
+		select {
+		case ev, ok := <-events:
+			if !ok {
+				t.Fatalf("stream closed waiting %s", typ)
+			}
+			if ev.Type == typ {
+				return ev
+			}
+		case <-deadline:
+			t.Fatalf("超时未收到 %s(5s)", typ)
+		}
+	}
+}
+
+// m5AwaitQuiet 静默窗断言:窗口内不得出现指定类型事件(负向:伪造不推送)。
+func m5AwaitQuiet(t *testing.T, events <-chan m5SseEvent, typ string) {
+	t.Helper()
+	deadline := time.After(600 * time.Millisecond)
+	for {
+		select {
+		case ev, ok := <-events:
+			if !ok {
+				return
+			}
+			if ev.Type == typ {
+				t.Fatalf("静默窗内收到 %s: %s", typ, ev.Data)
+			}
+		case <-deadline:
+			return
+		}
+	}
+}
+
+// TestM5PushEvents v1.1 验收:paid/delivered 经 SSE 送达(载荷只含 orderId);
+// 伪造回调不推送;断单只发 paid,对账恢复补发 delivered。
+func TestM5PushEvents(t *testing.T) {
+	fail := true
+	h := newM5Harness(t, func(teller.Delivery) error {
+		if fail {
+			return errM5("发货下游不可用")
+		}
+		return nil
+	}, nil)
+	buyer := h.login(t, "m5-push")
+	events, cancel := h.m5OpenStream(t, buyer)
+	defer cancel()
+
+	h.teller.AddSku("sku_gem_60", "com.demo.gem60", "DIRECT_PURCHASE", 600, "CNY")
+
+	// 全链:下单 → 签名回调 → paid + delivered 先后送达。
+	orderID := m5CreateOrder(t, h, buyer, "sku_gem_60")
+	cbBody := `{"orderId":"` + orderID + `","paidAt":"2026-10-09T12:00:01Z"}`
+
+	// 断单场景先行:发货失败,回调只推 paid。
+	// (改用第二笔订单走全链,本笔先验证断单推送语义。)
+	failOrder := m5CreateOrder(t, h, buyer, "sku_gem_60")
+	failBody := `{"orderId":"` + failOrder + `"}`
+	code, body := h.rawDo(t, "", http.MethodPost, "/v1/payments/callback", failBody,
+		map[string]string{"X-Payment-Signature": m5Sign(m5ChannelSecret, failBody)})
+	if code != http.StatusOK || !strings.Contains(body, `"status":"PAID"`) {
+		t.Fatalf("断单回调 = %d %s", code, body)
+	}
+	paidEv := m5AwaitEvent(t, events, "payment.paid")
+	if !strings.Contains(paidEv.Data, `"orderId":"`+failOrder+`"`) {
+		t.Fatalf("paid 载荷 = %s", paidEv.Data)
+	}
+	if strings.Contains(paidEv.Data, "amountCents") || strings.Contains(paidEv.Data, "sku") {
+		t.Fatalf("paid 载荷不应含业务字段(广播): %s", paidEv.Data)
+	}
+	m5AwaitQuiet(t, events, "payment.delivered") // 断单不发 delivered
+
+	// 对账恢复 → delivered 补发。
+	fail = false
+	if attempted, delivered := h.teller.Reconcile(); attempted != 1 || delivered != 1 {
+		t.Fatalf("Reconcile = (%d,%d)", attempted, delivered)
+	}
+	delivEv := m5AwaitEvent(t, events, "payment.delivered")
+	if !strings.Contains(delivEv.Data, `"orderId":"`+failOrder+`"`) {
+		t.Fatalf("delivered 载荷 = %s", delivEv.Data)
+	}
+
+	// 正常全链(paid+delivered)+ 幂等重复回调不重发。
+	cbBody = `{"orderId":"` + orderID + `","paidAt":"2026-10-09T12:00:02Z"}`
+	code, body = h.rawDo(t, "", http.MethodPost, "/v1/payments/callback", cbBody,
+		map[string]string{"X-Payment-Signature": m5Sign(m5ChannelSecret, cbBody)})
+	if code != http.StatusOK || !strings.Contains(body, `"status":"DELIVERED"`) {
+		t.Fatalf("回调 = %d %s", code, body)
+	}
+	m5AwaitEvent(t, events, "payment.paid")
+	m5AwaitEvent(t, events, "payment.delivered")
+	_, _ = h.rawDo(t, "", http.MethodPost, "/v1/payments/callback", cbBody,
+		map[string]string{"X-Payment-Signature": m5Sign(m5ChannelSecret, cbBody)})
+	m5AwaitQuiet(t, events, "payment.paid") // 幂等受理不重发
+
+	// 伪造签名:不推送(订单状态不变,无事件帧)。
+	forgeBody := `{"orderId":"` + orderID + `"}`
+	_, _ = h.rawDo(t, "", http.MethodPost, "/v1/payments/callback", forgeBody,
+		map[string]string{"X-Payment-Signature": m5Sign("attacker", forgeBody)})
+	m5AwaitQuiet(t, events, "payment.paid")
 }
