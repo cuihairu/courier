@@ -147,6 +147,15 @@
 - [x] 测试:`node --test` 91 例全绿(+ui 8:品牌兜底链/公告三例/客服两例/助手两例,FakeTransport + fake services 注入,与 service.test.ts 同形态)
 - **落地**:单增量 `1fb4790`;UI 框架绑定(Cocos Creator UIRichText/Label 挂载渲染回调)随部署面
 
+## 批次 18 — 可换性证明(AccountProvider 第二实现 e2e)+ 契约 v1.1(取消/并发)
+
+- [x] `auth.SwitchableVerifier`(`d0936eb`):可重定向会话验证器——原 main.go 把 reqAuth 钉死在自建账号 store 上,换 identity Provider 后 M2+ 域验不了新令牌(「可换」名存实亡的架构缺口);现装配期读 COURIER_GATEWAY_CONFIG,identity primary 换到第二实现即重指(跟随 primary,fallbacks 不参与;nil 忽略不残废)
+- [x] `providers/accountalt`(`d0936eb`,identity 第二实现,courier-account-alt):与自建同一冻结契约(auth.md Frozen v1)但内部架构刻意不同——自建「不透明随机令牌 + 会话表全查」vs 本实现「HMAC-SHA256 签名自验证令牌,claim 内嵌会话事实 + 服务端只留吊销态/refresh 代际/access nonce」;轮换即换 access nonce(旧 access 立即失效,语义同自建 map 键删除);nonce 保证同秒轮换也产出新令牌; PBKDF2 同族凭证;防枚举/限流/设备上限/解绑吊销逐项对齐
+- [x] 一致性 e2e(`e2e/identity_conformance_test.go`):**同一 wire 场景对两实现各跑一遍、同一断言**——注册/登录/会话信息、防枚举、校验 400、EMAIL_TAKEN 409、游客幂等、bind 链、refresh 轮换+旧 access 失效+重放吊销、refresh 未知/过期、access 过期、logout、设备上限、解绑、设备列表、scope 不符、路由兜底、跨域认证(身份源 token 经 SwitchableVerifier 供 herald)+ 限流口径(429+Retry-After)——全绿 = 「账号 Provider 可换」有行为证明而非仅接口冻结
+- [x] 契约 primitives.md **v1.1**(兼容追加「取消与超时」「并发纪律」两节):取消是客户端行为服务端不感知、取消统一表现为传输失败(COMMON_UNAVAILABLE retryable)非域错误;重试对写类同样生效(双发由服务端幂等面承接,事实以拉取为准)、会话刷新单飞+重放至多一次不计预算、REUSED/REVOKED 清场、多会话合法、并发无顺序保证——全部为各端 SDK 既有实现口径(冻结不是发明)
+- [x] 测试:gateway 全套 17 包绿(accountalt 单测:codec 编解码/篡改拒绝/签名密钥校验/代际重放;switchable 重定向;-race 干净)
+- **落地**:`d0936eb`(第二实现+e2e);契约 v1.1 随 docs 提交;接入方启用第二实现 = `{"identity":{"primary":"courier-account-alt"}}` 一行配置
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。
