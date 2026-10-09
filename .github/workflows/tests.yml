@@ -1,0 +1,61 @@
+# 测试门禁:push/PR 全仓跑一遍(与本地口径一致,零依赖,无平台专属环境)。
+#
+# 覆盖:Go(gateway 模块 + 根模块 tools/contractgen)、Node 24 原生 TS
+# (cocos / miniprogram / laybox,零依赖 node --test)、UE(ISO C++17
+# 独立编译,g++ 无引擎依赖)。
+#
+# 不覆盖:unity —— Unity Test Framework 需要引擎本体,标准 runner 无法
+# headless 运行;在本地 Unity Test Runner 跑(批次 4-10 的 ServiceTests)。
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  go:
+    name: go (gateway + contractgen)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: contractgen (root module)
+        run: go test ./tools/contractgen/...
+      - name: gateway
+        run: go test ./...
+        working-directory: gateway
+
+  node-sdks:
+    name: node ${{ matrix.sdk }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        sdk: [cocos, miniprogram, laybox]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: node --test
+        run: node --test tests/*.test.ts
+        working-directory: sdks/${{ matrix.sdk }}
+
+  ue:
+    name: ue (c++17 headless)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: run_tests.sh
+        run: sh sdks/ue/run_tests.sh
