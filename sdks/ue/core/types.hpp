@@ -12,6 +12,23 @@
 
 namespace courier {
 
+/// URL 路径段编码(RFC 3986 unreserved 之外一律 %XX;设备号/游标/关键词用)。
+inline std::string url_encode(const std::string& raw) {
+    static const char* kHex = "0123456789ABCDEF";
+    std::string out;
+    for (const unsigned char c : raw) {
+        if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') ||
+            c == '-' || c == '_' || c == '.' || c == '~') {
+            out += static_cast<char>(c);
+        } else {
+            out += '%';
+            out += kHex[c >> 4];
+            out += kHex[c & 0x0F];
+        }
+    }
+    return out;
+}
+
 /// 连接配置(endpoint 不带尾斜杠也可,ApiClient 归一)。
 struct CourierConfig {
     std::string endpoint;

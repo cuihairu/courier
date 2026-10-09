@@ -86,22 +86,6 @@ private:
         return api_;  // 未接线 = 编程错误(须经 CourierClient 构造);调用方判空
     }
 
-    static std::string url_encode(const std::string& raw) {
-        static const char* kHex = "0123456789ABCDEF";
-        std::string out;
-        for (const unsigned char c : raw) {
-            if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') ||
-                c == '-' || c == '_' || c == '.' || c == '~') {
-                out += static_cast<char>(c);
-            } else {
-                out += '%';
-                out += kHex[c >> 4];
-                out += kHex[c & 0x0F];
-            }
-        }
-        return out;
-    }
-
     bool try_refresh() {
         const std::optional<SessionDto> current = store_->load();
         if (!current.has_value()) {
