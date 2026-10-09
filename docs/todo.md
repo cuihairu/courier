@@ -177,6 +177,17 @@
 - [x] Provider 文档漂移(`621c5dc`):`oddsmaker`(代码零存在)全仓清除,architecture/layers/README 双语/contract 总纲统一对齐真实注册名——courier-account(+courier-account-alt 第二实现)、warden(实名,原「默认关闭」口径过时)、scribe/archivist/sage/teller 入表;风控行删除(无此能力域,支付沙箱期前置风控随部署面);诊断行改为「直发不经网关(契约红线)」
 - **落地**:六增量全绿推送;维护态残留项 = 部署面(需真实凭据/环境)+ Godot(已拍板停靠),环境内告警/漂移/脆弱点已清零
 
+## 批次 22 — 巡检续批(只读审计节奏:workflow 结论 × 文档声称)
+
+- [x] README 双语文档缺口(`d979b08`):补「开发」本地门禁章节(四端此前仅三端有);文档索引的契约清单从 M0 口径补到全域(M1 auth / M2 三域 / M3 五域 / M4 / M5);诊断注明直发不经网关
+- [x] 工作流一致性(`d979b08`):deploy-docs node 22 → 24,与 tests.yml 统一
+- [x] Godot 停靠口径(`fe7328f`、`1dd70ad`):README 布局行与架构文档 binding 枚举标注「规划中;仅契约生成骨架」;删除「网关做风控前置」边界声称(风控非网关职责;PAYMENT_RISK_REJECTED 为冻结契约的可选钩子,「缺省不拦」口径保留)
+- [x] 测试数声称刷新(`d9e61cf`):layers.md 现仓映射行 cocos 41 例 → 102(带分布)、Unity CoreTests 48 → 29(本地数 xunit 属性核实;ServiceTests 60 / DiagnosticsTests 11 / ContractTests 8)
+- [x] Unity README 重写(`67edbce`):「计划结构」→ 已交付四包结构(补 com.courier.diagnostics)+ 测试章节(Unity Test Runner 口径)+ 当前约定
+- [x] cocos README 补「运行测试」章节(`2ee4c8c`,对齐其余三端)
+- [x] 审计证据:全量本地门禁在当前树重跑——cocos 102 / miniprogram 83 / laybox 82 / UE 六套 / gateway 17 包(+vet +race)/ 根模块 2 包;workflow 最新 run 全绿;Dependabot 告警 0
+- **落地**:六增量全绿推送;环境内可推进项仍为零,残留 = 部署面 + Godot(停靠)
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。
