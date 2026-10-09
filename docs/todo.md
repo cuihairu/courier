@@ -101,6 +101,13 @@
 - [x] teller Notify 钩子(接 chirp.Hub,同 herald/croupier 装配;CREATED→PAID 发 paid、转 DELIVERED 发 delivered 含对账恢复重发);e2e:SSE 断言 paid/delivered 5s 内送达、断单只发 paid、Reconcile 补发 delivered、幂等回调与伪造签名静默不推送
 - **落地**:契约 `60b5d22`;网关 `79c5bce`;客户端注释同步随 docs 提交;订单持久化、定时对账与离线推送(APNs/FCM)随部署面
 
+## 批次 12 — cocos(TS)core + service 层
+
+- [x] core(`315717c`):FetchTransport(超时/网络错误归一 UNAVAILABLE)、ApiClient(scope 头恒发、匿名本地预检不发包、信封解析、空/非 JSON 体按状态码兜底、Retry-After 优先退避、AUTH_TOKEN_EXPIRED 刷新重放一次不计重试)、SessionService(单飞刷新、REUSED/REVOKED 清库、尽力而为登出)、IdentityService(guest/register/login 匿名 + bind Bearer 不采纳会话)
+- [x] service(`09be3a9` + `db69d8e`,unity CourierServices 同构,501→null 隐藏入口):announcements/support(SSE 帧解析器:注释/多行 data/未知字段容忍)、app(三端点匿名;503 APP_MAINTENANCE / 426 typed 抛,SDK 不自动跳转)、config(缓存 + needsRefetch version 判据;501→v0 空结果用内建默认值)、branding(匿名透传零解释)、player(PATCH undefined 键不下发)、assistant(未命中非错误 matched=false+suggestTransfer)、payments(下单只收 skuId 服务端定价;payToken 仅下单响应;发货感知=轮询 DELIVERED)、realname(姓名/证件号只传输一次不缓存不落盘;curfew/charge-check 前置校验)
+- [x] 测试:零依赖 `node --test` 41 例全绿(契约 6 / core 18 / service 17),对齐 unity CoreTests 形态(FakeTransport 脚本化)
+- **落地**:core `315717c`、announcements/support `09be3a9`、八域 service `db69d8e`;平台适配器(微信小游戏 storage/原生存储)、生命周期状态机、UI 包随部署面
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。

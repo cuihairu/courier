@@ -57,9 +57,9 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 
 - `CourierClient.Init({ gameId, env, endpoint })` → 按域子模块;域接口与 L1 一一对应。
 
-**现仓映射**:`sdks/unity/packages/com.courier.core/Runtime`(Core/ 状态机与 API 客户端、Identity/ Session/ auth 域、CourierClient.cs 门面、Core/Contract/ 生成物);`CoreTests~`(48 用例,xunit);`sdks/cocos src/core`(规划);其余端同构。
+**现仓映射**:`sdks/unity/packages/com.courier.core/Runtime`(Core/ 状态机与 API 客户端、Identity/ Session/ auth 域、CourierClient.cs 门面、Core/Contract/ 生成物);`CoreTests~`(48 用例,xunit);`sdks/cocos src/core`(transport/apiClient/session/identity,courierClient.ts 门面)+ `src/service`(九域客户端,`CourierServices` 门面,node:test 41 例);其余端同构。
 
-**下一步**:M1 Unity 已就位;Identity/Session 之外域(Player/App/…)随 M2+ 按需扩。
+**下一步**:M1 Unity 已就位;cocos TS 端 core+service 全域落地(M2-M5 契约面);生命周期状态机与平台适配器(存储/连接管理)随部署面扩。
 
 ## L3 Platform Adapter(平台绑定层)
 
