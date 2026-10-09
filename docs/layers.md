@@ -57,7 +57,7 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 
 - `CourierClient.Init({ gameId, env, endpoint })` → 按域子模块;域接口与 L1 一一对应。
 
-**现仓映射**:`sdks/unity/packages/com.courier.core/Runtime`(Core/ 状态机与 API 客户端、Identity/ Session/ auth 域、CourierClient.cs 门面、Core/Contract/ 生成物);`CoreTests~`(48 用例,xunit);`sdks/cocos src/core`(transport/apiClient/session/identity,courierClient.ts 门面)+ `src/service`(九域客户端,`CourierServices` 门面,node:test 41 例);`sdks/ue/core`(纯 ISO C++17 header-only:json 解析器、transport/apiClient/session/identity/lifecycle/courierClient)+ `sdks/ue/service`(SSE 解析器 + 九域客户端,`run_tests.sh` 六套 g++ 独立编译全绿);其余端同构。
+**现仓映射**:`sdks/unity/packages/com.courier.core/Runtime`(Core/ 状态机与 API 客户端、Identity/ Session/ auth 域、CourierClient.cs 门面、Core/Contract/ 生成物);`CoreTests~`(29 例 Fact,xunit;引擎内跑,本地不可验);`sdks/cocos src/core`(transport/apiClient/session/identity,courierClient.ts 门面)+ `src/service`(九域客户端,`CourierServices` 门面)+ `src/ui` / `src/diagnostics`(可选包),node:test 102 例(契约 6 / core+lifecycle 53 / service 17 / wechat 7 / ui 8 / diagnostics 11);`sdks/ue/core`(纯 ISO C++17 header-only:json 解析器、transport/apiClient/session/identity/lifecycle/courierClient)+ `sdks/ue/service`(SSE 解析器 + 九域客户端,`run_tests.sh` 六套 g++ 独立编译全绿);其余端同构。
 
 **下一步**:M1 Unity 已就位;cocos TS 端 core+service 全域落地(M2-M5 契约面)+ 生命周期状态机 + 微信小游戏适配器;UE C++ 端 core+service 全域落地(M2-M5 契约面,纯逻辑 g++ 验证);其余平台适配器(UE/Godot)与真机联调随需求扩。
 
