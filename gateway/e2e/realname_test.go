@@ -313,7 +313,7 @@ func TestRealName_HotReloadFallbacks_ServiceContinues(t *testing.T) {
 	}
 
 	// 热重载降级链(路由表原子替换,不重启;契约「热切换」)。
-	h.warden.ReloadFallbacks([]router.RealNameProvider{rnStub{Name_: "aliyun"}})
+	h.warden.ReloadFallbacks([]router.RealNameProvider{&rnStub{Name_: "aliyun"}})
 	if chain := h.warden.Chain(); len(chain) != 2 || chain[1] != "aliyun" {
 		t.Fatalf("chain after reload = %v, want [warden aliyun]", chain)
 	}
@@ -344,26 +344,26 @@ type rnStub struct {
 	Mode  atomic.Int32
 }
 
-func (s rnStub) Name() string { return s.Name_ }
-func (s rnStub) Verify(string, router.IdentityInput) (router.VerifyOutcome, error) {
+func (s *rnStub) Name() string { return s.Name_ }
+func (s *rnStub) Verify(string, router.IdentityInput) (router.VerifyOutcome, error) {
 	if rnMode(s.Mode.Load()) == rnFail {
 		return router.VerifyOutcome{}, errRNDown
 	}
 	return router.VerifyOutcome{State: "VERIFIED"}, nil
 }
-func (s rnStub) Query(string) (router.StatusOutcome, error) {
+func (s *rnStub) Query(string) (router.StatusOutcome, error) {
 	if rnMode(s.Mode.Load()) == rnFail {
 		return router.StatusOutcome{}, errRNDown
 	}
 	return router.StatusOutcome{State: "VERIFIED", HasVerified: true}, nil
 }
-func (s rnStub) Curfew(string, time.Time) (router.CurfewOutcome, error) {
+func (s *rnStub) Curfew(string, time.Time) (router.CurfewOutcome, error) {
 	return router.CurfewOutcome{Playable: true}, nil
 }
-func (s rnStub) ChargeCheck(string, int) (router.ChargeOutcome, error) {
+func (s *rnStub) ChargeCheck(string, int) (router.ChargeOutcome, error) {
 	return router.ChargeOutcome{Allowed: true}, nil
 }
-func (s rnStub) HealthCheck() bool { return rnMode(s.Mode.Load()) == rnOK }
+func (s *rnStub) HealthCheck() bool { return rnMode(s.Mode.Load()) == rnOK }
 
 var errRNDown = errRN{}
 
@@ -375,13 +375,13 @@ func (errRN) Error() string { return "rn provider down" }
 type fakeRealName struct {
 	auth func(http.Handler) http.Handler
 	rt   *router.Router
-	pri  rnStub
-	fb   rnStub
+	pri  *rnStub
+	fb   *rnStub
 }
 
 func newFakeRealName(reqAuth func(http.Handler) http.Handler) *fakeRealName {
 	f := &fakeRealName{auth: reqAuth,
-		pri: rnStub{Name_: "rn-primary"}, fb: rnStub{Name_: "rn-fallback"}}
+		pri: &rnStub{Name_: "rn-primary"}, fb: &rnStub{Name_: "rn-fallback"}}
 	f.pri.Mode.Store(int32(rnFail)) // 主恒挂:验证降级链
 	f.rt = router.New(router.Config{Primary: f.pri, Fallbacks: []router.RealNameProvider{f.fb}})
 	return f

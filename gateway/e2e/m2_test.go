@@ -181,8 +181,8 @@ func TestAnnouncementPublished_PushesWithin5s_ThenPullHistory(t *testing.T) {
 	events, _, cancel := h.openStream(t, token)
 	defer cancel()
 
-	// 运营侧发布(管理面入口);订阅已建立(openStream 返回即连接成功)。
-	time.Sleep(50 * time.Millisecond)
+	// 运营侧发布(管理面入口)。chirp handleStream 在 WriteHeader 前同步注册
+	// 订阅者,openStream 返回 200 即订阅已建立,无需额外等待。
 	a, err := h.announce.Publish("版本 1.2 已发布", "新增公会战玩法", "INFO", nil, nil)
 	if err != nil {
 		t.Fatalf("publish: %v", err)
