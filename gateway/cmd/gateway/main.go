@@ -14,6 +14,7 @@ import (
 	"github.com/cuihairu/courier/gateway/middleware"
 	"github.com/cuihairu/courier/gateway/providers"
 	"github.com/cuihairu/courier/gateway/providers/account"
+	"github.com/cuihairu/courier/gateway/providers/accountalt"
 	"github.com/cuihairu/courier/gateway/providers/archivist"
 	"github.com/cuihairu/courier/gateway/providers/chirp"
 	"github.com/cuihairu/courier/gateway/providers/croupier"
@@ -36,8 +37,14 @@ func main() {
 	// 接入方可经配置换掉或关闭任何一个。
 	reg := providers.NewRegistry()
 	acc := account.New(account.Options{})
-	// 会话校验器:身份域自建,M2 三域共享(通道/工单都为已认证玩家服务)。
-	reqAuth := auth.RequireAuth(acc.Verifier())
+	// identity 第二实现(批次 18):签名自验证令牌架构;路由表
+	// {"identity":{"primary":"courier-account-alt"}} 即整体切换(一致性 e2e
+	// 见 e2e/identity_conformance_test.go:两实现同一 wire 场景全绿)。
+	accAlt := accountalt.New(accountalt.Options{})
+	// 会话校验器:经可重定向包装供 M2+ 域共享(通道/工单都为已认证玩家服务);
+	// 身份源切换时随之重指(下方读配置后),否则换身份源后 M2 域验不了新令牌。
+	sessVerifier := auth.NewSwitchable(acc.Verifier())
+	reqAuth := auth.RequireAuth(sessVerifier)
 	chirpP := chirp.New(chirp.Options{RequireAuth: reqAuth})
 	heraldP := herald.New(herald.Options{RequireAuth: reqAuth, Notify: chirpP.Hub().Publish})
 	croupierP := croupier.New(croupier.Options{RequireAuth: reqAuth, Notify: chirpP.Hub().Publish})
@@ -67,7 +74,7 @@ func main() {
 		ChannelSecret: os.Getenv("COURIER_PAYMENTS_CHANNEL_SECRET"),
 		Notify:        chirpP.Hub().Publish,
 	})
-	for _, h := range []providers.Handler{acc, heraldP, croupierP, chirpP, wardenP, scribeP, archivistP, sageP, tellerP} {
+	for _, h := range []providers.Handler{acc, accAlt, heraldP, croupierP, chirpP, wardenP, scribeP, archivistP, sageP, tellerP} {
 		if err := reg.Register(h); err != nil {
 			log.Fatalf("courier gateway: 注册 %s 失败: %v", h.Name(), err)
 		}
@@ -92,6 +99,11 @@ func main() {
 	} else if userCfg != nil {
 		for cap, cc := range userCfg {
 			cfg[cap] = cc // 接入方配置覆盖内置默认
+		}
+		// 身份源切换:验证器与主存同源,primary 换到第二实现即重指
+		// (跟随 identity 域 primary;fallbacks 不参与)。
+		if cc, ok := userCfg[providers.CapIdentity]; ok && cc.Primary == accountalt.DefaultName {
+			sessVerifier.SetTarget(accAlt.Verifier())
 		}
 	}
 
