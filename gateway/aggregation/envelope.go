@@ -44,6 +44,12 @@ const (
 	CodeConfigNotFound     = "CONFIG_NOT_FOUND"
 	CodeMaintenance        = "APP_MAINTENANCE"
 	CodeVersionUnsupported = "APP_VERSION_UNSUPPORTED"
+
+	CodePaymentSkuNotFound   = "PAYMENT_SKU_NOT_FOUND"
+	CodePaymentOrderNotFound = "PAYMENT_ORDER_NOT_FOUND"
+	CodePaymentRiskRejected  = "PAYMENT_RISK_REJECTED"
+	CodePaymentInvalidSign   = "PAYMENT_INVALID_SIGNATURE"
+	CodePaymentOrderState    = "PAYMENT_ORDER_STATE"
 )
 
 // codeSpec 冻结映射:code → HTTP 状态 + retryable。
@@ -86,6 +92,12 @@ var codeTable = map[string]codeSpec{
 	CodeConfigNotFound:     {http.StatusNotFound, false},
 	CodeMaintenance:        {http.StatusServiceUnavailable, false},
 	CodeVersionUnsupported: {http.StatusUpgradeRequired, false},
+
+	CodePaymentSkuNotFound:   {http.StatusNotFound, false},
+	CodePaymentOrderNotFound: {http.StatusNotFound, false},
+	CodePaymentRiskRejected:  {http.StatusForbidden, false},
+	CodePaymentInvalidSign:   {http.StatusForbidden, false},
+	CodePaymentOrderState:    {http.StatusConflict, false},
 }
 
 // Error 契约错误体(errors.md「错误体」)。

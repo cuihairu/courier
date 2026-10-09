@@ -20,6 +20,7 @@ import (
 	"github.com/cuihairu/courier/gateway/providers/herald"
 	"github.com/cuihairu/courier/gateway/providers/sage"
 	"github.com/cuihairu/courier/gateway/providers/scribe"
+	"github.com/cuihairu/courier/gateway/providers/teller"
 	"github.com/cuihairu/courier/gateway/providers/warden"
 	"github.com/cuihairu/courier/gateway/routing"
 )
@@ -57,7 +58,14 @@ func main() {
 	// 小助手(M4,批次 9):sage(自建 FAQ 检索)——命中即答,答不出引导转人工
 	// (复用 support 域提单链路,经客户端组装;LLM 供应商按同一接口替换,默认不依赖)。
 	sageP := sage.New(sage.Options{RequireAuth: reqAuth})
-	for _, h := range []providers.Handler{acc, heraldP, croupierP, chirpP, wardenP, scribeP, archivistP, sageP} {
+	// 支付(M5,批次 10):teller(自建沙箱渠道)——服务端定价 + 渠道回调 HMAC 校验
+	// (签名即认证,不走 Bearer;密钥未配置 = 回调 fail-closed 403);
+	// 真实渠道按同一回调签名面接入,发货经 Deliver 钩子由接入方落地。
+	tellerP := teller.New(teller.Options{
+		RequireAuth:   reqAuth,
+		ChannelSecret: os.Getenv("COURIER_PAYMENTS_CHANNEL_SECRET"),
+	})
+	for _, h := range []providers.Handler{acc, heraldP, croupierP, chirpP, wardenP, scribeP, archivistP, sageP, tellerP} {
 		if err := reg.Register(h); err != nil {
 			log.Fatalf("courier gateway: 注册 %s 失败: %v", h.Name(), err)
 		}
@@ -75,6 +83,7 @@ func main() {
 		providers.CapApp:           {Primary: scribe.DefaultName},
 		providers.CapPlayer:        {Primary: archivist.DefaultName},
 		providers.CapAssistant:     {Primary: sage.DefaultName},
+		providers.CapPayments:      {Primary: teller.DefaultName},
 	}
 	if userCfg, err := loadConfig(); err != nil {
 		log.Fatalf("courier gateway: 加载路由表配置失败: %v", err)
