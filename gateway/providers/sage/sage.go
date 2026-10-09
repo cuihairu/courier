@@ -56,6 +56,8 @@ type AssistantProvider struct {
 
 	mu      sync.RWMutex
 	entries []entry // 登记序;检索按命中强度折算
+	queries int64   // 管理面统计(roadmap M4 验收:命中率可统计);内存计数,重启归零
+	hits    int64
 }
 
 // New 构造小助手 Provider。
@@ -110,6 +112,14 @@ func (p *AssistantProvider) EntryCount() int {
 	return len(p.entries)
 }
 
+// QueryStats 管理面:检索量与命中率(roadmap M4「常见问题命中率可统计」;
+// 进程内计数,持久化与跨实例聚合归部署面)。
+func (p *AssistantProvider) QueryStats() (queries, hits int64) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.queries, p.hits
+}
+
 // ServeHTTP 分发 /v1/assistant/*(全部 Bearer)。
 func (p *AssistantProvider) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p.auth(http.HandlerFunc(p.route)).ServeHTTP(w, r)
@@ -141,6 +151,12 @@ func (p *AssistantProvider) handleQuery(w http.ResponseWriter, r *http.Request) 
 	}
 
 	best, ok := p.bestMatch(text)
+	p.mu.Lock()
+	p.queries++
+	if ok {
+		p.hits++
+	}
+	p.mu.Unlock()
 	if !ok {
 		// 未命中不是错误:200 + matched:false + suggestTransfer:true。
 		aggregation.WriteData(w, queryDTO{Matched: false, SuggestTransfer: true})

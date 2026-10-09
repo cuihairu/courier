@@ -109,6 +109,21 @@ func TestQueryScoring_QuestionBeatsAnswer(t *testing.T) {
 	}
 }
 
+func TestQueryStats_HitRateCountable(t *testing.T) {
+	p := newP()
+	p.AddEntry("怎么充值", "商店-充值页", []string{"充值"})
+
+	call(t, p, http.MethodPost, "/v1/assistant/query", `{"text":"怎么充值"}`)  // 命中
+	call(t, p, http.MethodPost, "/v1/assistant/query", `{"text":"怎么充值?"}`) // 命中
+	call(t, p, http.MethodPost, "/v1/assistant/query", `{"text":"天气如何"}`)  // 未命中
+	call(t, p, http.MethodPost, "/v1/assistant/query", `{"text":"  "}`)    // 参数错不计
+
+	q, h := p.QueryStats()
+	if q != 3 || h != 2 {
+		t.Fatalf("stats = %d/%d, want 3 queries 2 hits", q, h)
+	}
+}
+
 func TestQueryTrimAndValidation(t *testing.T) {
 	p := newP()
 	p.AddEntry("q", "a", nil)

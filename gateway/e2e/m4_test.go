@@ -147,6 +147,12 @@ func TestM4AssistantQueryHitAndMiss(t *testing.T) {
 	if code != http.StatusBadRequest || !strings.Contains(body, "COMMON_INVALID_ARGUMENT") {
 		t.Fatalf("empty text: %d %s", code, body)
 	}
+
+	// 命中率可统计(管理面):2 次有效查询、1 次命中。
+	queries, hits := h.sage.QueryStats()
+	if queries != 2 || hits != 1 {
+		t.Fatalf("stats = %d/%d, want 2/1", queries, hits)
+	}
 }
 
 func TestM4AssistantTransferToHuman(t *testing.T) {
