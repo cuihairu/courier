@@ -188,6 +188,15 @@
 - [x] 审计证据:全量本地门禁在当前树重跑——cocos 102 / miniprogram 83 / laybox 82 / UE 六套 / gateway 17 包(+vet +race)/ 根模块 2 包;workflow 最新 run 全绿;Dependabot 告警 0
 - **落地**:六增量全绿推送;环境内可推进项仍为零,残留 = 部署面 + Godot(停靠)
 
+## 批次 23 — 巡检续批(上轮被打断后重派,同节奏)
+
+- [x] 复核基线(`e0ac63c` 前置):本地=origin、批次 22 全部 run 绿、无并行改动
+- [x] 文档漂移两处(`e0ac63c`):layers.md L1 行错误码 v3→v4 + 域清单补 payment v1.1、L3 现仓映射补 TS 三端 adapter(platform/wechat、platform/laya)与批次 12-17/20 历史、L4 补 accountalt 第二 identity 实现(批次 18);README 双语能力表补「推送(messages 通道)」行——M2 三域此前只列公告/客服,SSE 单连接/关闭=拉取兜底口径按 messages.md 对齐
+- [x] 核对项全部当前:十域契约 Frozen 头、契约索引文件表 17 文件全覆盖、fixtures 引用(layers L1/todo)、供应商八家+account/accountalt 与 gateway/providers 实目录一致、三端 TS README 结构树、UE 约定(引擎集成面未验证口径诚实)、cocos 树 ui/diagnostics 行、tools/ = contractgen+packcheck、zh/en 表行对等、Oddsmaker 两处生态概念引用为批次 18 清除口径的刻意保留(非漂移)
+- [x] 判定不扩范围:三 TS SDK 无 package.json(历史从未有、无文档声称、node --test 直跑不受影响)——非漂移,维护态不补
+- [x] CI:e0ac63c Tests + Deploy Docs 全绿
+- **落地**:单增量全绿推送;残留 = 部署面(真实渠道/持久化凭据/真机/引擎环境)+ Godot(停靠)
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。
