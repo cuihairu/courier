@@ -161,10 +161,24 @@ docs/       契约(contract/)、架构、五层设计、竞品调研(research/)�
 
 ## 文档索引
 
-- 契约宪法(M0):[docs/contract/](docs/contract/index.md) — 基元/错误/Scope/版本/事件 + 实名/品牌/诊断域契约
+- 契约宪法(M0):[docs/contract/](docs/contract/index.md) — 基元/错误/Scope/版本/事件基元契约 + 全部已冻结域契约:认证(M1)、公告/客服/推送(M2)、实名(M2)、配置/应用/品牌/档案/诊断(M3)、助手(M4)、支付(M5);诊断为客户端可选包,直发不经网关
 - 架构:[docs/architecture.md](docs/architecture.md) · 五层:[docs/layers.md](docs/layers.md)
 - 竞品调研:[docs/research/competitive.md](docs/research/competitive.md)
 - 路线图:[docs/roadmap.md](docs/roadmap.md) · 分批 TODO:[docs/todo.md](docs/todo.md)
+
+## 开发
+
+本地门禁(commit 前全绿):
+
+```text
+go test ./...                      # 根模块:contractgen + packcheck
+(cd gateway && go test ./...)      # gateway 模块:全部 Provider + e2e
+(cd gateway && go vet ./...)       # copylocks 等(go test 默认 vet 子集之外)
+node --test tests/*.test.ts        # 在 sdks/cocos、sdks/miniprogram、sdks/laybox 各自目录
+sh sdks/ue/run_tests.sh            # UE 无引擎独立编译(ISO C++17)
+```
+
+Unity 测试在 Unity Test Runner 跑(需引擎本体)。文档站:`npm install && npm run docs:build`(vitepress)。CI 每次 push/PR 跑同一套门禁:[.github/workflows/tests.yml](.github/workflows/tests.yml)。
 
 ## License
 

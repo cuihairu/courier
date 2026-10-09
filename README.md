@@ -172,10 +172,24 @@ docs/       Contracts (contract/), architecture, five-layer design, competitive
 
 ## Documentation Index
 
-- Contract constitution (M0): [docs/contract/](docs/contract/index.md) — primitives/errors/scope/versioning/events + real-name/branding/diagnostics domain contracts
+- Contract constitution (M0): [docs/contract/](docs/contract/index.md) — primitives/errors/scope/versioning/events base contracts + all domain contracts frozen: auth (M1), announcement/support/messages (M2), realname (M2), config/app/branding/player/diagnostics (M3), assistant (M4), payment (M5); diagnostics is a client-only optional package, direct-to-endpoint, not via gateway
 - Architecture: [docs/architecture.md](docs/architecture.md) · Five layers: [docs/layers.md](docs/layers.md)
 - Competitive research: [docs/research/competitive.md](docs/research/competitive.md)
 - Roadmap: [docs/roadmap.md](docs/roadmap.md) · Batch TODO: [docs/todo.md](docs/todo.md)
+
+## Development
+
+Local gates (run all green before commit):
+
+```text
+go test ./...                      # root module: contractgen + packcheck
+(cd gateway && go test ./...)      # gateway module: all providers + e2e
+(cd gateway && go vet ./...)       # copylocks etc. beyond go test's default vet
+node --test tests/*.test.ts        # in each of: sdks/cocos, sdks/miniprogram, sdks/laybox
+sh sdks/ue/run_tests.sh            # UE headless (ISO C++17, no engine needed)
+```
+
+Unity tests run in Unity Test Runner (needs the engine). Docs site: `npm install && npm run docs:build` (vitepress). CI runs the same gates on every push/PR: [.github/workflows/tests.yml](.github/workflows/tests.yml).
 
 ## License
 
