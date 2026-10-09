@@ -41,6 +41,12 @@ src/
 tests/                  零依赖 node --test(契约 6 / core+lifecycle 53 / service 17 / wechat 7 / ui 8 / diagnostics 11,共 102 例)
 ```
 
+## 运行测试
+
+```sh
+cd sdks/cocos && node --test tests/*.test.ts
+```
+
 ## 约定
 
 - 生命周期:`client.init()` → 登录流 → PlayerReady;切后台/断网经 `WechatLifecycleMonitor` 注入(平台差异归 Adapter,状态机平台无关;非法信号幂等否决)。
