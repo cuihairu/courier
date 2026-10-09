@@ -133,6 +133,7 @@ SDK packages: **Core (required) / Service (as needed) / UI (optional)**. `Create
 | Identity / Session | Register/sign in (email+password, guest device), token rotation, device binding; one account for all games | Built-in accounts/sessions | M1 |
 | Announcements | Fetch/subscribe to announcements, events, maintenance notices (isolated per game) | herald + croupier message | M2 |
 | Support | Ticket submission/query, FAQ search (account-scoped, visible across games) | croupier support/ticket/faq | M2 |
+| Messages (push channel) | SSE event stream, one connection for all domain events; capability off → pull-only fallback (announcement polling, manual support refresh) — features never break | chirp; off = pull-only fallback | M2 |
 | Real-name (optional) | Real-name verification + anti-addiction hook interface; hot-swappable provider (degradation chain + circuit breaker); disabled by default, explicit data-scope notice when enabled | Self-hosted / Alibaba Cloud / Tencent Cloud Huiyan / Yidun / Webhook | late M2 |
 | Remote Config | Condition matching on game_id/env/platform/version/region, hot effect | Built-in (publishable via croupier) | M3 |
 | Player Profile | Account↔character mapping and profile interfaces; character data belongs to each game | Built-in (lightweight) + each game server | M3 |

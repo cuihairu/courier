@@ -155,10 +155,10 @@ Go `http.ServeMux` + 中间件链(auth → rate limit → scope → audit);`/hea
 
 | 层 | 现仓落点 | 状态 |
 | --- | --- | --- |
-| L1 SDK Contract | `docs/contract/` + `tools/contractgen` | 基元五件 Frozen v1 + auth v1 + M2 三域 v1 + realname v1 + M3 五域(config/app/branding/player/diagnostics)v1 + assistant(M4)v1;错误码 v3 |
+| L1 SDK Contract | `docs/contract/` + `tools/contractgen` | 基元五件 Frozen v1 + auth v1 + M2 三域 v1 + realname v1 + M3 五域(config/app/branding/player/diagnostics)v1 + assistant(M4)v1 + payment(M5)v1.1;错误码 v4 |
 | L2 Core | `sdks/unity/packages/com.courier.core/Runtime/{Core,Identity,Session}`;`sdks/cocos/src/core`;`sdks/ue/core` | Unity 批次 4 落位(状态机+auth 域,48 用例);cocos TS 批次 12-13 落位(core+service 全域,node:test 83 例);UE C++ 批次 14 落位(core+service 全域,纯 ISO C++17 header-only,g++ 六套全绿) |
-| L3 Platform Adapter | `sdks/unity/packages/com.courier.core/Runtime/Adapter`(+UPM 包;`tools/packcheck`) | Unity 批次 5 落位(传输/安全存储/前后台);批次 6 service 域服务+SSE 解析、ui 面板;批次 8 App/Config/Branding/Player 域服务 + diagnostics 可选包(默认全关 no-op);批次 9 Assistant 域服务 + 助手面板(转人工);批次 10 Payment 域服务(下单/轮询);SSE 流式传输留引擎卡点 |
-| L4 Service Provider | `gateway/providers/*` | 接口形状批次 2 冻结;account 批次 3;herald/croupier/chirp 批次 6(M2 三域,e2e 验收);router 治理引擎 + warden 实名批次 7;scribe + archivist 批次 8(M3,e2e 验收);sage 批次 9(M4,e2e 验收);teller 批次 10(M5,e2e 验收) |
+| L3 Platform Adapter | `sdks/unity/packages/com.courier.core/Runtime/Adapter`(+UPM 包;`tools/packcheck`);TS 三端 adapter(`sdks/cocos`、`sdks/miniprogram` 的 platform/wechat,`sdks/laybox` 的 platform/laya) | Unity 批次 5 落位(传输/安全存储/前后台);批次 6 service 域服务+SSE 解析、ui 面板;批次 8 App/Config/Branding/Player 域服务 + diagnostics 可选包(默认全关 no-op);批次 9 Assistant 域服务 + 助手面板(转人工);批次 10 Payment 域服务(下单/轮询);TS 三端批次 12-17 落位(wechat/laya 绑定;ui 包批次 17、diagnostics 包批次 20);SSE 流式传输留引擎卡点 |
+| L4 Service Provider | `gateway/providers/*` | 接口形状批次 2 冻结;account 批次 3;herald/croupier/chirp 批次 6(M2 三域,e2e 验收);router 治理引擎 + warden 实名批次 7;scribe + archivist 批次 8(M3,e2e 验收);sage 批次 9(M4,e2e 验收);teller 批次 10(M5,e2e 验收);accountalt 第二 identity 实现(同契约异构)批次 18 |
 | L5 Gateway | `gateway/{cmd,routing,middleware,scope,aggregation,auth,session,e2e}` | 批次 2 骨架;auth/session 批次 3;能力驱动路由+SSE 通道+e2e 批次 6;维护门批次 8 |
 
 ## 演进原则

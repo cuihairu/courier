@@ -124,6 +124,7 @@ SDK 分包:**Core(必选)/ Service(按需)/ UI(可选包)**——`CreateTicket()
 | Identity / Session | 注册/登录(邮箱+密码、游客设备)、token 轮换、设备绑定;一个账号登录所有游戏 | 自建 accounts/sessions | M1 |
 | 公告 | 拉取/订阅公告、活动、维护通知(按游戏隔离) | herald + croupier message | M2 |
 | 客服 | 工单提交/查询、FAQ 检索(账号维度可跨游戏) | croupier support/ticket/faq | M2 |
+| 推送(messages 通道) | SSE 事件流,单连接承载全部域事件;能力关闭 → 纯拉取兜底(公告轮询、客服手动刷新),功能不残废 | chirp;关闭 = 拉取兜底 | M2 |
 | 实名(可选) | 实名核验 + 防沉迷钩子接口位;Provider 热插拔(降级链+熔断);默认关闭,开启明示数据范围 | 自建/阿里云/腾讯云慧眼/易盾/Webhook | M2 后段 |
 | Remote Config | 按 game_id/env/platform/version/region 条件匹配,热生效 | 自建(可由 croupier 发布) | M3 |
 | Player Profile | 账号↔角色映射与档案接口,角色数据归各游戏 | 自建(轻量)+ 各游戏服 | M3 |
