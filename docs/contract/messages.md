@@ -54,6 +54,13 @@ M3 追加(与拉取 DTO 不同构:只带版本号,客户端重拉比对——同
 | `config.updated` | `{ "configVersion": 7 }`([config.md](./config.md)) | 管理面发布新配置版本 |
 | `branding.updated` | `{ "version": 3 }`([branding.md](./branding.md)) | 管理面变更品牌物料 |
 
+M5 v1.1 追加(payment 域;广播提示,不含业务字段——金额/SKU 归拉取端点按归属过滤):
+
+| event | data | 触发 |
+| --- | --- | --- |
+| `payment.paid` | `{ "orderId": "order_..." }`([payment.md](./payment.md)) | 渠道回调受理,订单转 `PAID` |
+| `payment.delivered` | `{ "orderId": "order_..." }` | 订单转 `DELIVERED`(含对账恢复重发) |
+
 新事件随域契约冻结在此登记;`type` 冻结后不改,废弃事件服务端停发、类型保留。
 
 ## 语义规则

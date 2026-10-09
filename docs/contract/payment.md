@@ -1,6 +1,6 @@
 # 支付契约(Payment)——形态开放
 
-> 状态:**Frozen v1** · 里程碑 M5 · 冻结日期 2026-10-09。
+> 状态:**Frozen v1.1** · 里程碑 M5 · v1 冻结日期 2026-10-09;**v1.1(2026-10-09)追加推送事件**(`payment.paid` / `payment.delivered`,附加兼容变更,见「推送事件」)。
 > 域前缀 `PAYMENT` 已注册([errors.md](./errors.md));本文档是 M5 服务端(默认供应商 **teller**)与各端 SDK 的一致性依据,冻结后只加不改,破坏性变更升版本(见 [versioning.md](./versioning.md))。
 
 ## 能力与范围
@@ -90,6 +90,18 @@
 - **发货钩子**:Provider 构造注入(接入方按订单发货:道具/入账/外部确认);幂等要求按订单。
 - **对账重发**:管理面枚举停 `PAID` 的订单逐个重试发货(断单可对账恢复的落点);本 v1 为进程内方法,持久化与定时对账随部署面。
 
+## 推送事件(v1.1 新增)
+
+经推送通道([messages.md](./messages.md),默认 Provider chirp)**广播**;载荷是最小提示,**不含金额/SKU 等业务字段**(广播信道人人可收,业务数据归拉取端点按归属过滤):
+
+| type | 触发 | payload |
+| --- | --- | --- |
+| `payment.paid` | 订单 `CREATED → PAID`(渠道回调受理) | `{ "orderId": "order_..." }` |
+| `payment.delivered` | 订单转 `DELIVERED`(回调同步发货;含对账恢复的重发) | `{ "orderId": "order_..." }` |
+
+- 语义同 [events.md](./events.md):at-most-once + 拉取兜底——推送只是「该去拉了」的提示,客户端收到后 `GET /v1/payments/orders/{orderId}`(归属校验:非本人 404,广播不泄露存在性以外的信息)。幂等重复回调不重复推送(只报状态转移,不报受理)。
+- 发货感知升级:**推送为提示、轮询为准**——未连流/丢帧时轮询(`GET orders/{id}`)仍是完整可用路径,不做实时期望。
+
 ## 错误码域表(前缀 `PAYMENT`,errors.md v4)
 
 | code | HTTP | retryable | 说明 |
@@ -103,7 +115,7 @@
 ## 客户端要求(各端 SDK)
 
 - 能力未接(501 `COMMON_CAPABILITY_DISABLED`)→ 各查询返回 null,隐藏商城/充值 UI。
-- **发货感知 = 订单轮询**(下单后按需轮询详情;推送事件预留 v1.1,不做实时期望)。
+- **发货感知 = 推送为提示、轮询为准**(v1.1 起有 `payment.paid`/`payment.delivered` 推送;未连流/丢帧轮询详情仍完整可用,不做实时期望)。
 - `payToken` 只在下单响应出现一次:沙箱渠道直接回传模拟渠道完成支付;真实渠道按渠道 SDK 语义消费(契约不解释渠道 SDK)。
 - 金额展示用 `amountCents`/`currency` 原样渲染,**不得**在客户端做任何金额计算。
 - `PAYMENT_RISK_REJECTED` / `PAYMENT_INVALID_SIGNATURE` 不重试;429 按 `Retry-After` 退避。

@@ -45,5 +45,7 @@
 | `config.updated` | config(M3) | 远程配置变更 |
 | `app.maintenance_changed` | app(M3) | 维护状态变化 |
 | `app.force_update` | app(M3) | 强更通知 |
+| `payment.paid` | payment(M5,v1.1) | 订单已支付(提示,载荷只含 orderId;[payment.md](./payment.md)) |
+| `payment.delivered` | payment(M5,v1.1) | 订单已发货(含对账恢复;提示,载荷只含 orderId) |
 
 注册新事件 = 域契约变更,走 [总纲](./index.md) 变更流程。
