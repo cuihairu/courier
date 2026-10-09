@@ -76,8 +76,16 @@
 
 ## 批次 9 — M4:Assistant;批次 10 — M5:Payment
 
-- [ ] FAQ 检索问答 + 转人工(M4)
+- [x] FAQ 检索问答 + 转人工(M4)(已完成,2026-10)
 - [ ] Payment Contract 冻结(Order/Purchase/Receipt + 四形态)+ 沙箱渠道全链路(M5)
+
+### 批次 9 落地(M4,2026-10)
+
+- [x] assistant.md Frozen v1:检索式问答(命中返回知识条目**原样快照**,答不生成——可审计不幻觉);未命中不是错误(200 + suggestTransfer);零新增错误码;LLM 接口预留但默认不依赖(接入方换供应商,契约语义不变)
+- [x] sage 默认供应商:知识库管理面登记(AddEntry,自带库不反向依赖 support 域)、检索评分、QueryStats 命中率统计(进程内);e2e 两例:命中/未命中/400 校验 + 转人工链路端到端(未命中 → support 提单 → 坐席回复 REPLIED → 玩家详情可见)
+- [x] Unity AssistantService(未命中即结果对象、501→null 隐藏入口)+ AssistantPanel(AskAsync 渲染 + TransferToHumanAsync 一键提单,标题 `[助手]` 前缀);packcheck 守三面板
+- **验收**:roadmap M4——常见问题命中率可统计(QueryStats + 单测/e2e 断言);转人工链路端到端(e2e)
+- **落地**:契约 `1104081`;网关 `2481383`(sage+e2e)/ `786b14b`(stats);客户端 `9b45f9e`(service)/ `1047bb1`(UI 面板);持久化知识库与跨实例统计聚合、LLM 供应商接入随部署面
 
 ## 明确不做
 
