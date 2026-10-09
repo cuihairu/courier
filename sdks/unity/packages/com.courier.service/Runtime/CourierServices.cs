@@ -16,6 +16,7 @@ namespace Courier.Service
         public BrandingService Branding { get; }
         public PlayerService Player { get; }
         public AssistantService Assistant { get; }
+        public PaymentService Payments { get; }
 
         public CourierServices(CourierClient client)
         {
@@ -28,6 +29,7 @@ namespace Courier.Service
             Branding = new BrandingService(api);
             Player = new PlayerService(api);
             Assistant = new AssistantService(api);
+            Payments = new PaymentService(api);
         }
     }
 }
