@@ -131,6 +131,13 @@
 - [x] 测试:`node --test` 83 例全绿(契约 6 / core+lifecycle 53 / service 17 / wechat 7,fake wx 结构类型注入)
 - **落地**:单增量 `33325e8`;真机联调(真 wx 环境)随部署面
 
+## 批次 16 — laybox(TS)core + service + laya 适配
+
+- [x] core + service(`59a8e02`,cocos/miniprogram 全量对齐):同构九域 + lifecycle + 门面
+- [x] Layabox 适配器(`src/platform/laya/`):LocalStorage TokenStore、XMLHttpRequest Transport(响应头小写归一)、LifecycleMonitor(文档可见性 + navigator onLine → `LayaboxAppHooks` 结构面,引擎版本差异收敛在接入方绑定侧)
+- [x] 测试:`node --test` 82 例全绿(契约 6 / core+lifecycle 53 / service 17 / laya 6,fake XHR/storage 注入)
+- **落地**:单增量 `59a8e02`;真机联调随部署面
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。
