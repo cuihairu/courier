@@ -2,6 +2,7 @@
 // 登出吊销、设备列表。安全事件(REFRESH_REUSED/TOKEN_REVOKED)→ 本地清场
 // (整个会话已被服务端吊销,契约 auth.md「重放检测」)。
 import type { ApiClient } from "./apiClient.ts";
+import type { LifecycleMachine } from "./lifecycle.ts";
 import type { TokenStore } from "./tokenStore.ts";
 import type { DeviceListDto, SessionDto, SessionInfoDto } from "./types.ts";
 
@@ -10,10 +11,12 @@ export class SessionService {
   // accessTokenProvider/refreshHook 又回调本服务,天然成环,只能延迟接线)。
   private api: ApiClient | null = null;
   private readonly store: TokenStore;
+  private readonly lifecycle: LifecycleMachine;
   private refreshInFlight: Promise<boolean> | null = null;
 
-  constructor(store: TokenStore) {
+  constructor(store: TokenStore, lifecycle: LifecycleMachine) {
     this.store = store;
+    this.lifecycle = lifecycle;
   }
 
   /** CourierClient 装配回填(内部接线点,接入方不经此构造)。 */
@@ -41,6 +44,7 @@ export class SessionService {
   /** 落库新会话(登录/轮换成功后由 IdentityService 经 onSession 调用)。 */
   adopt(session: SessionDto): void {
     this.store.save(session);
+    this.lifecycle.reportAccountId(session.accountId); // 切号检测(events.md account_switched)
   }
 
   /** 本地清场(登出成功/安全事件后)。 */
@@ -64,6 +68,7 @@ export class SessionService {
     if (!current) {
       return false;
     }
+    this.lifecycle.raiseTokenExpired(); // 契约事件:自动 refresh 开始(状态不变)
     try {
       const dto = await this.requireApi().request<SessionDto>("POST", "/v1/identity/refresh",
         { refreshToken: current.refreshToken }, false);
@@ -72,8 +77,9 @@ export class SessionService {
     } catch (e) {
       const wire = e instanceof Error && "wire" in e ? String((e as { wire: unknown }).wire) : "";
       if (wire === "AUTH_REFRESH_REUSED" || wire === "AUTH_TOKEN_REVOKED") {
-        // 安全事件:本地清场,重登(契约 auth.md「重放检测」)。
+        // 安全事件:本地清场 + 生命周期登出(重登;契约 auth.md「重放检测」)。
         this.store.clear();
+        this.lifecycle.tryFire("SignedOut");
         return false;
       }
       throw e;
@@ -88,6 +94,7 @@ export class SessionService {
       // 吊销失败不阻塞登出(本地清场为准;下次请求自然 401)。
     } finally {
       this.store.clear();
+      this.lifecycle.tryFire("SignedOut");
     }
   }
 
