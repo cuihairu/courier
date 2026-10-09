@@ -205,10 +205,10 @@ CourierClient(门面)
   UI 包            LoginPanel / AnnouncementPanel / SupportPanel(可选,消费 Branding)
 ```
 
-- 每端 = 平台无关 Core(DTO、生命周期状态机、token 存储、重试)+ 平台 binding(Unity UPM / UE 插件 / Cocos TS / 微信小程序 / Layabox / Godot)。
+- 每端 = 平台无关 Core(DTO、生命周期状态机、token 存储、重试)+ 平台 binding(Unity UPM / UE 插件 / Cocos TS / 微信小程序 / Layabox;Godot 规划中)。
 - **Adapter 禁带业务**:Adapter 只做「网络、存储、生命周期、线程」的平台翻译;任何业务语义出现即架构违规(上移 Core 或 Service)。
 - 公共 DTO 以 [contract/](./contract/index.md) 为唯一事实源,多端生成或手写对齐,禁止各自发明字段。
-- token 存储走平台安全存储(Unity 加密存储 / UE 平台凭证 / Cocos localStorage 隔离 / 微信 storage / Layabox、Godot 平台存储)。
+- token 存储走平台安全存储(Unity 加密存储 / UE 平台凭证 / Cocos localStorage 隔离 / 微信 storage / Layabox 平台存储;Godot 规划中)。
 
 ## 安全边界
 
