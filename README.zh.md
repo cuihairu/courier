@@ -69,15 +69,18 @@ Game Client (Unity / UE / Cocos / 小程序 / Layabox / Godot)
   -> Courier SDK (C# / C++ / GDScript / TypeScript / JavaScript)
   -> Courier Gateway (玩家 API 网关:auth、session、scope、路由、聚合)
   -> 后端 Provider(默认提供,可换可关):
-     - AccountProvider       默认:courier 自建 accounts/sessions
+     - AccountProvider       默认:courier-account(自建 accounts/sessions;
+                             第二实现 courier-account-alt 同契约可换)
      - AnnouncementProvider  默认:herald(事件驱动通知投递)
      - SupportProvider       默认:croupier support / ticket / faq
      - MessageProvider       默认:chirp(gateway + session)
-     - RiskProvider          默认:oddsmaker(充值风控、行为分析)
-     - RealNameProvider      默认:关闭(自建/阿里云/腾讯云慧眼/易盾/Webhook 可接)
-     - ConfigProvider        远程配置,默认自建
-     - BrandingProvider      品牌素材,默认自建(与 Config 同管道)
-     - DiagnosticsProvider   默认:关闭(Sentry/GlitchTip/OTLP 可接)
+     - RealNameProvider      默认:warden(自建核验;阿里云/腾讯云慧眼/易盾/Webhook 同形状可接)
+     - ConfigProvider        默认:scribe(远程配置,自建管道)
+     - BrandingProvider      默认:scribe(与 Config 同管道)
+     - PlayerProvider        默认:archivist(档案 + 账号↔角色映射)
+     - AssistantProvider     默认:sage(FAQ 检索问答)
+     - PaymentsProvider      默认:teller(订单-回调-发货)
+     - DiagnosticsProvider   直发接入方端点不经网关(契约红线;Sentry/GlitchTip/OTLP 可接)
 ```
 
 默认供应商只是开箱即用的便利,不是绑定:任何一项都可配置为自建 HTTP 端点、第三方服务,或直接关闭(客户端安全地隐藏对应能力)。

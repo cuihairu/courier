@@ -76,16 +76,20 @@ Game Client (Unity / UE / Cocos / Mini Program / Layabox / Godot)
   -> Courier SDK (C# / C++ / GDScript / TypeScript / JavaScript)
   -> Courier Gateway (player API gateway: auth, session, scope, routing, aggregation)
   -> Backend Providers (provided by default, replaceable, disableable):
-     - AccountProvider       default: Courier's built-in accounts/sessions
+     - AccountProvider       default: courier-account (built-in accounts/sessions;
+                             second impl courier-account-alt, same contract)
      - AnnouncementProvider  default: herald (event-driven notification delivery)
      - SupportProvider       default: croupier support / ticket / faq
      - MessageProvider       default: chirp (gateway + session)
-     - RiskProvider          default: oddsmaker (top-up risk control, behavior analysis)
-     - RealNameProvider      default: disabled (self-hosted / Alibaba Cloud /
-                             Tencent Cloud Huiyan / Yidun / Webhook can be connected)
-     - ConfigProvider        remote config, built-in by default
-     - BrandingProvider      branding assets, built-in by default (same pipeline as Config)
-     - DiagnosticsProvider   default: disabled (Sentry/GlitchTip/OTLP can be connected)
+     - RealNameProvider      default: warden (built-in verification; Alibaba Cloud /
+                             Tencent Cloud Huiyan / Yidun / Webhook adapters share one shape)
+     - ConfigProvider        default: scribe (remote config, built-in pipeline)
+     - BrandingProvider      default: scribe (same pipeline as Config)
+     - PlayerProvider        default: archivist (profile + account-player mapping)
+     - AssistantProvider     default: sage (FAQ search Q&A)
+     - PaymentsProvider      default: teller (order-callback-delivery)
+     - DiagnosticsProvider   direct-to-endpoint, not via gateway (contract red line;
+                             Sentry/GlitchTip/OTLP can be connected)
 ```
 
 The default providers are an out-of-the-box convenience, not a lock-in. Any of them can be configured as a self-hosted HTTP endpoint, a third-party service, or switched off entirely (the client then safely hides the corresponding capability).

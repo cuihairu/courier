@@ -29,7 +29,7 @@ Gateway、Provider、生态后端全部是**契约的实现者 / 后端提供者
 生态项目只能以「供应商(Provider)」角色存在:
 
 1. **每个能力的后端 = 可插拔 Provider**,统一接口、配置驱动。
-2. **Courier 默认提供一套开箱即用的实现**:公告默认 herald、客服默认 croupier、推送默认 chirp、风控默认 oddsmaker、账号默认自建 accounts——默认供应商可以打包,但**接不接、用哪家、换不换由接入方配置决定,SDK 不替用户做选择**。
+2. **Courier 默认提供一套开箱即用的实现**:公告默认 herald、客服默认 croupier、推送默认 chirp、实名默认 warden(自建核验)、账号默认自建 courier-account(第二实现 courier-account-alt 同契约可换)——默认供应商可以打包,但**接不接、用哪家、换不换由接入方配置决定,SDK 不替用户做选择**。
 3. **不硬绑定、不强制依赖**:任何 Provider 都可替换为自建实现、第三方服务,或直接关掉;关掉 = 能力降级(`COMMON_CAPABILITY_DISABLED`),不是报错。
 4. **示例**:公告能力默认走 herald Provider;接入方可配置成自己的 HTTP 端点,或禁用公告(客户端安全地隐藏对应 UI)。
 
@@ -49,7 +49,7 @@ Gateway、Provider、生态后端全部是**契约的实现者 / 后端提供者
        ▼         ▼         ▼         ▼
   AccountProvider(自建 accounts)…均经 Provider 接口
        ▼
-  默认供应商:herald(公告)· croupier(客服)· chirp(推送)· oddsmaker(风控)
+  默认供应商:herald(公告)· croupier(客服)· chirp(推送)· warden(实名)· scribe(app)· archivist(档案)· sage(助手)· teller(支付)
   —— 以上全部可被接入方替换或关闭
 ```
 
@@ -109,17 +109,22 @@ gateway/
 ├── routing/       路由与 Provider 注册表
 ├── aggregation/   跨 Provider 聚合
 ├── middleware/    限流 / trace / 审计 / 恢复
-└── providers/     Provider 接口 + 默认实现
-    ├── account/        AccountProvider        默认:自建 accounts/sessions
-    ├── announcement/   AnnouncementProvider   默认:herald
-    ├── support/        SupportProvider        默认:croupier support/ticket/faq
-    ├── message/        MessageProvider        默认:chirp
-    ├── risk/           RiskProvider           默认:oddsmaker
-    ├── realname/       RealNameProvider       默认:关闭(可接自建/阿里云/腾讯云/易盾/Webhook)
-    ├── config/         ConfigProvider         Remote Config,默认自建(可由 croupier 发布)
-    ├── branding/       BrandingProvider       默认自建(与 config 同管道)
-    └── diagnostics/    DiagnosticsProvider    默认:关闭
+└── providers/     Provider 接口 + 默认实现(能力域 → 注册名)
+    ├── account/        AccountProvider(identity)   默认:courier-account(自建
+    │                   accounts/sessions;第二实现 courier-account-alt 同契约可换)
+    ├── herald/         AnnouncementProvider(announcements)
+    ├── croupier/       SupportProvider(support)
+    ├── chirp/          MessageProvider(messages,SSE)
+    ├── warden/         RealNameProvider(realname)  默认:自建核验;阿里云/腾讯云
+    │                   慧眼/易盾/Webhook 按需适配同一形状
+    ├── scribe/         AppProvider(app:config/branding/版本/维护,自建管道,
+    │                   可由 croupier 发布)
+    ├── archivist/      PlayerProvider(player)
+    ├── sage/           AssistantProvider(assistant,FAQ 检索问答)
+    └── teller/         PaymentsProvider(payments:订单-回调-发货;渠道沙箱随部署面)
 ```
+
+> 诊断不经网关:契约红线(diagnostics.md)规定诊断数据直发接入方自有端点,网关无 DiagnosticsProvider。
 
 - 未配置的 Provider:对应路由不注册,客户端得到 `COMMON_CAPABILITY_DISABLED`(见 [contract/errors.md](./contract/errors.md))。
 - `accounts` / `announcements` 这类名字不得作为 gateway 一级业务目录出现——它们是 Provider 的默认实现,住在 `providers/` 下。
@@ -208,7 +213,7 @@ CourierClient(门面)
 ## 安全边界
 
 - 客户端不持有任何 Provider 凭证、内部 URL、管理接口。
-- 登录限流 + 风控前置(M1 基础限流;RiskProvider 默认 oddsmaker,可换)。
+- 登录限流 + 敏感端点限流(网关 middleware;登录/实名等敏感端点更严口径)。支付沙箱期前置风控随部署面(roadmap M5)。
 - 支付回调只认渠道签名,不认客户端上报金额/状态。
 - 实名:字段最小化、传输加密、SDK 不落盘、日志/trace 禁明文([contract/realname.md](./contract/realname.md))。
 - 诊断:默认关闭、显式开启、开启明示数据范围([contract/diagnostics.md](./contract/diagnostics.md))。
@@ -218,13 +223,16 @@ CourierClient(门面)
 
 | 能力 | Courier 负责 | Provider 侧负责 | 默认供应商(可换/可关) |
 | --- | --- | --- | --- |
-| 账号/会话 | 客户端面与网关治理 | 账号存储与核验 | 自建 accounts/sessions |
+| 账号/会话 | 客户端面与网关治理 | 账号存储与核验 | courier-account(自建;第二实现 courier-account-alt 同契约可换) |
 | 公告 | 玩家侧拉取/订阅 API、SDK 组件 | 投递编排、运营发布 | herald + croupier message |
 | 客服 | 玩家侧提单/查询 API | 工单流转、坐席 | croupier support/ticket/faq |
 | 推送 | 事件契约与拉取兜底 | 长连接通道 | chirp |
-| 风控 | 前置调用 | 规则与判定 | oddsmaker |
-| 实名 | 契约与 Provider 治理 | 核验执行 | 默认关闭;自建/阿里云/腾讯云/易盾/Webhook |
-| 诊断 | 契约与红线 | 上报存储与分析 | 默认关闭;Sentry/GlitchTip/OTLP |
+| 实名 | 契约与 Provider 治理 | 核验执行 | warden(自建核验;阿里云/腾讯云慧眼/易盾/Webhook 同形状可接) |
+| 配置/品牌/版本 | 契约、条件投影、热生效 | 内容发布管道 | scribe(自建;可由 croupier 发布) |
+| 玩家档案 | 契约与治理 | 档案存储、角色绑定 | archivist(自建) |
+| 助手 | 契约与检索面 | FAQ 知识库、坐席 | sage(自建 FAQ) |
+| 支付 | 契约与订单面 | 渠道回调、发货、对账 | teller(自建;渠道沙箱随部署面) |
+| 诊断 | 契约与红线 | 上报存储与分析 | 不经网关,直发接入方端点;Sentry/GlitchTip/OTLP |
 
 ## 竞品定位
 

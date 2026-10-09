@@ -16,7 +16,7 @@
  L5 Gateway           唯一入口:auth / session / scope / routing / aggregation / middleware
  L4 Service Provider  Provider 接口 + 默认实现(默认供应商可换可关)
  ───────────────────────── 生 态 ────────────────────────────
-   默认供应商(仅以 Provider 角色存在):herald(公告) croupier(客服) chirp(推送) oddsmaker(风控) scribe(配置/品牌) archivist(档案) sage(助手) teller(支付)
+   默认供应商(仅以 Provider 角色存在):courier-account(账号,第二实现 courier-account-alt 可换) herald(公告) croupier(客服) chirp(推送) warden(实名) scribe(配置/品牌/版本) archivist(档案) sage(助手) teller(支付)
 ```
 
 L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不依赖任何层。
@@ -89,12 +89,11 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 
 | Provider | 接口职责 | 默认实现(可换/可关) |
 | --- | --- | --- |
-| AccountProvider | 注册/登录/凭证核验 | 自建 accounts/sessions |
+| AccountProvider | 注册/登录/凭证核验 | courier-account(自建;第二实现 courier-account-alt 同契约可换) |
 | AnnouncementProvider | 玩家侧公告投影 | herald |
 | SupportProvider | 工单/FAQ 投影 | croupier |
 | MessageProvider | 推送通道/会话复用 | chirp |
-| RiskProvider | 登录/支付风控前置 | oddsmaker |
-| RealNameProvider | 实名核验(热插拔/降级链/熔断) | 默认关闭;自建/阿里云/腾讯云慧眼/易盾/Webhook |
+| RealNameProvider | 实名核验(热插拔/降级链/熔断) | warden(自建核验;阿里云/腾讯云慧眼/易盾/Webhook 同形状可接) |
 | ConfigProvider | 远程配置下发 | scribe(条件投影 + 灰度分桶) |
 | BrandingProvider | 品牌素材下发 | scribe(与 config 同管道) |
 | PlayerProvider | 账号档案 + 账号↔角色映射 | archivist(scope 隔离) |

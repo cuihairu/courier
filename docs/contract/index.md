@@ -1,7 +1,7 @@
 # Courier SDK Contract(M0 立宪)
 
 > **状态**:基元五件 **Frozen v1**(2026-10-08,M0 跨端评审冻结;错误码表现已 **v4**——v2 追加 M2 域码,v3 追加 REALNAME 时段/额度码,v4 追加 M5 PAYMENT 域码;**v1.1** 2026-10-10 追加取消与并发纪律两节);auth 域契约 Frozen v1(M1);announcement / support / messages 域契约 Frozen v1(M2);realname 域契约 **Frozen v1**(M2 后段);config / app / branding / player 域契约 **Frozen v1**(M3,2026-10-09);diagnostics 域契约 **Frozen v1**(M3,可选包默认全关);assistant 域契约 **Frozen v1**(M4,2026-10-09);payment 域契约 **Frozen v1**(M5,2026-10-09;v1.1 追加 payment.paid/delivered 推送事件,2026-10-09)。冻结后进入变更流程管理。
-> **原则**:**SDK Contract > Everything**——契约是 Courier 的宪法。Gateway、Provider、Core、Adapter、生态后端(herald / croupier / chirp / oddsmaker / 自建 accounts)都只是契约的**实现者**;新增引擎 = 新增 Adapter,而不是重新设计 SDK。
+> **原则**:**SDK Contract > Everything**——契约是 Courier 的宪法。Gateway、Provider、Core、Adapter、生态后端(herald / croupier / chirp / warden / 自建 accounts)都只是契约的**实现者**;新增引擎 = 新增 Adapter,而不是重新设计 SDK。
 
 ## 为什么立宪
 
