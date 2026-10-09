@@ -14,7 +14,7 @@
 
 - Unity / Cocos 端可依契约各自手写 DTO 与错误枚举而无歧义;契约测试骨架就位。
 
-## M1 — Auth(地基)
+## M1 — Auth(地基)(已完成,2026-10)
 
 **范围**
 
@@ -28,7 +28,7 @@
 - Unity 示例完成 游客登录 → 绑定邮箱 → 登出 → refresh 轮换 → 吊销后拒绝 全链路。
 - 并发登录限流生效;错误为结构化 JSON(code/message/traceId,跨端枚举一致)。
 
-## M2 — 公告 + 客服(合规后段:实名)
+## M2 — 公告 + 客服(合规后段:实名)(已完成,2026-10)
 
 **范围**
 
@@ -42,7 +42,7 @@
 - 玩家提单 → 坐席回复 → 玩家端实时可见。
 - 实名:主 Provider 熔断 → fallback 接管 → 全挂转 `PENDING_REVIEW` 安全态;全程默认关、开启明示数据范围。
 
-## M3 — Remote Config + Player Profile + App(版本/维护)+ Branding + Diagnostics
+## M3 — Remote Config + Player Profile + App(版本/维护)+ Branding + Diagnostics(已完成,2026-10)
 
 **范围**
 
@@ -57,7 +57,7 @@
 - 修改远程配置 → 命中条件的客户端热生效;未命中不受影响。
 - 维护模式开启 → 新会话收到 `APP_MAINTENANCE`;品牌配置变更 → UI 包热切换;诊断四类默认零上报,逐类开启逐类生效。
 
-## M4 — Assistant(后移)
+## M4 — Assistant(已完成,2026-10)
 
 **范围**
 
@@ -67,7 +67,7 @@
 
 - 常见问题命中率可统计;转人工链路端到端。
 
-## M5 — Payment(只定 Contract,形态开放)
+## M5 — Payment(只定 Contract,形态开放)(契约与网关已完成,2026-10;真实渠道沙箱随部署面)
 
 **范围**
 
