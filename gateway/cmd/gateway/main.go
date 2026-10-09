@@ -18,6 +18,7 @@ import (
 	"github.com/cuihairu/courier/gateway/providers/chirp"
 	"github.com/cuihairu/courier/gateway/providers/croupier"
 	"github.com/cuihairu/courier/gateway/providers/herald"
+	"github.com/cuihairu/courier/gateway/providers/sage"
 	"github.com/cuihairu/courier/gateway/providers/scribe"
 	"github.com/cuihairu/courier/gateway/providers/warden"
 	"github.com/cuihairu/courier/gateway/routing"
@@ -53,7 +54,10 @@ func main() {
 	// 玩家档案(M3,批次 8):archivist(自建轻量)——账号档案 + 账号↔角色映射
 	// (按 scope 隔离;角色数据归各游戏,本域不存)。
 	archivistP := archivist.New(archivist.Options{RequireAuth: reqAuth})
-	for _, h := range []providers.Handler{acc, heraldP, croupierP, chirpP, wardenP, scribeP, archivistP} {
+	// 小助手(M4,批次 9):sage(自建 FAQ 检索)——命中即答,答不出引导转人工
+	// (复用 support 域提单链路,经客户端组装;LLM 供应商按同一接口替换,默认不依赖)。
+	sageP := sage.New(sage.Options{RequireAuth: reqAuth})
+	for _, h := range []providers.Handler{acc, heraldP, croupierP, chirpP, wardenP, scribeP, archivistP, sageP} {
 		if err := reg.Register(h); err != nil {
 			log.Fatalf("courier gateway: 注册 %s 失败: %v", h.Name(), err)
 		}
@@ -70,6 +74,7 @@ func main() {
 		providers.CapMessages:      {Primary: chirp.DefaultName},
 		providers.CapApp:           {Primary: scribe.DefaultName},
 		providers.CapPlayer:        {Primary: archivist.DefaultName},
+		providers.CapAssistant:     {Primary: sage.DefaultName},
 	}
 	if userCfg, err := loadConfig(); err != nil {
 		log.Fatalf("courier gateway: 加载路由表配置失败: %v", err)
