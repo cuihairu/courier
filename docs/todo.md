@@ -93,7 +93,13 @@
 - [x] teller 默认供应商:价格表管理面(AddSku 改价不影响已建订单)、下单(风控前置 RiskCheck→403)、S2S 回调(恒时比较、幂等受理、paidAt 透传)、Reconcile 对账(停 PAID 枚举重发)、CloseOrder(DELIVERED 不可关→409 PAYMENT_ORDER_STATE);e2e 四例:全链(价格表投影/服务端定价防伪造金额字段/发货指令含定价事实/详情列表无 payToken)、签名面(缺头/错钥/篡改全部 403 订单停 CREATED)、断单对账恢复、风控拒绝+未知订单回调 404
 - [x] Unity PaymentService(SKU 投影/下单/列表/详情轮询,501→null 隐藏商城 UI;payToken 只在下单响应出现,消费归渠道 SDK,契约不解释;金额原样渲染不做客户端计算)+ ServiceTests 6 例;packcheck 守 service 包新件
 - **验收**:roadmap M5——服务端定价(客户端无法改价)、回调签名面 fail-closed(单测+e2e 三伪造形态)、断单对账恢复(e2e)、回调幂等不二次发货(单测+e2e)
-- **落地**:契约 `9df7ba7`(payment v1 + errors v4);网关 `ddcbd03`(teller+e2e);客户端 `fff7125`(service);真实渠道接入、订单持久化与定时对账、支付推送事件(v1.1 预留)随部署面
+- **落地**:契约 `9df7ba7`(payment v1 + errors v4);网关 `ddcbd03`(teller+e2e);客户端 `fff7125`(service);真实渠道接入、订单持久化与定时对账随部署面
+
+## 批次 11 — M5 后段:支付推送事件(v1.1)
+
+- [x] payment.md v1.1:推送事件 `payment.paid` / `payment.delivered`(广播提示,载荷只含 orderId——金额/SKU 归拉取端点按归属过滤;幂等重复回调不重发,只报状态转移;发货感知升级「推送为提示、轮询为准」);events.md / messages.md 事件登记同步
+- [x] teller Notify 钩子(接 chirp.Hub,同 herald/croupier 装配;CREATED→PAID 发 paid、转 DELIVERED 发 delivered 含对账恢复重发);e2e:SSE 断言 paid/delivered 5s 内送达、断单只发 paid、Reconcile 补发 delivered、幂等回调与伪造签名静默不推送
+- **落地**:契约 `60b5d22`;网关 `79c5bce`;客户端注释同步随 docs 提交;订单持久化、定时对账与离线推送(APNs/FCM)随部署面
 
 ## 明确不做
 

@@ -1,6 +1,7 @@
-// M5 支付客户端(契约 payment.md Frozen v1)。玩家侧四端点全 Bearer;
+// M5 支付客户端(契约 payment.md Frozen v1.1)。玩家侧四端点全 Bearer;
 // POST /v1/payments/callback 为 S2S 渠道回调(HMAC 签名即认证),不经客户端 SDK 封装。
 // 下单只收 skuId(服务端定价红线:客户端不下发/不计算金额)。
+// v1.1 发货感知:推送为提示(payment.paid/delivered 载荷只含 orderId)+ 轮询为准。
 using System.Threading;
 using System.Threading.Tasks;
 using Courier.Core;
@@ -41,7 +42,8 @@ namespace Courier.Service
                 .ConfigureAwait(false);
         }
 
-        /// <summary>订单详情(发货感知 = 轮询本端点看 Status;不属当前玩家 → 404 不泄露存在性)。</summary>
+        /// <summary>订单详情(发货感知 = 轮询本端点看 Status;推送事件只是「该去拉了」的提示;
+        /// 不属当前玩家 → 404 不泄露存在性)。</summary>
         public async Task<PaymentOrderDto> GetOrderAsync(string orderId, CancellationToken ct)
         {
             return await SendOrDisabled<PaymentOrderDto>("GET", Prefix + "/orders/" + orderId, null, ct)
