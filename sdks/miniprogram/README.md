@@ -1,30 +1,44 @@
 # Courier miniprogram SDK
 
-> 状态：规划中，待实现。
+> 状态:core + service 全域落地(2026-10,对齐 cocos 批次 12+13 口径)。TypeScript,零外部依赖,erasure 语法(node ≥ 23.6 原生跑)。
 
 ## 目标平台
 
 - 微信小程序
 
-## 模块（能力树，见 docs/architecture.md）
+## 结构
 
-- Identity / Session: 登录、登出、绑定、设备；token 轮换
-- Player: 档案与游戏角色（M3+）
-- App: 版本 / 维护 / 远程配置 / 品牌（M3+）
-- Communication: 公告 / 消息 / 推送
-- Support: 工单 / FAQ（面板 UI 可选）
-- Payment: 仅契约面（M5+）
-- RealName: 实名（可选，合规，默认关）
-- Diagnostics: 诊断（可选包，默认全关）
+```text
+sdks/miniprogram/
+  src/
+    contract/        契约生成物(errors.ts / envelope.ts,tools/contractgen 生成)
+    core/            L2 平台无关内核
+      transport.ts        Transport 注入接口 + FetchTransport
+      tokenStore.ts       TokenStore 注入接口 + 内存实现
+      apiClient.ts        scope 头、信封解析、重试退避、TOKEN_EXPIRED 刷新重放
+      session.ts          会话域(单飞刷新/安全事件清场/登出)
+      identity.ts         身份域(guest/register/login/bind/refresh)
+      lifecycle.ts        九态十触发状态机 + 契约事件面
+      courierClient.ts    CourierClient 门面(认证流守卫)
+    service/         L2 域服务(九域 + SSE 解析器,courierServices.ts 门面)
+    platform/wechat/ L3 平台绑定
+      wxApi.ts            wx 最小结构类型(零依赖)
+      tokenStore.ts       wx storage 实现
+      transport.ts        wx.request 实现
+      lifecycleMonitor.ts wx.onAppShow/onAppHide/断网 → 状态机信号
+  tests/           node --test 83 例(契约 6 / core+lifecycle 53 / service 17 / wechat 7)
+```
 
-## 路线图
+## 运行测试
 
-- M1: Identity / Session + 生命周期状态机
-- M2: Communication + Support（RealName 后段）
-- M3: App + Player + Branding + Diagnostics
-- M4: Assistant → M5: Payment
+```sh
+cd sdks/miniprogram && node --test tests/*.test.ts
+```
 
 ## 约定
 
-- DTO 以 `../../docs/contract/` 为唯一事实源。
-- token 存储走微信 storage；UI 可选，游戏可自绘。
+- DTO 以 `../../docs/contract/` 为唯一事实源;未知字段容忍。
+- core 零平台引用,平台差异收敛在 Transport/TokenStore 注入与 platform/wechat 绑定。
+- token 走微信 storage(`courier.session` 键,损坏数据按未认证清场),不落明文配置文件。
+- 生命周期信号:小程序 `wx.onAppShow/onAppHide` + `wx.onNetworkStatusChange`(小游戏端为 onShow/onHide,见 cocos)。
+- UI 面板可选,游戏可自绘;501 能力未接按契约降级(null/空结果),不进报错路径。
