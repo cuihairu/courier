@@ -108,6 +108,13 @@
 - [x] 测试:零依赖 `node --test` 41 例全绿(契约 6 / core 18 / service 17),对齐 unity CoreTests 形态(FakeTransport 脚本化)
 - **落地**:core `315717c`、announcements/support `09be3a9`、八域 service `db69d8e`;平台适配器(微信小游戏 storage/原生存储)、生命周期状态机、UI 包随部署面
 
+## 批次 13 — 生命周期状态机 + 微信小游戏适配器
+
+- [x] 生命周期状态机(`ce974f7`,L2 core,unity Lifecycle.cs 同构):九态十触发严格迁移表(architecture.md 状态图全表;Resuming→ResumeCompleted 回挂起前稳定态)、fire 非法抛 / tryFire 幂等否决(平台信号处理器不许崩)、契约事件面:lifecycle.initialized/suspended/resumed/signed_out + 会话域发 token_expired(自动 refresh 开始)/account_switched(切号检测,首登与同号重登不发);CourierClient 接线:init()、guestLoginAsync/loginAsync/registerAsync 认证流(守卫 Ready/SignedOut,失败 AuthFailed 回退 Ready 可重试)、session adopt→切号、refresh→token_expired、REUSED/REVOKED 与登出→signed_out(tryFire,状态机未推进时静默)
+- [x] 微信小游戏适配器(`e6cf491`,`src/platform/wechat/`,wx 最小结构类型零外部依赖):TokenStore(wx storage,JSON 落盘,损坏数据按未认证清场)、Transport(wx.request,请求头透传/响应头小写归一/对象响应重序列化/失败归一 TransportError 走 core 既有重试口径——重连策略归 core)、WechatLifecycleMonitor(onShow/onHide/onNetworkStatusChange → tryFire 幂等挂起恢复,unity ApplicationLifecycleMonitor 同构;Ready 态挂起被状态机否决不粘死)
+- [x] 测试:零依赖 `node --test` 83 例全绿(契约 6 / core+lifecycle 53 / service 17 / wechat 7;fake wx 结构类型注入)+ 全链组合例(wechat 适配器 × CourierClient:登录落盘、切后台挂起、冷启动恢复)
+- **落地**:core `ce974f7`、适配器 `e6cf491`;UE/Godot 适配器、真机联调随部署面
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。
