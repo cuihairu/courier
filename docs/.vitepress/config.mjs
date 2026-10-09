@@ -45,7 +45,12 @@ export default defineConfig({
           { text: '推送(M2)', link: '/contract/messages' },
           { text: '实名', link: '/contract/realname' },
           { text: '品牌', link: '/contract/branding' },
+          { text: '配置(M3)', link: '/contract/config' },
+          { text: '应用(M3)', link: '/contract/app' },
+          { text: '档案(M3)', link: '/contract/player' },
           { text: '诊断', link: '/contract/diagnostics' },
+          { text: '助手(M4)', link: '/contract/assistant' },
+          { text: '支付(M5)', link: '/contract/payment' },
         ]
       }
     ],
