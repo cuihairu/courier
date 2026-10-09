@@ -131,7 +131,7 @@ SDK 分包:**Core(必选)/ Service(按需)/ UI(可选包)**——`CreateTicket()
 | Branding | 公司名/logo/主题色/关于页/客服入口,按 game_id+env 下发;UI 包消费,Core 无品牌逻辑,默认 Courier 标兜底 | 自建(与 Config 同管道) | M3 |
 | Diagnostics(可选) | 崩溃/错误追踪、OTel Trace、性能指标、埋点;默认全关 | Sentry/GlitchTip/自托管 OTLP | M3+ |
 | Assistant | FAQ 机器人、游戏内向导 | 可接 croupier faq | M4 |
-| Payment | 仅契约:Order/Purchase/Receipt;四形态由游戏选择 | 渠道抽象 + RiskProvider 前置 | M5 |
+| Payment | 仅契约:Order/Purchase/Receipt;四形态由游戏选择 | 渠道抽象;风控前置可选(缺省不拦) | M5 |
 
 ## 仓库结构
 
@@ -143,14 +143,14 @@ sdks/
   cocos/    Cocos Creator SDK(TypeScript)
   miniprogram/  微信小程序 SDK(JavaScript)
   laybox/    Layabox SDK(TypeScript/JavaScript)
-  godot/     Godot SDK(GDScript/C#)
+  godot/     Godot SDK(规划中;仅契约生成骨架)
 docs/       契约(contract/)、架构、五层设计、竞品调研(research/)、路线图、TODO
 ```
 
 ## 设计边界
 
 1. **SDK 只面向玩家**:不包含任何运营/管理能力;运营能力不在本 SDK 范围(默认供应商 Croupier,可自建)。
-2. **网关是唯一入口**:客户端不直连任何后端 Provider;网关做鉴权、限流、聚合和风控前置。
+2. **网关是唯一入口**:客户端不直连任何后端 Provider;网关做鉴权、限流、聚合。
 3. **Provider 只进 providers/**:Gateway 不含业务目录,业务一律经 Provider 接口接入;未接入 = 能力降级(`COMMON_CAPABILITY_DISABLED`),不是报错。
 4. **一个账号多款游戏**:账号是跨游戏的最高层实体;角色(player)是游戏维度的,每个游戏独立创建。
 5. **支付只定契约**:四形态开放,统一钱包假设不进契约;沙箱渠道全链路先行,回调只认渠道签名。

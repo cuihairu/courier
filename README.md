@@ -140,7 +140,7 @@ SDK packages: **Core (required) / Service (as needed) / UI (optional)**. `Create
 | Branding | Company name/logo/theme color/about page/support entry, delivered per game_id+env; consumed by the UI package, Core has no branding logic, Courier-branded fallback by default | Built-in (same pipeline as Config) | M3 |
 | Diagnostics (optional) | Crash/error tracking, OTel Trace, performance metrics, analytics events; all off by default | Sentry/GlitchTip/self-hosted OTLP | M3+ |
 | Assistant | FAQ bot, in-game guide | Can connect to croupier faq | M4 |
-| Payment | Contract only: Order/Purchase/Receipt; the four shapes are each game's choice | Channel abstraction + RiskProvider pre-check | M5 |
+| Payment | Contract only: Order/Purchase/Receipt; the four shapes are each game's choice | Channel abstraction; optional risk pre-check (off by default) | M5 |
 
 ## Repository Layout
 
@@ -153,7 +153,7 @@ sdks/
   cocos/    Cocos Creator SDK (TypeScript)
   miniprogram/  WeChat Mini Program SDK (JavaScript)
   laybox/   Layabox SDK (TypeScript/JavaScript)
-  godot/    Godot SDK (GDScript/C#)
+  godot/    Godot SDK (planned; generated contract skeleton only)
 docs/       Contracts (contract/), architecture, five-layer design, competitive
             research (research/), roadmap, TODO
 ```
@@ -161,7 +161,7 @@ docs/       Contracts (contract/), architecture, five-layer design, competitive
 ## Design Boundaries
 
 1. **The SDK serves players only**: no operations/admin capabilities; those are out of scope for this SDK (default provider Croupier, or self-hosted).
-2. **The gateway is the single entry point**: clients never talk to backend providers directly; the gateway handles authentication, rate limiting, aggregation, and risk-control pre-checks.
+2. **The gateway is the single entry point**: clients never talk to backend providers directly; the gateway handles authentication, rate limiting, and aggregation.
 3. **Providers live only in providers/**: the gateway contains no business directories; business logic always connects through provider interfaces. A capability that is not connected degrades (`COMMON_CAPABILITY_DISABLED`) instead of erroring.
 4. **One account, many games**: the account is the top-level entity across games; characters (players) are per-game and created independently by each game.
 5. **Payments define contract only**: the four shapes stay open, and the unified-wallet assumption stays out of the contract; the sandbox channel runs the full chain first, and callbacks trust channel signatures only.
