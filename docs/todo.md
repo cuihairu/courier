@@ -124,6 +124,13 @@
 - [x] 测试:`sdks/ue/run_tests.sh` 全绿(contract/json/core/lifecycle/service/service2 六套,g++ -std=c++17 -Wall -Wextra 独立编译,零外部依赖)
 - **落地**:json `13aab75`、core `225ad01` + `1377e60`、service M2 `f5b160e`、service M3/M4/M5 `3cc859a`;UE 引擎集成面(HttpModule 适配、UObject 包装、.uplugin)无编译链未验证——如实报,不假装
 
+## 批次 15 — miniprogram(TS)core + service + wx 适配
+
+- [x] core + service(`33325e8`,cocos 批次 12+13 全量对齐):transport/apiClient/session/identity/lifecycle/courierClient 门面 + 九域 service(CourierServices 门面)+ SSE 解析器;平台差异收敛在注入接口
+- [x] 微信小程序适配器(`src/platform/wechat/`):wx storage TokenStore(损坏数据清场)、wx.request Transport(响应头小写归一/对象响应重序列化)、LifecycleMonitor(**小程序信号面 `wx.onAppShow/onAppHide`** + onNetworkStatusChange,与小游戏端 onShow/onHide 的真实 API 差异在此分叉)
+- [x] 测试:`node --test` 83 例全绿(契约 6 / core+lifecycle 53 / service 17 / wechat 7,fake wx 结构类型注入)
+- **落地**:单增量 `33325e8`;真机联调(真 wx 环境)随部署面
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。
