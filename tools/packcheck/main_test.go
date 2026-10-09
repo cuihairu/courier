@@ -176,10 +176,11 @@ func TestServiceUiRuntime(t *testing.T) {
 		}
 	}
 
-	// ui 包双面板在位:MonoBehaviour 骨架 + 服务门面消费 + Branding 默认标。
+	// ui 包三面板在位:MonoBehaviour 骨架 + 服务门面消费 + Branding 默认标。
 	uiFiles := map[string][]string{
 		"AnnouncementPanel.cs":    {"class AnnouncementPanel : MonoBehaviour", "CourierServices", "DefaultTitle", "BrandingCatalog", "ResolveTitle"},
 		"CustomerServicePanel.cs": {"class CustomerServicePanel : MonoBehaviour", "CourierServices", "NotifyTicketReplied", "BrandingCatalog", "ResolveTitle"},
+		"AssistantPanel.cs":       {"class AssistantPanel : MonoBehaviour", "CourierServices", "AskAsync", "TransferToHumanAsync", "CreateTicketRequest", "BrandingCatalog", "ResolveTitle"},
 		"BrandingCatalog.cs":      {"class BrandingCatalog", "Apply", "DefaultCompanyName", "GetPrimaryColor"},
 	}
 	uiRuntime := unityPkgDir + "/com.courier.ui/Runtime"
