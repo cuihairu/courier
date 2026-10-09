@@ -29,7 +29,11 @@ src/
     playerService.ts / assistantService.ts                      M3 档案 / M4 小助手
     paymentService.ts / realnameService.ts                      M5 支付 / 实名
     serviceDto.ts / appDto.ts                                   域 DTO
-tests/                  零依赖 node --test(契约 6 / core+lifecycle 53 / service 17 / wechat 7,共 83 例)
+  ui/                   可选 UI 包(unity com.courier.ui 同构):brandingCatalog(品牌兜底链
+                        远端 productName → 宿主 brandTitle → 内置默认)+ 三面板骨架
+                        (公告栏/客服/助手):只做编排与纯文本产出,渲染经回调交游戏侧,
+                        不绑死 UI 框架;typed 错误经 onError(wire code) 出口
+tests/                  零依赖 node --test(契约 6 / core+lifecycle 53 / service 17 / wechat 7 / ui 8,共 91 例)
 ```
 
 ## 约定

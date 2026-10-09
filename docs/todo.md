@@ -138,6 +138,15 @@
 - [x] 测试:`node --test` 82 例全绿(契约 6 / core+lifecycle 53 / service 17 / laya 6,fake XHR/storage 注入)
 - **落地**:单增量 `59a8e02`;真机联调随部署面
 
+## 批次 17 — cocos UI 可选包
+
+- [x] ui 可选包(`1fb4790`,unity com.courier.ui 同构):brandingCatalog(模块级当前品牌 + 热切换/同 version 忽略/reset;字段缺失回落内置默认 `Courier`/`#4C8DFF`/`联系客服`)+ 三面板:
+- 公告栏 `AnnouncementPanel`:refreshAsync 列表渲染 / openAsync 详情渲染(详情=全文视图,不带标题头——unity 双标题瑕疵有意未复制)+ 品牌兜底链标题 + typed 错误出 `onError(wireOf(e))` 出口 + 未装配服务静默不抛
+- 客服 `CustomerServicePanel`:openTicketAsync(提单即开详情,create+get 两跳)/ sendMessageAsync(追加后重拉)/ notifyTicketReplied(只认当前工单)/ searchFaqAsync(空结果兜底「无匹配问题」);CLOSED 409 出错误口
+- 助手 `AssistantPanel`:askAsync(命中原样渲染 / 未命中 suggestTransfer / 501→COMMON_CAPABILITY_DISABLED 隐藏入口)+ transferToHumanAsync(`[助手]` 前缀标题截 120,经 support 域提单)
+- [x] 测试:`node --test` 91 例全绿(+ui 8:品牌兜底链/公告三例/客服两例/助手两例,FakeTransport + fake services 注入,与 service.test.ts 同形态)
+- **落地**:单增量 `1fb4790`;UI 框架绑定(Cocos Creator UIRichText/Label 挂载渲染回调)随部署面
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。
