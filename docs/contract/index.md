@@ -1,6 +1,6 @@
 # Courier SDK Contract(M0 立宪)
 
-> **状态**:基元五件 **Frozen v1**(2026-10-08,M0 跨端评审冻结;错误码表现已 **v3**——v2 追加 M2 域码,v3 追加 REALNAME 时段/额度码);auth 域契约 Frozen v1(M1);announcement / support / messages 域契约 Frozen v1(M2);realname 域契约 **Frozen v1**(M2 后段);config / app / branding / player 域契约 **Frozen v1**(M3,2026-10-09);diagnostics 域契约 **Frozen v1**(M3,可选包默认全关);assistant 域契约 **Frozen v1**(M4,2026-10-09)。冻结后进入变更流程管理。
+> **状态**:基元五件 **Frozen v1**(2026-10-08,M0 跨端评审冻结;错误码表现已 **v4**——v2 追加 M2 域码,v3 追加 REALNAME 时段/额度码,v4 追加 M5 PAYMENT 域码);auth 域契约 Frozen v1(M1);announcement / support / messages 域契约 Frozen v1(M2);realname 域契约 **Frozen v1**(M2 后段);config / app / branding / player 域契约 **Frozen v1**(M3,2026-10-09);diagnostics 域契约 **Frozen v1**(M3,可选包默认全关);assistant 域契约 **Frozen v1**(M4,2026-10-09);payment 域契约 **Frozen v1**(M5,2026-10-09)。冻结后进入变更流程管理。
 > **原则**:**SDK Contract > Everything**——契约是 Courier 的宪法。Gateway、Provider、Core、Adapter、生态后端(herald / croupier / chirp / oddsmaker / 自建 accounts)都只是契约的**实现者**;新增引擎 = 新增 Adapter,而不是重新设计 SDK。
 
 ## 为什么立宪
@@ -40,8 +40,8 @@ Gateway、Provider、herald、Chirp、Croupier、Oddsmaker 全部只是「契约
 | 层 | 内容 | 冻结点 |
 | --- | --- | --- |
 | 基元契约 | [primitives](./primitives.md) / [errors](./errors.md) / [scope](./scope.md) / [versioning](./versioning.md) / [events](./events.md) | **M0 已冻结 v1** |
-| 域契约 | [auth](./auth.md)(**Frozen v1 · M1**);[announcement](./announcement.md) / [support](./support.md) / [messages](./messages.md)(**Frozen v1 · M2**);[realname](./realname.md)(**Frozen v1 · M2 后段**);[config](./config.md) / [app](./app.md) / [branding](./branding.md) / [player](./player.md)(**Frozen v1 · M3**);[diagnostics](./diagnostics.md)(**Frozen v1 · M3 · 可选包默认全关**);[assistant](./assistant.md)(**Frozen v1 · M4**) | auth、M2 三域、realname、M3 四域 + diagnostics + assistant 已冻结;payment 实现前冻结 |
-| 域契约(后续) | payment | 各里程碑开工前冻结 |
+| 域契约 | [auth](./auth.md)(**Frozen v1 · M1**);[announcement](./announcement.md) / [support](./support.md) / [messages](./messages.md)(**Frozen v1 · M2**);[realname](./realname.md)(**Frozen v1 · M2 后段**);[config](./config.md) / [app](./app.md) / [branding](./branding.md) / [player](./player.md)(**Frozen v1 · M3**);[diagnostics](./diagnostics.md)(**Frozen v1 · M3 · 可选包默认全关**);[assistant](./assistant.md)(**Frozen v1 · M4**);[payment](./payment.md)(**Frozen v1 · M5**) | 全部域契约已冻结;后续只加不改,破坏性变更升版本 |
+| 域契约(后续) | (预留) | 新域经变更流程提案后冻结 |
 
 ## 变更流程
 
@@ -84,3 +84,4 @@ Gateway、Provider、herald、Chirp、Croupier、Oddsmaker 全部只是「契约
 - [player.md](./player.md) — 玩家档案(账号↔角色映射;Frozen v1 · M3)
 - [diagnostics.md](./diagnostics.md) — 诊断(默认关,四类能力上报 Schema;Frozen v1 · M3)
 - [assistant.md](./assistant.md) — 小助手(FAQ 检索问答 + 转人工;Frozen v1 · M4)
+- [payment.md](./payment.md) — 支付(订单-发货核心流,四形态开放;Frozen v1 · M5)

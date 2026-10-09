@@ -34,6 +34,11 @@ namespace Courier.Contract
         ConfigNotFound = 25,
         AppMaintenance = 26,
         AppVersionUnsupported = 27,
+        PaymentSkuNotFound = 28,
+        PaymentOrderNotFound = 29,
+        PaymentRiskRejected = 30,
+        PaymentInvalidSignature = 31,
+        PaymentOrderState = 32,
     }
 
     /// <summary>错误码 → wire / HTTP / retryable 冻结映射(下标与枚举值对齐)。</summary>
@@ -77,6 +82,11 @@ namespace Courier.Contract
             new Spec("CONFIG_NOT_FOUND", 404, false),
             new Spec("APP_MAINTENANCE", 503, false),
             new Spec("APP_VERSION_UNSUPPORTED", 426, false),
+            new Spec("PAYMENT_SKU_NOT_FOUND", 404, false),
+            new Spec("PAYMENT_ORDER_NOT_FOUND", 404, false),
+            new Spec("PAYMENT_RISK_REJECTED", 403, false),
+            new Spec("PAYMENT_INVALID_SIGNATURE", 403, false),
+            new Spec("PAYMENT_ORDER_STATE", 409, false),
         };
 
         /// <summary>域前缀注册表(新域先注册前缀再定义码)。</summary>

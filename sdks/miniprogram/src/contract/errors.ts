@@ -30,6 +30,11 @@ export const ErrorCode = {
   ConfigNotFound: "CONFIG_NOT_FOUND",
   AppMaintenance: "APP_MAINTENANCE",
   AppVersionUnsupported: "APP_VERSION_UNSUPPORTED",
+  PaymentSkuNotFound: "PAYMENT_SKU_NOT_FOUND",
+  PaymentOrderNotFound: "PAYMENT_ORDER_NOT_FOUND",
+  PaymentRiskRejected: "PAYMENT_RISK_REJECTED",
+  PaymentInvalidSignature: "PAYMENT_INVALID_SIGNATURE",
+  PaymentOrderState: "PAYMENT_ORDER_STATE",
 } as const;
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
 
@@ -69,6 +74,11 @@ export const ErrorSpecs: Readonly<Record<ErrorCode, ErrorSpec>> = {
   ConfigNotFound: { wire: "CONFIG_NOT_FOUND", http: 404, retryable: false },
   AppMaintenance: { wire: "APP_MAINTENANCE", http: 503, retryable: false },
   AppVersionUnsupported: { wire: "APP_VERSION_UNSUPPORTED", http: 426, retryable: false },
+  PaymentSkuNotFound: { wire: "PAYMENT_SKU_NOT_FOUND", http: 404, retryable: false },
+  PaymentOrderNotFound: { wire: "PAYMENT_ORDER_NOT_FOUND", http: 404, retryable: false },
+  PaymentRiskRejected: { wire: "PAYMENT_RISK_REJECTED", http: 403, retryable: false },
+  PaymentInvalidSignature: { wire: "PAYMENT_INVALID_SIGNATURE", http: 403, retryable: false },
+  PaymentOrderState: { wire: "PAYMENT_ORDER_STATE", http: 409, retryable: false },
 };
 
 /** wire code → 枚举;未知返回 undefined(调用方落兜底分支)。 */

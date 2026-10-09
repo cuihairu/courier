@@ -1,6 +1,6 @@
 # 错误契约
 
-> 状态:Frozen v1(2026-10-08,M0 跨端评审冻结)。跨 Unity / UE / Cocos / Godot 的错误一致性是 Universal SDK 的核心价值:同一 `code` 在各端映射为同一枚举、同一重试语义。
+> 状态:Frozen v1(2026-10-08,M0 跨端评审冻结;错误码表 **v4**——v2 追加 M2 域码,v3 追加 REALNAME 时段/额度码,v4 追加 M5 PAYMENT 域码)。跨 Unity / UE / Cocos / Godot 的错误一致性是 Universal SDK 的核心价值:同一 `code` 在各端映射为同一枚举、同一重试语义。
 
 ## 错误体
 
@@ -72,6 +72,11 @@
 | CONFIG_NOT_FOUND | 404 | false | 配置键不存在 |
 | APP_MAINTENANCE | 503 | false | 维护中(payload 带预计恢复时间,可选) |
 | APP_VERSION_UNSUPPORTED | 426 | false | 版本过旧(payload 带下载地址,可选) |
+| PAYMENT_SKU_NOT_FOUND | 404 | false | SKU 不存在或不可购(M5 payment.md 冻结新增) |
+| PAYMENT_ORDER_NOT_FOUND | 404 | false | 订单不存在或不属于当前玩家(M5 payment.md 冻结新增) |
+| PAYMENT_RISK_REJECTED | 403 | false | 风控前置拒绝:大额/异常频次(M5 payment.md 冻结新增) |
+| PAYMENT_INVALID_SIGNATURE | 403 | false | 渠道回调签名校验失败;伪造一律拒绝(M5 payment.md 冻结新增) |
+| PAYMENT_ORDER_STATE | 409 | false | 订单状态机非法转移(M5 payment.md 冻结新增) |
 
 各域业务错误码随该域契约冻结;本表 code 一经冻结不得改语义。
 

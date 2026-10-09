@@ -38,6 +38,11 @@ enum class ErrorCode {
     ConfigNotFound = 25,
     AppMaintenance = 26,
     AppVersionUnsupported = 27,
+    PaymentSkuNotFound = 28,
+    PaymentOrderNotFound = 29,
+    PaymentRiskRejected = 30,
+    PaymentInvalidSignature = 31,
+    PaymentOrderState = 32,
     kCount  // 哨兵,非契约码
 };
 
@@ -78,6 +83,11 @@ inline const ErrorSpec& error_spec(ErrorCode code) {
         {"CONFIG_NOT_FOUND", 404, false},
         {"APP_MAINTENANCE", 503, false},
         {"APP_VERSION_UNSUPPORTED", 426, false},
+        {"PAYMENT_SKU_NOT_FOUND", 404, false},
+        {"PAYMENT_ORDER_NOT_FOUND", 404, false},
+        {"PAYMENT_RISK_REJECTED", 403, false},
+        {"PAYMENT_INVALID_SIGNATURE", 403, false},
+        {"PAYMENT_ORDER_STATE", 409, false},
     };
     return kSpecs[static_cast<std::size_t>(code)];
 }

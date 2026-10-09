@@ -36,6 +36,11 @@ const SPECS: Dictionary = {
 	"CONFIG_NOT_FOUND": {"http": 404, "retryable": false},
 	"APP_MAINTENANCE": {"http": 503, "retryable": false},
 	"APP_VERSION_UNSUPPORTED": {"http": 426, "retryable": false},
+	"PAYMENT_SKU_NOT_FOUND": {"http": 404, "retryable": false},
+	"PAYMENT_ORDER_NOT_FOUND": {"http": 404, "retryable": false},
+	"PAYMENT_RISK_REJECTED": {"http": 403, "retryable": false},
+	"PAYMENT_INVALID_SIGNATURE": {"http": 403, "retryable": false},
+	"PAYMENT_ORDER_STATE": {"http": 409, "retryable": false},
 }
 
 const NAME_TO_WIRE: Dictionary = {
@@ -67,6 +72,11 @@ const NAME_TO_WIRE: Dictionary = {
 	"ConfigNotFound": "CONFIG_NOT_FOUND",
 	"AppMaintenance": "APP_MAINTENANCE",
 	"AppVersionUnsupported": "APP_VERSION_UNSUPPORTED",
+	"PaymentSkuNotFound": "PAYMENT_SKU_NOT_FOUND",
+	"PaymentOrderNotFound": "PAYMENT_ORDER_NOT_FOUND",
+	"PaymentRiskRejected": "PAYMENT_RISK_REJECTED",
+	"PaymentInvalidSignature": "PAYMENT_INVALID_SIGNATURE",
+	"PaymentOrderState": "PAYMENT_ORDER_STATE",
 }
 
 ## wire code → 枚举名;未知返回 ""(调用方落兜底分支)。

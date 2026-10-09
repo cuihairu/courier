@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "source": "docs/contract/errors.md 错误码表 v1(基元冻结集)",
   "prefixes": [
     "COMMON",
@@ -155,6 +155,31 @@
     {
       "code": "APP_VERSION_UNSUPPORTED",
       "http": 426,
+      "retryable": false
+    },
+    {
+      "code": "PAYMENT_SKU_NOT_FOUND",
+      "http": 404,
+      "retryable": false
+    },
+    {
+      "code": "PAYMENT_ORDER_NOT_FOUND",
+      "http": 404,
+      "retryable": false
+    },
+    {
+      "code": "PAYMENT_RISK_REJECTED",
+      "http": 403,
+      "retryable": false
+    },
+    {
+      "code": "PAYMENT_INVALID_SIGNATURE",
+      "http": 403,
+      "retryable": false
+    },
+    {
+      "code": "PAYMENT_ORDER_STATE",
+      "http": 409,
       "retryable": false
     }
   ]
