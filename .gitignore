@@ -1,6 +1,7 @@
 # Go
 gateway/bin/
 gateway/dist/
+gateway/gateway
 *.exe
 *.test
 *.out
@@ -31,7 +32,6 @@ DerivedDataCache/
 .vscode/
 .DS_Store
 docs/.vitepress/dist
-node_modules/
 
 # 契约测试骨架(dotnet 工程需入库,豁免全局 *.csproj 忽略)
 !sdks/unity/ContractTests~/*.csproj
