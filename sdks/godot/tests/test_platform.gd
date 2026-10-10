@@ -5,86 +5,12 @@
 #   godot --headless --path sdks/godot --script tests/test_platform.gd
 extends SceneTree
 
+const MockServer = preload("res://tests/mock_server.gd")
+
 var failed: int = 0
 var _client: CourierClient  # GDScript Callable 弱引用目标:用例帧须持活 client
 var _send_done: bool = false
 var _last_result: Dictionary = {}
-
-
-class MockServer extends RefCounted:
-	# 原始 HTTP/1.1 mock:按序回放预置响应;记录解析后的请求(method/path/headers/body)。
-	# 头键一律小写(与 TransportResult 契约一致)。
-	var srv: TCPServer
-	var responses: Array = []
-	var seen: Array = []
-	var port: int = 0
-
-
-	func _init() -> void:
-		srv = TCPServer.new()
-		for p in range(18092, 18097):
-			if srv.listen(p, "127.0.0.1") == OK:
-				port = p
-				break
-
-
-	func stop() -> void:
-		srv.stop()
-
-
-	## 协程:泵一步。有连接则服务一个请求(读全头 + Content-Length 体后应答);
-	## 无连接让出一帧。调用方 await。
-	func pump(tree: SceneTree) -> void:
-		if not srv.is_connection_available():
-			await tree.process_frame
-			return
-		var c := srv.take_connection()
-		var raw := ""
-		while not raw.contains("\r\n\r\n"):
-			c.poll()
-			var n := c.get_available_bytes()
-			if n > 0:
-				raw += c.get_utf8_string(n)
-			else:
-				await tree.process_frame
-		var head_end := raw.find("\r\n\r\n") + 4
-		var cl := _content_length(raw)
-		while raw.length() - head_end < cl:
-			c.poll()
-			var n2 := c.get_available_bytes()
-			if n2 > 0:
-				raw += c.get_utf8_string(n2)
-			else:
-				await tree.process_frame
-		seen.append(_parse_request(raw))
-		var resp := "HTTP/1.1 500 Bad Script\r\nContent-Length: 0\r\n\r\n"
-		if not responses.is_empty():
-			resp = str(responses.pop_front())
-			if not resp.begins_with("HTTP/"):
-				# 裸体入队:包成 200 响应(信封 JSON 由用例预包)。
-				resp = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n%s" % [resp.length(), resp]
-		c.put_data(resp.to_utf8_buffer())
-		c.disconnect_from_host()
-
-
-	func _content_length(raw: String) -> int:
-		for line in raw.split("\r\n"):
-			if line.to_lower().begins_with("content-length:"):
-				return int(line.substr(15).strip_edges())
-		return 0
-
-
-	func _parse_request(raw: String) -> Dictionary:
-		var head := raw.substr(0, raw.find("\r\n\r\n"))
-		var lines := head.split("\r\n")
-		var parts := (lines[0] as String).split(" ")
-		var headers := {}
-		for i in range(1, lines.size()):
-			var colon := (lines[i] as String).find(":")
-			if colon > 0:
-				headers[(lines[i] as String).substr(0, colon).to_lower()] = (lines[i] as String).substr(colon + 1).strip_edges()
-		var body := raw.substr(raw.find("\r\n\r\n") + 4)
-		return {"method": parts[0], "path": parts[1], "headers": headers, "body": body}
 
 
 func check(cond: bool, msg: String) -> void:
