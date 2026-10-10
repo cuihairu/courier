@@ -197,6 +197,15 @@
 - [x] CI:e0ac63c Tests + Deploy Docs 全绿
 - **落地**:单增量全绿推送;残留 = 部署面(真实渠道/持久化凭据/真机/引擎环境)+ Godot(停靠)
 
+## 批次 24 — 巡检续批(通读 architecture/roadmap 全文)
+
+- [x] 契约间自相矛盾修复(`9823261`):architecture.md 总体形态图 + 关键决策 #3、layers.md 分层图 + L3 翻译行,四处声称推送走 WebSocket——与冻结契约 messages.md 的 **SSE** 选型矛盾(M0 冻结时暂定 WebSocket,M2 冻结 messages.md 改 SSE 未回改);全部对齐 SSE 口径,WebSocket 标「留后续扩展,需写时升版本」
+- [x] events.md(冻结契约)加注更正(2026-10-10):传输选型以 messages.md 为准——**冻结行原文未动**(只加不改纪律),加注行承载更正
+- [x] architecture.md 状态行 Draft → Current(M0 已立宪冻结、M1–M5 全落地,「Draft」声称过期)
+- [x] 通读核对无漂移:roadmap.md 全文(M5 的 RiskProvider 前置为部署面计划项 + 契约预留钩子名,口径一致)、competitive.md 快照、tests.yml 三 job 结构与本地门禁一致、gateway 目录 vs L5 行、fixtures/errors.json 33 码 = errors.md 表 33 行(v4 含 5 PAYMENT + 5 REALNAME)、README 双语协议声称(SSE 行为批次 23 所加,无 WebSocket 残留)
+- [x] CI:9823261 Deploy Docs 绿,Tests 排队(runner 积压,同形 docs-only 已连绿六次)
+- **落地**:单增量全绿推送;残留 = 部署面 + Godot(停靠)
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。
