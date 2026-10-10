@@ -215,6 +215,14 @@
 - [x] CI:三增量 Tests + Deploy Docs 全绿(runner 积压已恢复,~35s)
 - **落地**:三增量全绿推送;残留 = 部署面 + Godot(停靠)
 
+## 批次 26 — 声称二次抽查(契约端点表 vs 路由、DTO 字段 vs 生成物)
+
+- [x] 契约端点表 vs gateway 路由:33 个契约端点全实装(herald detail、croupier faq、archivist 四路径逐一核对);e2e 对差发现 `/v1/announcements/{id}` 与 `/v1/support/faq` 零覆盖(herald/croupier 无单测文件,e2e 也未打)→ **补 e2e 覆盖**(`ad5bac4`:详情命中 + 404 不泄露存在性 + FAQ 关键词命中,gateway 17 包 + -race 绿);`/v1/player/*` 已由 archivist 单测覆盖,非缺口
+- [x] DTO 字段 vs 生成物:contractgen `TestGeneratedFilesInSync` 机器强制六端生成物与 fixtures 逐字节一致(本地复跑绿);fixtures ↔ 契约文档核对——errors.json 33 码 = errors.md、scope.json 头名/环境 = scope.md、dto.json 信封键/规则 = primitives.md;域 DTO 采样 payment(12 字段)与 realname 与 UE 生成物逐一吻合
+- [x] Provider 单测盘点:11 个中 8 个有单测,chirp/croupier/herald 无(薄 HTTP 处理器,e2e 已覆盖 stream/tickets/faq/list/detail);剩余缺口属风格而非风险,维护态不扩
+- [x] CI:ad5bac4 Tests 绿(Deploy Docs 因 docs 路径过滤未触发,符合预期)
+- **落地**:单增量全绿推送;残留 = 部署面 + Godot(停靠)
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。
