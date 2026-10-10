@@ -1,6 +1,6 @@
 # Courier godot SDK
 
-> 状态：M1 core + 服务域（M2–M5 契约面）+ 平台适配面已落位（生命周期状态机 + Transport/TokenStore 抽象 + ApiClient + Identity/Session + CourierClient 门面 + SSE 解析器 + 九域服务 + CourierServices 门面 + HTTPClient 真传输 + user:// 持久令牌存储 + messages SSE 流式传输，Godot 4.3 headless 七套测试全绿）；TLS 路径与真机验证随部署面，UI 待引擎集成面。
+> 状态：M1 core + 服务域（M2–M5 契约面）+ 平台适配面已落位（生命周期状态机 + Transport/TokenStore 抽象 + ApiClient + Identity/Session + CourierClient 门面 + SSE 解析器 + 九域服务 + CourierServices 门面 + HTTPClient 真传输 + user:// 持久令牌存储 + messages SSE 流式传输，Godot 4.3 headless 八套测试全绿）；TLS 路径与真机验证随部署面，UI 待引擎集成面。
 
 ## 目标平台
 
@@ -17,13 +17,14 @@ sdks/godot/
   src/service/      L2 服务域(与 cocos/ue 同构):sseParser + 九域客户端 + CourierServices
   src/platform/     L3 平台绑定:httpTransport(HTTPClient 真传输) /
                     fileTokenStore(user:// 持久令牌存储) /
-                    sseStreamTransport(messages SSE 流读,chunked 分框)
+                    sseStreamTransport(messages SSE 流读,chunked 分框) /
+                    lifecycleMonitor(前后台信号 → 状态机事件)
   tests/            SceneTree 脚本测试(headless 跑,不依赖场景)
 ```
 
 ## 运行测试
 
-首次先导入生成类缓存(`.godot/`,已 gitignore),之后七条测试:
+首次先导入生成类缓存(`.godot/`,已 gitignore),之后八条测试:
 
 ```sh
 godot --headless --path sdks/godot --import
@@ -34,6 +35,7 @@ godot --headless --path sdks/godot --script tests/test_service.gd
 godot --headless --path sdks/godot --script tests/test_service2.gd
 godot --headless --path sdks/godot --script tests/test_platform.gd
 godot --headless --path sdks/godot --script tests/test_stream.gd
+godot --headless --path sdks/godot --script tests/test_adapter.gd
 ```
 
 本机无 Godot 二进制时,契约一致性由 tools/contractgen 兜底(fixture↔生成物漂移检查)。
@@ -54,7 +56,7 @@ godot --headless --path sdks/godot --script tests/test_stream.gd
 
 - M1: Identity / Session + 生命周期状态机 —— **已完成**
 - M2–M5 服务域契约面（公告/客服/SSE、实名、App/Config/Branding/Player、Assistant、Payment）—— **已完成**(headless 全绿)
-- M2+: 平台适配面（ HTTPClient 传输 / user:// 存储 / messages SSE 流式传输已落地；前后台信号、TLS 真机验证待接 ）+ UI 可选包
+- M2+: 平台适配面（ HTTPClient 传输 / user:// 存储 / messages SSE 流式传输已落地；TLS 真机验证待接(前后台信号已落地) ）+ UI 可选包
 
 ## 约定
 

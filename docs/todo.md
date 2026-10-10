@@ -312,6 +312,14 @@
 - [x] 验证:七套 Godot 测试全绿(contract/lifecycle/core/service/service2/platform/stream,退出码 0)+ `go test ./tools/...` + `go vet` 绿
 - **落地**:单增量推送(stream+tests+mock 重构、docs 收尾);残留 = 部署面(凭据)+ UE 引擎集成面 + Godot TLS 路径与真机验证、前后台生命周期信号(随部署面/引擎集成面)
 
+## 批次 36 — Godot 前后台生命周期适配(状态机事件入站)
+
+- [x] `CourierLifecycleMonitor`(`src/platform/lifecycleMonitor.gd`,与 Unity ApplicationLifecycleMonitor 同构):引擎通知(`NOTIFICATION_APPLICATION_PAUSED/RESUMED` 移动端前后台、`FOCUS_OUT/IN` 桌面焦点)+ 每帧可见性探测轮询(`visibility_probe` 注入即启用;无注入视为可见,以通知为准)统一经 `_set_visible` 幂等去重——移动端与桌面端信号常成对触发;`bind` 状态机后 `Suspended` ⇄ `ResumeStarted+ResumeCompleted`,恢复到挂起前稳定态;`on_suspended`/`on_resumed` 回调交通道管理方断流省电/重连(契约 messages.md 语义规则 4,本类不持通道)
+- [x] 语义差实测入档(代码注释):Godot 4.3 无 `DisplayServer.screen_is_visible`、`SceneTree` 无 `visibility_changed` 信号——前后台只走 Node 通知;挂起仅 Authenticated/PlayerReady 合法(READY 不可挂起,与 Unity 同表);**转移被拒不更新基线可见性,下一帧重试**——隐藏启动、状态机稍后才就绪的场景不丢挂起;SceneTree 脚本测试无 `add_child`(用 `root.add_child`);探测与通知打架会互相翻转(测试中两者须同变,真实环境天然一致)
+- [x] 测试(`tests/test_adapter.gd`,7 例):PlayerReady 挂起/恢复原态、幂等去重、未绑定 no-op、隐藏启动留帧重试补挂起、四通知路径(PAUSED/RESUMED/FOCUS_OUT/FOCUS_IN)、缺省探测;用例 monitor 经 `detach`(set_process(false)+queue_free)防跨用例计数污染
+- [x] 验证:八套 Godot 测试全绿(contract/lifecycle/core/service/service2/platform/stream/adapter,退出码 0)+ `go test ./tools/...` + `go vet` 绿
+- **落地**:单增量推送(monitor+tests、docs 收尾);残留 = 部署面(凭据)+ UE 引擎集成面 + Godot TLS 路径与真机验证、UI 可选包
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。
