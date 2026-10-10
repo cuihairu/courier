@@ -154,7 +154,7 @@ sdks/
   cocos/    Cocos Creator SDK (TypeScript)
   miniprogram/  WeChat Mini Program SDK (JavaScript)
   laybox/   Layabox SDK (TypeScript/JavaScript)
-  godot/    Godot SDK (planned; generated contract skeleton only)
+  godot/    Godot SDK (GDScript)
 docs/       Contracts (contract/), architecture, five-layer design, competitive
             research (research/), roadmap, TODO
 ```

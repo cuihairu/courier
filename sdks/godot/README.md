@@ -1,6 +1,6 @@
 # Courier godot SDK
 
-> 状态：契约层已落位（errors.gd / envelope.gd 由 tools/contractgen 生成，Godot 4.3 headless 契约测试全绿）；域实现（Identity / Session / 各域服务）规划中。
+> 状态：M1 core 已落位（生命周期状态机 + Transport/TokenStore 抽象 + ApiClient + Identity/Session + CourierClient 门面，Godot 4.3 headless 三套测试全绿）；域服务（Communication / Support 等）按路线图推进。
 
 ## 目标平台
 
@@ -10,15 +10,25 @@
 
 ```text
 sdks/godot/
+  project.godot     工程清单(class_name 全局类解析需 --import 生成类缓存)
   contract/         契约生成物(errors.gd / envelope.gd,tools/contractgen 生成,# 注释风格)
-  tests/            契约测试(tests/test_contract.gd,SceneTree 脚本,headless 跑)
+  src/core/         L2 core(平台无关):lifecycle / transport / tokenStore /
+                    courierError / apiClient / identity / session / courierClient
+  tests/            SceneTree 脚本测试(headless 跑,不依赖场景)
 ```
 
 ## 运行测试
 
+首次先导入生成类缓存(`.godot/`,已 gitignore),之后三条测试:
+
 ```sh
+godot --headless --path sdks/godot --import
 godot --headless --path sdks/godot --script tests/test_contract.gd
+godot --headless --path sdks/godot --script tests/test_lifecycle.gd
+godot --headless --path sdks/godot --script tests/test_core.gd
 ```
+
+本机无 Godot 二进制时,契约一致性由 tools/contractgen 兜底(fixture↔生成物漂移检查)。
 
 ## 模块（能力树，见 docs/architecture.md）
 
@@ -33,7 +43,7 @@ godot --headless --path sdks/godot --script tests/test_contract.gd
 
 ## 路线图
 
-- M1: Identity / Session + 生命周期状态机
+- M1: Identity / Session + 生命周期状态机 —— **已完成**(core 全绿;HTTP 真传输与平台 TokenStore 待引擎集成面)
 - M2: Communication + Support（RealName 后段）
 - M3: App + Player + Branding + Diagnostics
 - M4: Assistant → M5: Payment
@@ -41,5 +51,6 @@ godot --headless --path sdks/godot --script tests/test_contract.gd
 ## 约定
 
 - DTO 以 `../../docs/contract/` 为唯一事实源；未知字段容忍。
+- GDScript 无异常:错误一律 `{ok:false, error}` Dictionary;`await` 为协程必需。
 - token 存储走 Godot 平台存储；UI 可选，游戏可自绘。
 - 生成物注释一律 `#`（GDScript 无 `//`,Go/C 风格头部会被引擎判为语法错误）。

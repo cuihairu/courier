@@ -59,7 +59,7 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 
 **现仓映射**:`sdks/unity/packages/com.courier.core/Runtime`(Core/ 状态机与 API 客户端、Identity/ Session/ auth 域、CourierClient.cs 门面、Core/Contract/ 生成物);`CoreTests~`(48 例 Fact,xunit;dotnet test 本地可验,引擎 Test Runner 亦跑);`sdks/cocos src/core`(transport/apiClient/session/identity,courierClient.ts 门面)+ `src/service`(九域客户端,`CourierServices` 门面)+ `src/ui` / `src/diagnostics`(可选包),node:test 102 例(契约 6 / core+lifecycle 53 / service 17 / wechat 7 / ui 8 / diagnostics 11);`sdks/ue/core`(纯 ISO C++17 header-only:json 解析器、transport/apiClient/session/identity/lifecycle/courierClient)+ `sdks/ue/service`(SSE 解析器 + 九域客户端,`run_tests.sh` 六套 g++ 独立编译全绿);其余端同构。
 
-**下一步**:M1 Unity 已就位;cocos TS 端 core+service 全域落地(M2-M5 契约面)+ 生命周期状态机 + 微信小游戏适配器;UE C++ 端 core+service 全域落地(M2-M5 契约面,纯逻辑 g++ 验证);UE 引擎集成面(HttpModule 适配)待引擎环境;Godot 引擎环境已解除(契约层落位、headless 可验,域实现规划中);真机联调随部署面。
+**下一步**:M1 Unity 已就位;cocos TS 端 core+service 全域落地(M2-M5 契约面)+ 生命周期状态机 + 微信小游戏适配器;UE C++ 端 core+service 全域落地(M2-M5 契约面,纯逻辑 g++ 验证);UE 引擎集成面(HttpModule 适配)待引擎环境;Godot M1 core 已落位(生命周期状态机 + Identity/Session,headless 三套测试全绿);真机联调随部署面。
 
 ## L3 Platform Adapter(平台绑定层)
 
@@ -77,9 +77,9 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 
 - ITokenStore:Unity 加密存储 / UE 平台凭证 / Cocos localStorage / 微信 storage / Layabox 平台存储;Godot 规划中;ITransport:各平台网络栈。
 
-**现仓映射**:Unity——`sdks/unity/packages/com.courier.core/Runtime/Adapter`(UnityWebRequest 传输 / SecureTokenStore 加密存储 / ApplicationLifecycleMonitor 前后台),`tools/packcheck` 结构验收,UPM 四包(core/service/ui/diagnostics)落位;TS 三端 adapter——cocos 与 miniprogram 的 `platform/wechat`、laybox 的 `platform/laya`(wx.request / wx storage / LayaAir 可见性与 onLine 信号);UE C++ header-only 批次 14 落位(引擎集成面 HttpModule 待引擎环境);Godot 规划中。
+**现仓映射**:Unity——`sdks/unity/packages/com.courier.core/Runtime/Adapter`(UnityWebRequest 传输 / SecureTokenStore 加密存储 / ApplicationLifecycleMonitor 前后台),`tools/packcheck` 结构验收,UPM 四包(core/service/ui/diagnostics)落位;TS 三端 adapter——cocos 与 miniprogram 的 `platform/wechat`、laybox 的 `platform/laya`(wx.request / wx storage / LayaAir 可见性与 onLine 信号);UE C++ header-only 批次 14 落位(引擎集成面 HttpModule 待引擎环境);Godot `src/core`(lifecycle/transport/tokenStore/courierError/apiClient/identity/session/courierClient,零平台引用,MemoryTokenStore 测试实现)。
 
-**下一步**:UE 引擎集成面与真机联调随部署面;Godot 域实现(M1 Identity/Session)已可开工(引擎可用)。
+**下一步**:UE 引擎集成面与真机联调随部署面;Godot 平台 Transport/TokenStore 与 M2 域服务待接(引擎可用)。
 
 ## L4 Service Provider(Provider 接口 + 默认实现,服务端)
 

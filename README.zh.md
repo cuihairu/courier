@@ -144,7 +144,7 @@ sdks/
   cocos/    Cocos Creator SDK(TypeScript)
   miniprogram/  微信小程序 SDK(JavaScript)
   laybox/    Layabox SDK(TypeScript/JavaScript)
-  godot/     Godot SDK(规划中;仅契约生成骨架)
+  godot/     Godot SDK(GDScript)
 docs/       契约(contract/)、架构、五层设计、竞品调研(research/)、路线图、TODO
 ```
 

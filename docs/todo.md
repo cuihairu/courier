@@ -274,6 +274,16 @@
 - [x] 验证:tools 三件套 + `go vet ./...` 绿;三端套件 102/83/82 全绿(wechat.test.ts 还原后 miniprogram 83/83)
 - **落地**:双增量推送(工具+CI、docs 收尾);残留 = 部署面 + Godot(停靠)
 
+## 批次 32 — Godot 引擎落位(M1 core:生命周期 + Identity/Session)
+
+- [x] 卡点解除:Godot 4.3-stable 可 headless 运行;装机首跑即命中真 bug——contractgen 生成的 `.gd` 头部用 `//`(Go/C 风格),GDScript 判为语法错误(`Unexpected "/" in class body`),`tests/test_contract.gd` 根本跑不起来。修:新增 `#` 风格 `gdBanner` 供 genGdErrors/genGdEnvelope 使用,重新生成(与临时 sed 结果一致),补回归断言(`.gd` 输出不得含行首 `//`)
+- [x] 补 `project.godot` + `--import` 生成 `.godot/` 类缓存:`class_name` 全局解析依赖该缓存,缺失时 `--script` 报 `Identifier not declared`(contract 测试当时靠 `preload` 绕过,src 交叉引用无法绕);`.godot/` 已 gitignore
+- [x] M1 core 落位(`sdks/godot/src/core`,零平台引用,与 cocos/ue/unity core 同构):`lifecycle`(9 态/10 触发 + 契约事件面 + 挂起回跳 + 切号检测)、`transport`/`tokenStore`(抽象 + Memory 实现)、`courierError`(wire 优先、未知码容忍)、`apiClient`(scope 头、信封解析、retryable 退避、`AUTH_TOKEN_EXPIRED` refresh 后重放)、`identity`/`session`(单飞 refresh、安全事件清场、登出尽力而为)、`courierClient`(两段装配 + auth_flow 状态守卫)
+- [x] 测试(与 cocos `core.test.ts`/`lifecycle.test.ts` 同构,SceneTree 脚本 headless 跑):`test_lifecycle.gd`(迁移全表 13 行 + 非法迁移拒绝 + 事件面 + tryFire)、`test_core.gd`(20 例:wire 形状、Bearer、未认证预检、typed 信封、兜底 wire、退避重试与耗尽、网络失败映射、TOKEN_EXPIRED 重放、refresh 失败返原 401、安全事件清场、单飞、登出、bind 不落会话、501 降级、配置校验、未知码容忍、会话 DTO 全字段、门面状态流与失败回退)
+- [x] GDScript 与 TS 的语义差实测入档(均写成代码注释,非口头约定):无异常→结果字典;`var x := await` 是解析错误(须显式类型);协程调用必须 `await`(Callable.call 也不行,`call_deferred` 可点火);`while true`+`continue` 的返回路径不判穷尽(须兜底 return);`--script` 下 `Engine.get_main_loop()` 为 null;`Dictionary ==` 逐元素按类型严格比较(JSON 数字是 float,与 int 字面量不等);`%` 右侧传 Array 会被当参数列表;`match` 兜底分支缩进不得差一级
+- [x] 验证:三套 Godot 测试全绿(退出码 0)+ `go test ./tools/...` + `go vet ./...` 绿
+- **落地**:双增量推送(core+tests、docs 收尾);残留 = 部署面(凭据)+ UE 引擎集成面 + Godot 平台 Transport/TokenStore(M2 起随引擎集成面)
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。
