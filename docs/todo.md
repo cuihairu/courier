@@ -293,6 +293,16 @@
 - [x] 验证:五套 Godot 测试全绿(contract/lifecycle/core/service/service2,退出码 0)+ `go test ./tools/...` + `go vet` 绿
 - **落地**:双增量推送(service+tests、docs 收尾);残留 = 部署面(凭据)+ UE 引擎集成面 + Godot 平台 Transport/TokenStore(messages 流式读随平台适配面)
 
+## 批次 34 — Godot 平台适配面(真传输 + 持久令牌存储)
+
+- [x] `CourierHTTPTransport`(`src/platform/httpTransport.gd`,extends core `CourierTransport`):HTTPClient poll 增量模型(无 Node 依赖,headless 可跑);url 拆解(scheme/缺省端口)、TLS 走 `TLSOptions.client()`、帧让出经注入 `frame_f`(`--script` 下 `Engine.get_main_loop()` 为 null,用例注入;运行时缺省取主循环)、15s 超时两段(connect/响应各一 deadline)、方法名映射、响应头键小写归一
+- [x] **HTTPClient poll 语义两坑实测入档(代码注释)**:①响应完整性须以 Content-Length 计数,不可看终态——对端发完即断时 EOF 可与末字节同一 poll 到达,状态直接跳 `DISCONNECTED`,`CONNECTED` 未必可观察;②响应头仅在收体期间可读(收完后被引擎清空),须在循环内捕获快照
+- [x] `CourierFileTokenStore`(`src/platform/fileTokenStore.gd`,extends core `CourierTokenStore`):`user://` JSON 整会话落盘(FileAccess/DirAccess,引擎按平台映射应用专属目录),`clear` 即删文件
+- [x] 测试(`tests/test_platform.gd`,本仓首个真传输面,SceneTree headless):`MockServer` 内部类(TCPServer 真监听 + 裸 HTTP/1.1 收发,记录解析后请求,入队响应自动包 200);4 例 = token store user:// 回路跨实例、GET 真往返(自定义头透传/体逐字节/响应头小写)、POST 体+Content-Length+501 原样上抛、全链 e2e(client→api→transport→store:guest scope 头/body 真 socket 落库,第二跳自动带 `Bearer access-1`)
+- [x] 协程点火语义补档:GDScript 协程不能无 `await` 起跑,`call_deferred` 点火 + 用例侧 pump 循环(`pump_until` 900 帧耗尽即 FAIL 不悬挂)收尾结果到成员断言
+- [x] 验证:六套 Godot 测试全绿(contract/lifecycle/core/service/service2/platform,退出码 0)+ `go test ./tools/...` + `go vet` 绿
+- **落地**:双增量推送(platform+tests、docs 收尾);残留 = 部署面(凭据)+ UE 引擎集成面 + Godot TLS 路径与真机验证(随部署面)+ messages SSE 流式传输适配
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。
