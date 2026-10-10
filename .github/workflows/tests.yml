@@ -1,6 +1,6 @@
 # 测试门禁:push/PR 全仓跑一遍(与本地口径一致,零依赖,无平台专属环境)。
 #
-# 覆盖:Go(gateway 模块 + 根模块 tools/contractgen)、Node 24 原生 TS
+# 覆盖:Go(gateway 模块 + 根模块 tools:contractgen/packcheck/tsync)、Node 24 原生 TS
 # (cocos / miniprogram / laybox,零依赖 node --test)、UE(ISO C++17
 # 独立编译,g++ 无引擎依赖)。
 #
@@ -30,8 +30,8 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: contractgen (root module)
-        run: go test ./tools/contractgen/...
+      - name: root module tools
+        run: go test ./tools/...
       - name: vet (root module)
         run: go vet ./...
       - name: vet (gateway)
