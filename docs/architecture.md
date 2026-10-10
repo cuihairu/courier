@@ -108,7 +108,7 @@ gateway/
 ├── scope/         game_id + env 注入与校验
 ├── routing/       路由与 Provider 注册表
 ├── aggregation/   跨 Provider 聚合
-├── middleware/    限流 / trace / 审计 / 恢复
+├── middleware/    限流 / trace / 恢复 / scope / 维护门
 └── providers/     Provider 接口 + 默认实现(能力域 → 注册名)
     ├── account/        AccountProvider(identity)   默认:courier-account(自建
     │                   accounts/sessions;第二实现 courier-account-alt 同契约可换)
@@ -217,7 +217,7 @@ CourierClient(门面)
 - 支付回调只认渠道签名,不认客户端上报金额/状态。
 - 实名:字段最小化、传输加密、SDK 不落盘、日志/trace 禁明文([contract/realname.md](./contract/realname.md))。
 - 诊断:默认关闭、显式开启、开启明示数据范围([contract/diagnostics.md](./contract/diagnostics.md))。
-- 所有写操作审计,trace 贯穿 gateway → Provider。
+- 写操作可审计:trace 贯穿 gateway → Provider(审计落库随部署面)。
 
 ## 与后端 Provider 的边界
 

@@ -1,6 +1,6 @@
 # 五层架构:L1–L5
 
-> **状态**:Draft。原则:**不堆业务,先立骨架**;总纲见 [architecture.md](./architecture.md)(设计原则 / Provider 原则 / 能力树 / 生命周期),契约宪法见 [contract/index.md](./contract/index.md),分批节奏见 [todo.md](./todo.md)。
+> **状态**:Current — 随实现维护(2026-10-08 M0 立宪冻结,M1–M5 已全部落地)。原则:**不堆业务,先立骨架**;总纲见 [architecture.md](./architecture.md)(设计原则 / Provider 原则 / 能力树 / 生命周期),契约宪法见 [contract/index.md](./contract/index.md),分批节奏见 [todo.md](./todo.md)。
 
 ## 分层总览
 
@@ -59,13 +59,13 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 
 **现仓映射**:`sdks/unity/packages/com.courier.core/Runtime`(Core/ 状态机与 API 客户端、Identity/ Session/ auth 域、CourierClient.cs 门面、Core/Contract/ 生成物);`CoreTests~`(29 例 Fact,xunit;引擎内跑,本地不可验);`sdks/cocos src/core`(transport/apiClient/session/identity,courierClient.ts 门面)+ `src/service`(九域客户端,`CourierServices` 门面)+ `src/ui` / `src/diagnostics`(可选包),node:test 102 例(契约 6 / core+lifecycle 53 / service 17 / wechat 7 / ui 8 / diagnostics 11);`sdks/ue/core`(纯 ISO C++17 header-only:json 解析器、transport/apiClient/session/identity/lifecycle/courierClient)+ `sdks/ue/service`(SSE 解析器 + 九域客户端,`run_tests.sh` 六套 g++ 独立编译全绿);其余端同构。
 
-**下一步**:M1 Unity 已就位;cocos TS 端 core+service 全域落地(M2-M5 契约面)+ 生命周期状态机 + 微信小游戏适配器;UE C++ 端 core+service 全域落地(M2-M5 契约面,纯逻辑 g++ 验证);其余平台适配器(UE/Godot)与真机联调随需求扩。
+**下一步**:M1 Unity 已就位;cocos TS 端 core+service 全域落地(M2-M5 契约面)+ 生命周期状态机 + 微信小游戏适配器;UE C++ 端 core+service 全域落地(M2-M5 契约面,纯逻辑 g++ 验证);UE 引擎集成面(HttpModule 适配)待引擎环境,Godot 停靠,真机联调随部署面。
 
 ## L3 Platform Adapter(平台绑定层)
 
 **职责**
 
-- 平台翻译四件事:网络(原生 HTTP / SSE 流式读)、存储(ITokenStore 安全存储实现)、生命周期(前后台/进程信号→状态机事件)、线程(主线程回调调度);打包形态(UPM / UE 插件 / npm / Godot 插件)。
+- 平台翻译四件事:网络(原生 HTTP / SSE 流式读)、存储(ITokenStore 安全存储实现)、生命周期(前后台/进程信号→状态机事件)、线程(主线程回调调度);打包形态(UPM / UE 插件 / npm;Godot 插件规划中)。
 - **可选 UI 包挂在平台侧**:CourierLoginPanel / AnnouncementPanel / SupportPanel,消费 Branding 下发(见 L2 边界:Core 无品牌逻辑)。
 
 **边界**
@@ -75,11 +75,11 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 
 **接口形状**
 
-- ITokenStore:Unity 加密存储 / UE 平台凭证 / Cocos localStorage / 微信 storage / Layabox、Godot 平台存储;ITransport:各平台网络栈。
+- ITokenStore:Unity 加密存储 / UE 平台凭证 / Cocos localStorage / 微信 storage / Layabox 平台存储;Godot 规划中;ITransport:各平台网络栈。
 
-**现仓映射**:Unity 先行——`sdks/unity/packages/com.courier.core/Runtime/Adapter`(UnityWebRequest 传输 / SecureTokenStore 加密存储 / ApplicationLifecycleMonitor 前后台),`tools/packcheck` 结构验收;UPM 三包(core/service/ui)骨架就位;其余五端规划。
+**现仓映射**:Unity——`sdks/unity/packages/com.courier.core/Runtime/Adapter`(UnityWebRequest 传输 / SecureTokenStore 加密存储 / ApplicationLifecycleMonitor 前后台),`tools/packcheck` 结构验收,UPM 四包(core/service/ui/diagnostics)落位;TS 三端 adapter——cocos 与 miniprogram 的 `platform/wechat`、laybox 的 `platform/laya`(wx.request / wx storage / LayaAir 可见性与 onLine 信号);UE C++ header-only 批次 14 落位(引擎集成面 HttpModule 待引擎环境);Godot 规划中。
 
-**下一步**:M1 Unity UPM 骨架(Core/Service/UI 三包目录就位,UI 包可空)。
+**下一步**:UE 引擎集成面与真机联调随部署面;Godot 停靠。
 
 ## L4 Service Provider(Provider 接口 + 默认实现,服务端)
 
@@ -110,7 +110,7 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 
 - 每域一个 Provider 接口 + `Register(registry)` 注册;接口与实现分离,默认实现可整体替换。
 
-**现仓映射**:`gateway/providers/`(接口形状批次 2 冻结;`account/` AccountProvider 批次 3;`herald/` `croupier/` `chirp/` 三域默认实现批次 6,Notify 钩子装配解耦——发布/回复事件经注入的 `Publish` 进 chirp Hub,Provider 互不 import;`router/` 治理引擎 + `warden/` 实名自建核验批次 7——降级链/熔断/热重载首个完整落地,后续域复用;`scribe/` config/app/branding 同管道 + `archivist/` 玩家档案批次 8——M3 热生效/维护门/品牌热切换 e2e 验收;`sage/` 小助手批次 9——M4 检索问答/命中率统计/转人工 e2e 验收;`teller/` 支付批次 10——M5 服务端定价/回调 HMAC 签名面/断单对账 e2e 验收)。
+**现仓映射**:`gateway/providers/`(接口形状批次 2 冻结;`account/` AccountProvider 批次 3;`herald/` `croupier/` `chirp/` 三域默认实现批次 6,Notify 钩子装配解耦——发布/回复事件经注入的 `Publish` 进 chirp Hub,Provider 互不 import;`router/` 治理引擎 + `warden/` 实名自建核验批次 7——降级链/熔断/热重载首个完整落地,后续域复用;`scribe/` config/app/branding 同管道 + `archivist/` 玩家档案批次 8——M3 热生效/维护门/品牌热切换 e2e 验收;`sage/` 小助手批次 9——M4 检索问答/命中率统计/转人工 e2e 验收;`teller/` 支付批次 10——M5 服务端定价/回调 HMAC 签名面/断单对账 e2e 验收;`accountalt/` 第二 identity 实现(同契约异构,HMAC 自验证令牌)批次 18——装配期读 COURIER_GATEWAY_CONFIG 随 identity primary 重指)。
 
 **下一步**:Diagnostics 为客户端可选包(不经网关,批次 8 落 `sdks/unity/packages/com.courier.diagnostics`);payments 批次 10 已接入(teller)。
 
@@ -118,7 +118,7 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 
 **职责**
 
-- 唯一入口:auth / session / scope / routing / aggregation / middleware(限流、trace、审计、恢复)。
+- 唯一入口:auth / session / scope / routing / aggregation / middleware(限流、trace、恢复、scope、维护门);审计依赖 trace 贯穿,落库随部署面。
 - Provider 注册表管理:路由按「已配置的 Provider」动态挂载;未配置能力的路由不注册。
 
 **边界**
@@ -135,9 +135,9 @@ gateway/
 └── providers/
 ```
 
-Go `http.ServeMux` + 中间件链(auth → rate limit → scope → audit);`/healthz`;`/v1/{domain}/*`。
+Go `http.ServeMux` + 中间件链(trace → 结构化错误 → 限流 → scope,冻结顺序;认证按能力在路由内挂载 Bearer 校验);`/healthz`;`/v1/{domain}/*`。
 
-**现仓映射**:`gateway/{cmd,routing,middleware,scope,aggregation}`(批次 2 骨架)+ `auth`/`session`(批次 3 实装,Bearer→身份注入/会话验证)+ `e2e`(批次 6,M2 全链路;批次 8 增 M3 热生效/维护/品牌 e2e);能力驱动路由 `/v1/{capability}/` 随 Provider 注册自动挂载,未配置 = 501 降级;维护门 `middleware.Maintenance` 包入口(批次 8,app.md 白名单内建:维护开启 `/v1/*` 除 `/v1/app/*` 与 `/healthz` 一律 503);降级语义与中间件链已有测试覆盖。
+**现仓映射**:`gateway/{cmd,routing,middleware,scope,aggregation}`(批次 2 骨架)+ `auth`/`session`(批次 3 实装,Bearer→身份注入/会话验证)+ `e2e`(批次 6,M2 全链路;批次 8 增 M3 热生效/维护/品牌,批次 9 增 M4 检索问答/转人工,批次 10 增 M5 下单/回调/对账 e2e);能力驱动路由 `/v1/{capability}/` 随 Provider 注册自动挂载,未配置 = 501 降级;维护门 `middleware.Maintenance` 包入口(批次 8,app.md 白名单内建:维护开启 `/v1/*` 除 `/v1/app/*` 与 `/healthz` 一律 503);降级语义与中间件链已有测试覆盖。
 
 **下一步**:持久化存储与多实例限流协同。
 
