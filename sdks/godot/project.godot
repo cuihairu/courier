@@ -1,0 +1,10 @@
+; Godot 工程清单(SDK 为纯逻辑库,无场景资源)。
+; class_name 全局类解析需要类缓存:首次运行先
+;   godot --headless --path sdks/godot --import
+; 生成 .godot/(已 gitignore),之后测试可直接 --script 运行。
+config_version=5
+
+[application]
+
+config/name="courier-godot"
+config/features=PackedStringArray("4.3")

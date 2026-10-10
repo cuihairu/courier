@@ -49,3 +49,6 @@ sdks/unity/ServiceTests~/obj/
 !sdks/unity/DiagnosticsTests~/*.csproj
 sdks/unity/DiagnosticsTests~/bin/
 sdks/unity/DiagnosticsTests~/obj/
+
+# Godot(生成物:class_name 类缓存等,首次 --import 生成)
+sdks/godot/.godot/
