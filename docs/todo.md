@@ -284,6 +284,15 @@
 - [x] 验证:三套 Godot 测试全绿(退出码 0)+ `go test ./tools/...` + `go vet ./...` 绿
 - **落地**:双增量推送(core+tests、docs 收尾);残留 = 部署面(凭据)+ UE 引擎集成面 + Godot 平台 Transport/TokenStore(M2 起随引擎集成面)
 
+## 批次 33 — Godot 服务域落地(M2–M5 契约面:SSE 解析器 + 九域客户端)
+
+- [x] 服务层落位(`sdks/godot/src/service`,与 cocos `src/service` / ue `service` 同构):`sseParser`(增量帧解析:心跳注释忽略、多行 data `\n` 连接、未知字段容忍、reset 复用)+ 九域客户端(announcement/support/app/appConfig/branding/player/assistant/payment/realname)+ `CourierServices` 门面(从 client.api 装配)
+- [x] 降级语义跨端对齐(TS `null` / UE `nullopt` 同构):501 `COMMON_CAPABILITY_DISABLED` → `{ok:true, data:null}`(config 域按契约返 v0 空 items 不进报错路径);其余错误照常 `{ok:false, error}` typed 透传(APP_MAINTENANCE 503 / PAYMENT_ORDER_NOT_FOUND 404 等不进降级);GDScript `String.uri_encode()` 与 `encodeURIComponent` 同形(空格 `%20`)
+- [x] 测试(与 cocos `service.test.ts`/`service2.test.ts` 同构,SceneTree headless):`test_service.gd`(8 例:SSE 三态 + 公告 wire/typed 404 + 客服提单/详情/关单 409/FAQ 编码)、`test_service2.gd`(9 例:app 匿名+501+维护 typed、config 缓存与 needs_refetch 与失败沿用缓存、branding version 判据、player PATCH 缺省键、assistant 未命中非错误、payment 只发 skuId 与 payToken 只在下单、realname 四端点与 501)
+- [x] GDScript 语义差再入档(写成代码注释):**`Callable` 弱引用目标**——client 被回收则 `token_provider` 失效(`null::access_token`),用例须经成员持活 client(接入方持 CourierClient 同构);getter-only 属性(`var x: Variant: get:`)可用;JSON 浮点收窄用 `int()` 逐字段断言;**构造器缺失 = new() 只收 0 参**(漏写 `_init` 时报 "Too many arguments",不在定义处报错)
+- [x] 验证:五套 Godot 测试全绿(contract/lifecycle/core/service/service2,退出码 0)+ `go test ./tools/...` + `go vet` 绿
+- **落地**:双增量推送(service+tests、docs 收尾);残留 = 部署面(凭据)+ UE 引擎集成面 + Godot 平台 Transport/TokenStore(messages 流式读随平台适配面)
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。
