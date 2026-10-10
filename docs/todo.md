@@ -231,6 +231,14 @@
 - [x] 本批零修复:环境内声称面已无漂移项
 - **落地**:仅归档增量;残留 = 部署面 + Godot(停靠)
 
+## 批次 28 — 巡检续批(README 双语对等性 + 站点导航完整性)
+
+- [x] ① README 中英逐段对等:**零漂移**——11 节骨架一一对应、结构元素计数完全一致(表行 14 / 代码栅栏 16 / 清单项 17)、关键声称 token(供应商九家/SSE/测试数)分布一致;计数微差为英文子串噪音("Mes**sage**Provider"),非内容缺失
+- [x] ② docs 站导航完整性:一处缺口修复(`6aff436`)——`contract/fixtures/index.md` 不在任何导航(其余 26 个 md 文件全被 nav+sidebar 覆盖);补 sidebar「Fixtures(机器可读快照)」项,构建通过、页面产出
+- [x] nav 6 项 + sidebar 25 项目标全部存在,无死链(vitepress 构建含死链检查,绿)
+- [x] CI:6aff436 Tests + Deploy Docs 绿
+- **落地**:单增量全绿推送;残留 = 部署面 + Godot(停靠)
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。
