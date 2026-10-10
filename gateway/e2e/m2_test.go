@@ -326,6 +326,61 @@ func TestTicketCreated_AgentReply_LiveVisibleInStreamAndDetail(t *testing.T) {
 	}
 }
 
+// 契约端点覆盖:公告详情(GET /v1/announcements/{id})与客服 FAQ(GET /v1/support/faq)。
+// 两路由此前既无 provider 单测也不在 e2e 内(herald/croupier 无 *_test.go),此处补齐。
+func TestAnnouncementDetailAndSupportFAQ_ContractEndpoints(t *testing.T) {
+	h := newHarness(t, true)
+	token := h.login(t)
+
+	// 公告详情:命中返回 DTO,缺失/过期同码不泄露存在性(announcement.md)。
+	a, err := h.announce.Publish("维护通知", "周三 03:00-05:00 停服", "WARNING", nil, nil)
+	if err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+	status, body := h.scopeGet(t, "/v1/announcements/"+a.ID, token)
+	if status != http.StatusOK {
+		t.Fatalf("detail status = %d, body = %s", status, body)
+	}
+	var detail struct {
+		Data struct {
+			ID    string `json:"id"`
+			Title string `json:"title"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(body), &detail); err != nil {
+		t.Fatalf("detail decode: %v", err)
+	}
+	if detail.Data.ID != a.ID || detail.Data.Title != "维护通知" {
+		t.Fatalf("detail mismatch: %+v", detail.Data)
+	}
+
+	// 详情反面:不存在的 id → 404 ANNOUNCEMENT_NOT_FOUND。
+	status, body = h.scopeGet(t, "/v1/announcements/ann_missing", token)
+	if status != http.StatusNotFound || !strings.Contains(body, "ANNOUNCEMENT_NOT_FOUND") {
+		t.Fatalf("missing detail: status = %d, body = %s", status, body)
+	}
+
+	// 客服 FAQ:关键词检索命中 AddFAQ 注入项。
+	h.croupier.AddFAQ("如何充值", "在商城页点击充值按钮", []string{"充值", "商城"})
+	status, body = h.scopeGet(t, "/v1/support/faq?keyword=%E5%85%85%E5%80%BC", token)
+	if status != http.StatusOK {
+		t.Fatalf("faq status = %d, body = %s", status, body)
+	}
+	var faqPage struct {
+		Data struct {
+			Items []struct {
+				Question string `json:"question"`
+			} `json:"items"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(body), &faqPage); err != nil {
+		t.Fatalf("faq decode: %v", err)
+	}
+	if len(faqPage.Data.Items) == 0 || faqPage.Data.Items[0].Question != "如何充值" {
+		t.Fatalf("faq 未命中注入项: %s", body)
+	}
+}
+
 // 通道认证:匿名 401(契约 messages.md)。
 func TestStreamRequiresAuth_Anonymous401(t *testing.T) {
 	h := newHarness(t, true)
