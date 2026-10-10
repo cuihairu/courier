@@ -239,6 +239,14 @@
 - [x] CI:6aff436 Tests + Deploy Docs 绿
 - **落地**:单增量全绿推送;残留 = 部署面 + Godot(停靠)
 
+## 批次 29 — 代码级冷点复核(错误码 v4 ↔ 六端枚举、e2e 覆盖矩阵)
+
+- [x] 错误码表 v4 ↔ 六端生成枚举:**零漂移**——errors.md 33 码逐端集合对差,cocos/miniprogram/laybox(errors.ts)、unity(ErrorCode.cs)、ue(errors.hpp)、godot(errors.gd)六端 **missing=0**(「多出」项均为域前缀常量/头保护/辅助 map,非漂移)
+- [x] e2e 覆盖矩阵维护:**33/33 契约端点全部有测试覆盖**——31 端点在 e2e(批次 26 补齐公告详情 + FAQ 后;含 payments/callback 与 playtime-report 这两个服务端面端点),player profile/characters 四方法路径由 archivist 单测覆盖(21 处断言);对差工具字符串匹配需注意拼接/查询串形态(公告详情经 `+a.ID` 拼接、FAQ 带查询串),人工核实无缺
+- [x] 附修(`aa436ec`):gateway `envelope_sync_test.go` 注释「错误码表 v1」→「v4」——与自身 `f.Version != 4` 断言矛盾;同步测试本身为双向对齐 + 版本闸,机器强制在位(fixtures/index.md「网关 codeTable 同步测试」声称属实)
+- [x] CI:aa436ec Tests 绿(gateway 17 包 + vet 本地先行)
+- **落地**:单增量全绿推送;残留 = 部署面 + Godot(停靠)
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。
