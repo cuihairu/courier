@@ -223,6 +223,14 @@
 - [x] CI:ad5bac4 Tests 绿(Deploy Docs 因 docs 路径过滤未触发,符合预期)
 - **落地**:单增量全绿推送;残留 = 部署面 + Godot(停靠)
 
+## 批次 27 — 声称二次抽查(事件表 vs SDK 发射点、域端点表 vs SDK 方法)
+
+- [x] 生命周期事件表 vs SDK 发射点:**零漂移**——events.md 六个 `lifecycle.*` 事件与 cocos/miniprogram/laybox/unity/ue 五端核心实现精确一致(逐事件名核对,非子串)
+- [x] 域端点表 vs SDK 客户端方法:**零漂移**——33 端点中 31 个客户端面端点在三端样本(cocos/UE/unity)全有对应方法(announcements list/get、support 五方法、realname 四方法、player 四方法、payment 四方法、app 四方法、assistant、identity 八方法);2 个非客户端端点按契约有意不封装(payments/callback 服务端、realname/playtime-report S2S,SDK 源码有明文注释)
+- [x] 附核:业务事件(announcement.published 等)SDK 按契约容忍规则泛型透传(sseParser「未知 event type 原样吐出」),非缺口;样本事件名在五端 SseParser 测试中均有覆盖
+- [x] 本批零修复:环境内声称面已无漂移项
+- **落地**:仅归档增量;残留 = 部署面 + Godot(停靠)
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。
