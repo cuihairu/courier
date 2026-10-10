@@ -1,7 +1,7 @@
-# 契约测试骨架:Godot 端错误枚举/信封 key 与 fixture 对齐断言。
+# 契约测试:Godot 端错误枚举/信封 key 与 fixture 对齐断言。
 # 运行(装 Godot 4 后,从仓库根):
 #   godot --headless --path sdks/godot --script tests/test_contract.gd
-# 本机无 Godot 二进制时由 tools/contractgen 保证 fixture↔生成物一致;此文件为引擎侧卡点。
+# 本机无 Godot 二进制时由 tools/contractgen 保证 fixture↔生成物一致。
 extends SceneTree
 
 const Errors := preload("res://contract/errors.gd")

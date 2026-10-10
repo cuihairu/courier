@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -86,6 +87,21 @@ func TestScopeAndDtoFixtures(t *testing.T) {
 	for _, k := range []string{"data", "error", "traceId", "code", "message", "retryable", "items", "nextCursor"} {
 		if df.Keys[k] == "" {
 			t.Errorf("dto.json 缺 key %q", k)
+		}
+	}
+}
+
+// TestGeneratedGdNoSlashComments GDScript 无 // 注释——Go/C 风格会被引擎判为语法错误
+// (SCRIPT ERROR: Unexpected "/" in class body),生成物行首注释必须是 #。
+func TestGeneratedGdNoSlashComments(t *testing.T) {
+	for rel, want := range generate(repoRoot) {
+		if !strings.HasSuffix(rel, ".gd") {
+			continue
+		}
+		for i, line := range strings.Split(string(want), "\n") {
+			if strings.HasPrefix(strings.TrimSpace(line), "//") {
+				t.Errorf("%s 第 %d 行是 // 注释(GDScript 不认,须 #): %s", rel, i+1, line)
+			}
 		}
 	}
 }
