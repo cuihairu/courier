@@ -212,7 +212,7 @@
 | F75 | 沙箱 / 测试环境 | dev/staging/prod 隔离;商店沙箱收据;mock 与 fixtures 供 CI | 必备 | [Courier scope 三环境](../contract/scope.md)、商店 sandbox 验真 | ✅ 核心 |
 | F76 | 多语言与本地化 | 内容按语种下发,SDK 文案可本地化 | 常见 | [MSDK 公告 language 字段](https://docs.msdk.qq.com/v5/zh-CN/Module/Notice.html)、[多语言客服](https://theymes.com/for/gaming) | ✅ 核心 |
 
-**Courier 取舍**:本节几乎全是核心——[competitive.md](./competitive.md) 结论 2 明确要抄 Nakama 的工程面与 MSDK 的插件化,这六条就是那两条结论的落地清单。
+**Courier 取舍**:本节几乎全是核心——[competitive.md](./competitive.md) 结论 2 明确要抄 Nakama 的工程面与 MSDK 的插件化,这八条就是那两条结论的落地清单。
 
 ---
 
