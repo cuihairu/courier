@@ -320,6 +320,16 @@
 - [x] 验证:八套 Godot 测试全绿(contract/lifecycle/core/service/service2/platform/stream/adapter,退出码 0)+ `go test ./tools/...` + `go vet` 绿
 - **落地**:单增量推送(monitor+tests、docs 收尾);残留 = 部署面(凭据)+ UE 引擎集成面 + Godot TLS 路径与真机验证、UI 可选包
 
+## 批次 37 — Unity SSE 流式传输(messages 通道真流读)
+
+- [x] L2 接缝 + 退避纯函数(`core/Runtime/Core/SseStream.cs`):`ISseSource`(平台接线面)/`SseStreamConnection`(状态码 + 头小写归一 + 逐行读,流尾回 null)/`SseStreamRequest` + `SseBackoff`(base·2^(n-1) 封顶 max,Retry-After 优先)+ 收尾原因四值(capability_disabled/unauthenticated/stopped/disconnected);接缝放 Core 不放 Service——Adapter 实现不引 Service,编排(依赖 SseParser)在 Service
+- [x] 编排(`service/Runtime/SseStreamClient.cs`,纯逻辑):501→`capability_disabled`(降级转纯拉取)、401→`unauthenticated` 终态不重试;断线指数退避重连(1s 起、60s 封顶,`Retry-After` 秒头优先);收过事件的连接断开即重置退避(健康连≠失败连);Authorization 每连现取(轮换);净停经 CancellationToken;逐行喂 SseParser,未知 event 容忍
+- [x] 测试(`ServiceTests~/SseStreamTests.cs`,+8 例 = 77):帧上抛/心跳静默/重连换 token、501/401 终态、Retry-After 优先可观察、建连故障重连+净停、取消先行不建连、退避纯函数(封顶/钳制/全零配置);竞态修正——自旋 fake 会持续计数,断言取事件回调点的建连数
+- [x] L3 接线(`core/Runtime/Adapter/UnityWebRequestSseSource.cs`,packcheck 结构验收;Adapter 引 UnityEngine 不进 dotnet 单测):DownloadHandlerScript 增量收体(锁保护按 \n 字节切行后再 UTF-8 解码,多字节不撕裂);`SendWebRequest` 主线程起跑(Unity 限制);长连不设超时,`CancellationToken.Register(Abort)` 净停(Abort 归一 `TransportException`);头到即回(responseCode 置位),体走 50ms 轮询增量读;服务端必须 chunked 分框(与 Godot/UE 同硬约束,Go net/http 网关缺省满足)
+- [x] CI:`tests.yml` 增 unity-dotnet job,四套纯逻辑 dotnet 工程进门禁(引擎内 Test Runner 用例不进 CI)
+- [x] 验证:四套 dotnet 全绿(8+48+77+11)+ `go test ./tools/packcheck/` + `go vet` 绿
+- **落地**:三增量推送(ci gate、stream client、adapter;docs 收尾);残留 = Unity 引擎内 Test Runner 实跑与真机联调(随部署面)
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。
