@@ -303,6 +303,15 @@
 - [x] 验证:六套 Godot 测试全绿(contract/lifecycle/core/service/service2/platform,退出码 0)+ `go test ./tools/...` + `go vet` 绿
 - **落地**:双增量推送(platform+tests、docs 收尾);残留 = 部署面(凭据)+ UE 引擎集成面 + Godot TLS 路径与真机验证(随部署面)+ messages SSE 流式传输适配
 
+## 批次 35 — Godot SSE 流式传输(messages 通道真流读)
+
+- [x] `CourierSseStream`(`src/platform/sseStreamTransport.gd`):HTTPClient poll 流读,行缓冲跨 chunk 喂 `CourierSseParser`,完整帧经 on_event 上抛;契约 messages.md 客户端要求全内建——501 → `capability_disabled`(转纯拉取,不重试)、401 → `unauthenticated`(不重试)、断线指数退避重连(1s 起、上限 60s,`Retry-After` 秒头优先)、收过事件的连接断开即重置退避(健康连≠失败连)、stop 回调每圈探查净停;Authorization 每次尝试按 token_provider 现取(契约:新连接按当前 token 校验);退避等待 sleep_f 可注入(缺省主循环 Timer)
+- [x] **HTTPClient 分框硬约束实测入档(类文档代码注释)**:无 Content-Length 的 close 分隔响应体不可读——收完头即判响应完成,永不进 `STATUS_BODY`;SSE 流响应必须 `Transfer-Encoding: chunked`。自建网关(Go net/http 在 Content-Length 缺省时自动补 chunked)天然满足;直连其他无分框 SSE 端点不可用
+- [x] 测试件重构:`MockServer` 抽出 `tests/mock_server.gd` 共享(preload,不占全局类名),新增 `enqueue_stream`/`pushes`/`hangup`(SSE 长连持有、chunked 分框、终止块随挂断发出);`test_platform.gd` 改用共享件(六套回归仍绿)
+- [x] 测试(`tests/test_stream.gd`,4 例):帧上抛+心跳注释不出事件、流内推送第二帧、服务端断流退避重连(重连现取 token,`Bearer tok-2` 断言轮换)且停止后不再连、501 降级收尾不重试、401 收尾不重试、跨 chunk 行缓冲(字段名被切段拼回)
+- [x] 验证:七套 Godot 测试全绿(contract/lifecycle/core/service/service2/platform/stream,退出码 0)+ `go test ./tools/...` + `go vet` 绿
+- **落地**:单增量推送(stream+tests+mock 重构、docs 收尾);残留 = 部署面(凭据)+ UE 引擎集成面 + Godot TLS 路径与真机验证、前后台生命周期信号(随部署面/引擎集成面)
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。
