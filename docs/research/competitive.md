@@ -61,7 +61,7 @@ Nakama 值得抄的是工程面:每个引擎一等公民、示例与文档齐平
 | XtraLife 开源 BaaS | ⬜ 不适用 | 无公告/客服/合规面且事实上停止维护,无工程可抄 | —(仅作品类停滞旁证) |
 | Playgama Bridge 的 20+ 平台适配组织 | ⚠️ 可借鉴 | 它抽象「发布平台」、Courier 抽象「服务后端」,是两个品类;但其「平台差异全部压进一层适配」的组织方式值得镜鉴 | L3 Adapter 边界([layers.md](../layers.md)):平台差异只进 Adapter,Core 不碰平台(packcheck 结构验收守) |
 | AWS Game Backend Framework | ⬜ 不适用 | 云绑定基础设施模板,与「云中立、SDK 优先」定位相反 | —(反衬云中立原则;Gateway/Provider 不绑云) |
-| MSDK 插件化按需选装 | ✅ 可参考 | 商业聚合验证了「不为用不到的功能付体积」是真实付费需求 | Provider 可换可关原则 + UPM 三包(core/service/ui,[todo 批次 5](../todo.md) 已落位);Diagnostics/UI 永远可选 |
-| QuickSDK 的服务端 token 验签口径 | ✅ 可参考 | 「客户端凭证不可信、必须服务端验证」跨品类成立(登录凭证与支付收据同理) | [auth.md](../contract/auth.md) Token 模型(Bearer+轮换+吊销,已冻结);支付收据验真留 M5 契约落点 |
+| MSDK 插件化按需选装 | ✅ 可参考 | 商业聚合验证了「不为用不到的功能付体积」是真实付费需求 | Provider 可换可关原则 + UPM 四包(core/service/ui/diagnostics);Diagnostics/UI 永远可选 |
+| QuickSDK 的服务端 token 验签口径 | ✅ 可参考 | 「客户端凭证不可信、必须服务端验证」跨品类成立(登录凭证与支付收据同理) | [auth.md](../contract/auth.md) Token 模型(Bearer+轮换+吊销,已冻结);支付收据验真已随 M5 冻结(payment.md) |
 | XDSDK 实名防沉迷(模块剥离给 TapSDK) | ✅ 可参考 | 国内合规是上架硬门槛,「实名做成默认路径而非扩展模块」被头部发行验证 | [realname.md](../contract/realname.md) 契约 + [todo 批次 7](../todo.md) 热插拔/降级链/熔断;红线(默认关、开启明示数据范围)已写进契约宪法 |
 | XDSDK/MSDK 的登录 UI 剥离趋势 | ✅ 可参考 | 递送型 SDK 不该绑 UI 是行业共同走向 | `com.courier.ui` 独立可选包;Core 无品牌逻辑、无强制 UI(layers.md L2/L3 边界) |
