@@ -13,7 +13,8 @@ import type { Transport, TransportRequest, TransportResponse } from "../src/core
 
 const config = { endpoint: "https://api.example.com", gameId: "game_demo", env: "prod" };
 const sessionJson = JSON.stringify({
-  accountId: "acc_1", accessToken: "access-1", accessExpiresAt: "t",
+  account: { id: "acc_1", type: "GUEST", status: "ACTIVE", createdAt: "t" },
+  accessToken: "access-1", accessExpiresAt: "t",
   refreshToken: "refresh-1", refreshExpiresAt: "t", deviceId: "device-1",
 });
 
@@ -249,8 +250,8 @@ test("client:登出后换账号登录 → account_switched(切号检测)", async
   transport.enqueue(200, '{"data":null}');
   await client.session.logout(); // PlayerReady → SignedOut
 
-  const acc2 = JSON.parse(sessionJson) as { accountId: string; accessToken: string };
-  acc2.accountId = "acc_2";
+  const acc2 = JSON.parse(sessionJson) as { account: { id: string }; accessToken: string };
+  acc2.account.id = "acc_2";
   acc2.accessToken = "access-9";
   transport.enqueue(200, '{"data":' + JSON.stringify(acc2) + "}");
   await client.guestLoginAsync({ deviceId: "device-1" }); // SignedOut → 重登
@@ -287,7 +288,8 @@ test("client:access 过期自动 refresh 发 token_expired;轮换成功回到 Pl
   await client.guestLoginAsync({ deviceId: "device-1" });
 
   const refreshed = JSON.stringify({
-    accountId: "acc_1", accessToken: "access-2", accessExpiresAt: "t",
+    account: { id: "acc_1", type: "GUEST", status: "ACTIVE", createdAt: "t" },
+    accessToken: "access-2", accessExpiresAt: "t",
     refreshToken: "refresh-2", refreshExpiresAt: "t", deviceId: "device-1",
   });
   transport.enqueue(401, JSON.stringify({

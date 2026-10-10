@@ -11,7 +11,6 @@ import type { SessionDto } from "../src/core/types.ts";
 
 const config = { endpoint: "https://api.example.com", gameId: "game_demo", env: "prod" };
 const sessionJson = JSON.stringify({
-  accountId: "acc_1",
   account: { id: "acc_1", type: "GUEST", status: "ACTIVE", createdAt: "2026-10-09T12:00:00.000Z" },
   accessToken: "access-1",
   accessExpiresAt: "2026-10-09T12:15:00.000Z",
@@ -366,7 +365,7 @@ test("会话 DTO 全字段 wire 对齐(auth.md)", async () => {
 
   const s = (await client.identity.guest({ deviceId: "device-1" })) as SessionDto;
   assert.deepEqual(Object.keys(s).sort(), [
-    "accessExpiresAt", "accessToken", "account", "accountId",
+    "accessExpiresAt", "accessToken", "account",
     "deviceId", "refreshExpiresAt", "refreshToken",
   ]);
   assert.equal(s.account?.type, "GUEST");

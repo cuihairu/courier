@@ -17,7 +17,7 @@ export interface BrandingDto {
 export interface AppVersionDto {
   readonly latestVersion: string;
   readonly minVersion: string;
-  readonly updateUrl: string;
+  readonly updateUrl?: string; // 可选(payload 缺省即缺键,契约 app.md)
   readonly forceUpdate: boolean;
 }
 

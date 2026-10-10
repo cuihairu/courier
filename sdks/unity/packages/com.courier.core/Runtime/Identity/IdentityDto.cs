@@ -83,9 +83,10 @@ namespace Courier.Identity
         public string CreatedAt { get; set; }
     }
 
-    /// <summary>GET /v1/identity/devices(分页信封:items;nextCursor 缺失 = 末页)。</summary>
+    /// <summary>GET /v1/identity/devices(分页信封:items + nextCursor;缺失/空 = 末页)。</summary>
     public sealed class DeviceListDto
     {
         public List<DeviceDto> Items { get; set; }
+        public string NextCursor { get; set; }
     }
 }

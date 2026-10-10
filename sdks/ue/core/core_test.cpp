@@ -25,7 +25,8 @@ static int gFailed = 0;
 using namespace courier;
 
 static const char* kSessionJson =
-    "{\"accountId\":\"acc_1\",\"accessToken\":\"access-1\",\"accessExpiresAt\":\"t\","
+    "{\"account\":{\"id\":\"acc_1\",\"type\":\"GUEST\",\"status\":\"ACTIVE\",\"createdAt\":\"t\"},"
+    "\"accessToken\":\"access-1\",\"accessExpiresAt\":\"t\","
     "\"refreshToken\":\"refresh-1\",\"refreshExpiresAt\":\"t\",\"deviceId\":\"device-1\"}";
 
 class FakeTransport : public Transport {
@@ -220,7 +221,7 @@ int main() {
         Harness h;
         h.sign_in();
         const std::string rotated =
-            "{\"accountId\":\"acc_1\",\"accessToken\":\"access-2\",\"accessExpiresAt\":\"t\","
+            "{\"account\":{\"id\":\"acc_1\",\"type\":\"GUEST\",\"status\":\"ACTIVE\",\"createdAt\":\"t\"},\"accessToken\":\"access-2\",\"accessExpiresAt\":\"t\","
             "\"refreshToken\":\"refresh-2\",\"refreshExpiresAt\":\"t\",\"deviceId\":\"device-1\"}";
         h.transport.enqueue(401, error_envelope("AUTH_TOKEN_EXPIRED", "expired"));
         h.transport.enqueue(200, data_envelope(rotated));            // refresh
@@ -336,7 +337,7 @@ int main() {
                   json::parse(v.find("data")->dump(), v, err),
               "session fixture parses");
         const SessionDto s = decode_session(v);
-        CHECK(s.account_id == "acc_1" && s.access_token == "access-1" &&
+        CHECK(s.account.has_value() && s.account->id == "acc_1" && s.access_token == "access-1" &&
                   s.access_expires_at == "t" && s.refresh_token == "refresh-1" &&
                   s.refresh_expires_at == "t" && s.device_id == "device-1",
               "session DTO full wire keys");

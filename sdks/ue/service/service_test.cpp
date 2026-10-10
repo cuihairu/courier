@@ -28,7 +28,7 @@ static int gFailed = 0;
 using namespace courier;
 
 static const char* kSessionJson =
-    "{\"accountId\":\"acc_1\",\"accessToken\":\"access-1\",\"accessExpiresAt\":\"t\","
+    "{\"account\":{\"id\":\"acc_1\",\"type\":\"GUEST\",\"status\":\"ACTIVE\",\"createdAt\":\"t\"},\"accessToken\":\"access-1\",\"accessExpiresAt\":\"t\","
     "\"refreshToken\":\"refresh-1\",\"refreshExpiresAt\":\"t\",\"deviceId\":\"device-1\"}";
 
 class FakeTransport : public Transport {

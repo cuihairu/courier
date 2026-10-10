@@ -36,7 +36,8 @@ public:
     /// 落库新会话(登录/轮换成功后由 IdentityService 经 on_session 调用)。
     void adopt(const SessionDto& session) {
         store_->save(session);
-        lifecycle_->report_account_id(session.account_id);  // 切号检测(events.md)
+        lifecycle_->report_account_id(session.account.has_value() ? session.account->id
+                                                                  : std::string());  // 切号检测(events.md)
     }
 
     /// 本地清场(登出成功/安全事件后)。

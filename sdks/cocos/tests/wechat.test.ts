@@ -11,7 +11,8 @@ import { createWechatTransport } from "../src/platform/wechat/transport.ts";
 import type { WxRequestOptions } from "../src/platform/wechat/wxApi.ts";
 
 const sessionDto = {
-  accountId: "acc_1", accessToken: "access-1", accessExpiresAt: "t",
+  account: { id: "acc_1", type: "GUEST", status: "ACTIVE", createdAt: "t" },
+  accessToken: "access-1", accessExpiresAt: "t",
   refreshToken: "refresh-1", refreshExpiresAt: "t", deviceId: "device-1",
 };
 

@@ -23,7 +23,7 @@ static int gFailed = 0;
 using namespace courier;
 
 static const char* kSessionJson =
-    "{\"accountId\":\"acc_1\",\"accessToken\":\"access-1\",\"accessExpiresAt\":\"t\","
+    "{\"account\":{\"id\":\"acc_1\",\"type\":\"GUEST\",\"status\":\"ACTIVE\",\"createdAt\":\"t\"},\"accessToken\":\"access-1\",\"accessExpiresAt\":\"t\","
     "\"refreshToken\":\"refresh-1\",\"refreshExpiresAt\":\"t\",\"deviceId\":\"device-1\"}";
 
 // ---- 状态机:构造到指定态(合法快路径) ----
@@ -279,7 +279,7 @@ int main() {
         h.sign_in();
         h.events.clear();
         const std::string rotated =
-            "{\"accountId\":\"acc_1\",\"accessToken\":\"access-2\",\"accessExpiresAt\":\"t\","
+            "{\"account\":{\"id\":\"acc_1\",\"type\":\"GUEST\",\"status\":\"ACTIVE\",\"createdAt\":\"t\"},\"accessToken\":\"access-2\",\"accessExpiresAt\":\"t\","
             "\"refreshToken\":\"refresh-2\",\"refreshExpiresAt\":\"t\",\"deviceId\":\"device-1\"}";
         h.transport.enqueue(401, error_envelope("AUTH_TOKEN_EXPIRED", "expired"));
         h.transport.enqueue(200, data_envelope(rotated));
@@ -334,7 +334,7 @@ int main() {
         h.client->session().logout();  // → SignedOut
 
         const std::string other =
-            "{\"accountId\":\"acc_2\",\"accessToken\":\"access-9\",\"accessExpiresAt\":\"t\","
+            "{\"account\":{\"id\":\"acc_2\",\"type\":\"GUEST\",\"status\":\"ACTIVE\",\"createdAt\":\"t\"},\"accessToken\":\"access-9\",\"accessExpiresAt\":\"t\","
             "\"refreshToken\":\"refresh-9\",\"refreshExpiresAt\":\"t\",\"deviceId\":\"device-1\"}";
         h.transport.enqueue(200, data_envelope(other));
         const RequestOutcome out = h.client->guest_login(GuestRequest{"device-1", std::nullopt});

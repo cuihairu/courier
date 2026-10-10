@@ -8,8 +8,8 @@ export interface AnnouncementDto {
   readonly title: string;
   readonly body: string;
   readonly severity: string;
-  readonly startAt: string;
-  readonly endAt: string;
+  readonly startAt?: string; // 缺省 = 发布即可见(契约 announcement.md)
+  readonly endAt?: string;   // 缺省 = 不过期
   readonly publishedAt: string;
 }
 

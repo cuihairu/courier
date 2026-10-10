@@ -26,7 +26,7 @@ struct BrandingDto {
 struct AppVersionDto {
     std::string latestVersion;
     std::string minVersion;
-    std::string updateUrl;
+    std::optional<std::string> updateUrl;  // 可选(payload 缺省即缺键,契约 app.md)
     bool forceUpdate = false;
 };
 
@@ -65,7 +65,8 @@ inline AppVersionDto decode_app_version(const json::Value& v) {
     AppVersionDto d;
     d.latestVersion = json::get_str(v, "latestVersion");
     d.minVersion = json::get_str(v, "minVersion");
-    d.updateUrl = json::get_str(v, "updateUrl");
+    std::string s;
+    if (json::get_opt_str(v, "updateUrl", s)) d.updateUrl = s;
     d.forceUpdate = json::get_bool(v, "forceUpdate", false);
     return d;
 }

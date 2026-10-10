@@ -11,7 +11,8 @@ import { createLayaboxTransport } from "../src/platform/laya/transport.ts";
 import type { XhrLike } from "../src/platform/laya/layaApi.ts";
 
 const sessionDto = {
-  accountId: "acc_1", accessToken: "access-1", accessExpiresAt: "t",
+  account: { id: "acc_1", type: "GUEST", status: "ACTIVE", createdAt: "t" },
+  accessToken: "access-1", accessExpiresAt: "t",
   refreshToken: "refresh-1", refreshExpiresAt: "t", deviceId: "device-1",
 };
 const sessionJson = JSON.stringify(sessionDto);

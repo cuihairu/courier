@@ -44,7 +44,7 @@ export class SessionService {
   /** 落库新会话(登录/轮换成功后由 IdentityService 经 onSession 调用)。 */
   adopt(session: SessionDto): void {
     this.store.save(session);
-    this.lifecycle.reportAccountId(session.accountId); // 切号检测(events.md account_switched)
+    this.lifecycle.reportAccountId(session.account?.id ?? null); // 切号检测(events.md account_switched)
   }
 
   /** 本地清场(登出成功/安全事件后)。 */

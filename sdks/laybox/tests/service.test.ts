@@ -9,7 +9,8 @@ import { SseParser } from "../src/service/sseParser.ts";
 
 const config = { endpoint: "https://api.example.com", gameId: "game_demo", env: "prod" };
 const sessionJson = JSON.stringify({
-  accountId: "acc_1", accessToken: "access-1", accessExpiresAt: "t",
+  account: { id: "acc_1", type: "GUEST", status: "ACTIVE", createdAt: "t" },
+  accessToken: "access-1", accessExpiresAt: "t",
   refreshToken: "refresh-1", refreshExpiresAt: "t", deviceId: "device-1",
 });
 

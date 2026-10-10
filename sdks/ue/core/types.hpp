@@ -45,9 +45,8 @@ struct AccountDto {
     std::string created_at;
 };
 
-/// 会话(登录/轮换响应 data)。
+/// 会话(登录/轮换响应 data)。accountId 不上线(网关不下发),切号检测取 account.id。
 struct SessionDto {
-    std::string account_id;
     std::optional<AccountDto> account;
     std::string access_token;
     std::string access_expires_at;
@@ -58,13 +57,16 @@ struct SessionDto {
 
 /// GET /v1/identity/session(当前会话信息)。
 struct SessionInfoDto {
+    std::optional<AccountDto> account;
     std::string session_id;
     std::string device_id;
 };
 
-/// 已绑定设备(GET /v1/identity/devices 分页项)。
+/// 已绑定设备(GET /v1/identity/devices 分页项;id 为服务端行 ID,platform 可选)。
 struct DeviceDto {
+    std::string id;
     std::string device_id;
+    std::optional<std::string> platform;
     std::string created_at;
 };
 
@@ -108,7 +110,6 @@ inline AccountDto decode_account(const json::Value& v) {
 
 inline SessionDto decode_session(const json::Value& v) {
     SessionDto d;
-    d.account_id = json::get_str(v, "accountId");
     if (const json::Value* acc = v.find("account"); acc && acc->is_object()) {
         d.account = decode_account(*acc);
     }
@@ -122,6 +123,9 @@ inline SessionDto decode_session(const json::Value& v) {
 
 inline SessionInfoDto decode_session_info(const json::Value& v) {
     SessionInfoDto d;
+    if (const json::Value* acc = v.find("account"); acc && acc->is_object()) {
+        d.account = decode_account(*acc);
+    }
     d.session_id = json::get_str(v, "sessionId");
     d.device_id = json::get_str(v, "deviceId");
     return d;
@@ -132,7 +136,12 @@ inline DeviceListDto decode_device_list(const json::Value& v) {
     if (const json::Value* items = v.find("items"); items && items->is_array()) {
         for (const json::Value& item : items->items()) {
             DeviceDto dev;
+            dev.id = json::get_str(item, "id");
             dev.device_id = json::get_str(item, "deviceId");
+            std::string platform;
+            if (json::get_opt_str(item, "platform", platform)) {
+                dev.platform = platform;
+            }
             dev.created_at = json::get_str(item, "createdAt");
             d.items.push_back(std::move(dev));
         }

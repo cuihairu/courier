@@ -253,7 +253,7 @@ func TestRealName_S2SReport_ChargeAccumulates(t *testing.T) {
 // rnAccountID 经 identity 会话解析账号 id(S2S 上报键)。
 func rnAccountID(t *testing.T, h *rnHarness, token string) string {
 	t.Helper()
-	// warden 核验记录按 AccountID 键;guest 登录响应即含 accountId——重登一次拿。
+	// warden 核验记录按 AccountID 键;guest 登录响应 account.id 即账号 ID——重登一次拿。
 	req, _ := http.NewRequest(http.MethodPost, h.srv.URL+"/v1/identity/guest",
 		strings.NewReader(`{"deviceId":"e2e-dev","platform":"linux"}`))
 	req.Header.Set("X-Courier-Game-Id", "game_demo")

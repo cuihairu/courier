@@ -17,9 +17,8 @@ export interface AccountDto {
   readonly createdAt: string;
 }
 
-/** 会话(登录/轮换响应 data)。 */
+/** 会话(登录/轮换响应 data)。accountId 不上线(网关不下发),切号检测取 account.id。 */
 export interface SessionDto {
-  readonly accountId: string;
   readonly account?: AccountDto;
   readonly accessToken: string;
   readonly accessExpiresAt: string;
@@ -30,13 +29,16 @@ export interface SessionDto {
 
 /** GET /v1/identity/session(当前会话信息)。 */
 export interface SessionInfoDto {
+  readonly account?: AccountDto;
   readonly sessionId: string;
   readonly deviceId: string;
 }
 
-/** 已绑定设备(GET /v1/identity/devices 分页项)。 */
+/** 已绑定设备(GET /v1/identity/devices 分页项;id 为服务端行 ID,platform 可选)。 */
 export interface DeviceDto {
+  readonly id: string;
   readonly deviceId: string;
+  readonly platform?: string;
   readonly createdAt: string;
 }
 
