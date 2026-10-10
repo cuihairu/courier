@@ -4,8 +4,8 @@
 # (cocos / miniprogram / laybox,零依赖 node --test)、UE(ISO C++17
 # 独立编译,g++ 无引擎依赖)。
 #
-# 不覆盖:unity —— Unity Test Framework 需要引擎本体,标准 runner 无法
-# headless 运行;在本地 Unity Test Runner 跑(批次 4-10 的 ServiceTests)。
+# 不覆盖:unity —— 四个测试工程为纯逻辑 dotnet 工程,本地
+# `cd sdks/unity/*Tests~ && dotnet test` 可验;引擎内 Test Runner 用例需引擎本体。
 name: Tests
 
 on:

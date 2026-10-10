@@ -247,6 +247,23 @@
 - [x] CI:aa436ec Tests 绿(gateway 17 包 + vet 本地先行)
 - **落地**:单增量全绿推送;残留 = 部署面 + Godot(停靠)
 
+## 批次 30 — 巡检续批(DTO/错误枚举六端跨端一致性对照 + 冷点扫描)
+
+- [x] 错误枚举前置复核仍零漂移:errors.md v4 33 码 × 六端(errors.ts ×3 / ErrorCode.cs / errors.hpp / errors.gd)逐码集合对差 + http/retryable 映射 + 13 域前缀,全对齐
+- [x] DTO 跨端对照(十域 announcement/support/player/payment/realname/assistant/config/branding/app/auth × 五端 DTO vs 契约 vs 网关 wire 权威 `gateway/providers/account/account.go`),**六处不一致全修**(`469e809`,37 文件):
+  - AnnouncementDto `startAt`/`endAt` TS 三端误为必填 → 可选(契约 `timestamp?`,缺省 = 发布即可见/不过期;UE/Unity 原本就对)
+  - SessionInfoDto 缺 `account` → TS 三端 + UE 补(契约 auth.md GET /session;Unity 原有)
+  - DeviceDto 缺 `id`/`platform` → TS 三端 + UE 补(契约 GET /devices item;Unity 原有)
+  - SessionDto `accountId` 幻影字段移除(TS 三端 + UE):网关 sessionDTO 从不下发该键,TS/UE 切号检测原读幻影字段 → **检测失效 bug**;改为取 `account.id`(Unity 原本就对)
+  - DeviceListDto 缺 `nextCursor` → Unity 补(与其余分页 DTO 及 TS/UE 对齐)
+  - AppVersionDto `updateUrl` TS/UE/Unity 三端误为必填 → 可选(契约 `string?` + 网关 `omitempty`,共同漂移)
+- [x] 测试 mock 同步网关真实 wire:TS 六套 + UE 四套会话 JSON 删 accountId / 补 account 对象,断言改走 `account.id`;全矩阵绿:cocos 102 / miniprogram 83 / laybox 82 / UE 六套 / Unity dotnet 48+69+11+8 / gateway 全包 / contractgen + packcheck
+- [x] 附修:gateway `e2e/realname_test.go` 注释「响应即含 accountId」→「account.id 即账号 ID」(同批语义修正)
+- [x] 冷点扫描:工作树无非忽略未跟踪文件;忽略面完整(vitepress dist / node_modules / unity 四工程 bin+obj);最大被跟踪文件为批次 2 误入库的过时 gateway 二进制 9.9MB → `git rm --cached` + `.gitignore` 补 `gateway/gateway`(`b250622`)
+- [x] 文档计数漂移附修:layers.md / unity README 「CoreTests 29 例」→ 48、「ServiceTests 60 例」→ 69(实测 dotnet 口径);「本地不可验」说法废除(四 `Tests~/` 纯逻辑 dotnet 工程本地可验,README 补运行方式);tests.yml 跳过理由注释同步
+- [x] 观察项(记录不扩范围,冻结契约面留契约通道):auth.md GET /session 示例含 `accessExpiresAt` 但网关不下发且 SDK 未建模;support.md ticket 响应未列 `category` 但三端 SDK 均有(请求字段回显,跨端一致);assistant.md transferTicket 预留字段各端均未建模(一致);Unity README 中文版无对应英文对等节(批次 28 双语结论维持)
+- **落地**:三增量全绿推送(`469e809` DTO 对齐、`b250622` 二进制卫生、本 docs 收尾);残留 = 部署面 + Godot(停靠)
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。

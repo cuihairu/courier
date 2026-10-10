@@ -12,15 +12,24 @@ packages/
   com.courier.diagnostics/ 可选诊断包(crash/trace/performance/analytics,默认全关)
 tests/
   ContractTests~/          契约测试(8 例,xunit)
-  CoreTests~/              内核测试(29 例,xunit)
-  ServiceTests~/           域服务测试(60 例,xunit)
+  CoreTests~/              内核测试(48 例,xunit)
+  ServiceTests~/           域服务测试(69 例,xunit)
   DiagnosticsTests~/       诊断包测试(11 例,xunit)
 ```
 
 ## 运行测试
 
-Unity Test Runner(需引擎本体;Window → General → Test Runner → EditMode/PlayMode)。
-CI 不覆盖 Unity(标准 runner 无法 headless 跑引擎测试),本地跑。
+各 `Tests~/` 下为纯逻辑 dotnet 工程(不依赖引擎运行时),本地直接验证:
+
+```bash
+cd sdks/unity/ContractTests~ && dotnet test
+cd sdks/unity/CoreTests~ && dotnet test
+cd sdks/unity/ServiceTests~ && dotnet test
+cd sdks/unity/DiagnosticsTests~ && dotnet test
+```
+
+Unity Test Runner(需引擎本体;Window → General → Test Runner → EditMode/PlayMode)亦可跑同一批用例。
+CI 不覆盖 Unity(测试门禁未含 dotnet job),本地跑。
 
 ## 约定
 
