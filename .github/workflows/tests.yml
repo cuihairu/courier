@@ -2,10 +2,11 @@
 #
 # 覆盖:Go(gateway 模块 + 根模块 tools:contractgen/packcheck/tsync)、Node 24 原生 TS
 # (cocos / miniprogram / laybox,零依赖 node --test)、UE(ISO C++17
-# 独立编译,g++ 无引擎依赖)。
+# 独立编译,g++ 无引擎依赖)、Unity 四个纯逻辑 dotnet 工程(dotnet test,
+# 引擎运行时不进门禁)。
 #
-# 不覆盖:unity —— 四个测试工程为纯逻辑 dotnet 工程,本地
-# `cd sdks/unity/*Tests~ && dotnet test` 可验;引擎内 Test Runner 用例需引擎本体。
+# 不覆盖:引擎本体运行时 —— unity 引擎内 Test Runner 用例、godot headless 用例
+# (本机 godot 4.3 可跑,CI 未装引擎)。
 name: Tests
 
 on:
@@ -56,6 +57,20 @@ jobs:
       - name: node --test
         run: node --test tests/*.test.ts
         working-directory: sdks/${{ matrix.sdk }}
+
+  unity-dotnet:
+    name: unity (dotnet pure-logic)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: dotnet test (four projects)
+        run: |
+          for t in ContractTests~ CoreTests~ ServiceTests~ DiagnosticsTests~; do
+            (cd "sdks/unity/$t" && dotnet test)
+          done
 
   ue:
     name: ue (c++17 headless)

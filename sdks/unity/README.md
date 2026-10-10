@@ -29,7 +29,7 @@ cd sdks/unity/DiagnosticsTests~ && dotnet test
 ```
 
 Unity Test Runner(需引擎本体;Window → General → Test Runner → EditMode/PlayMode)亦可跑同一批用例。
-CI 不覆盖 Unity(测试门禁未含 dotnet job),本地跑。
+CI 门禁含上述四个纯逻辑 dotnet 工程(`.github/workflows/tests.yml` unity-dotnet job);引擎内 Test Runner 用例不进 CI(需引擎本体)。
 
 ## 约定
 
