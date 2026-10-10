@@ -11,7 +11,7 @@
  L2 Core              平台无关内核:状态机、token 存储接口、重试、序列化
  L3 Platform Adapter  平台绑定:原生网络栈、安全存储、生命周期、打包形态(+可选 UI 包)
  ───────────────────────── 线 路 ───────────────────────────
-                      HTTPS JSON(WebSocket 推送 M2+,通道为 Provider 能力)
+                      HTTPS JSON(SSE 推送通道 M2+,通道为 Provider 能力)
  ───────────────────────── 服务端 ───────────────────────────
  L5 Gateway           唯一入口:auth / session / scope / routing / aggregation / middleware
  L4 Service Provider  Provider 接口 + 默认实现(默认供应商可换可关)
@@ -65,7 +65,7 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 
 **职责**
 
-- 平台翻译四件事:网络(原生 HTTP/WebSocket)、存储(ITokenStore 安全存储实现)、生命周期(前后台/进程信号→状态机事件)、线程(主线程回调调度);打包形态(UPM / UE 插件 / npm / Godot 插件)。
+- 平台翻译四件事:网络(原生 HTTP / SSE 流式读)、存储(ITokenStore 安全存储实现)、生命周期(前后台/进程信号→状态机事件)、线程(主线程回调调度);打包形态(UPM / UE 插件 / npm / Godot 插件)。
 - **可选 UI 包挂在平台侧**:CourierLoginPanel / AnnouncementPanel / SupportPanel,消费 Branding 下发(见 L2 边界:Core 无品牌逻辑)。
 
 **边界**

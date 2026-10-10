@@ -1,6 +1,6 @@
 # Courier 架构
 
-> **状态**:Draft — M0 契约冻结前为 Draft。分层细化(SDK Contract / Core / Platform Adapter / Service Provider / Gateway)见 [layers.md](./layers.md),分批落地见 [todo.md](./todo.md),契约宪法见 [contract/](./contract/index.md),竞品定位见 [research/competitive.md](./research/competitive.md)。
+> **状态**:Current — 随实现维护(2026-10-08 M0 立宪冻结,M1–M5 已全部落地)。分层细化(SDK Contract / Core / Platform Adapter / Service Provider / Gateway)见 [layers.md](./layers.md),分批落地见 [todo.md](./todo.md),契约宪法见 [contract/](./contract/index.md),竞品定位见 [research/competitive.md](./research/competitive.md)。
 
 ## 设计原则:SDK Contract > Everything
 
@@ -40,7 +40,7 @@ Gateway、Provider、生态后端全部是**契约的实现者 / 后端提供者
 │ Game Client                                   │
 │   Courier SDK:Core / Service / UI(可选包)     │
 └──────────────┬────────────────────────────────┘
-               │ HTTPS JSON (+ WebSocket 推送, M2+)
+               │ HTTPS JSON (+ SSE 推送通道, M2)
 ┌──────────────▼────────────────────────────────┐
 │ Courier Gateway(Go):auth · session · scope    │
 │   · routing · aggregation · middleware        │
@@ -180,7 +180,7 @@ Payment
 
 1. **契约是宪法。** M0 立宪并冻结([contract/](./contract/index.md));M1 Auth 开工的前提。SDK Contract > Everything。
 2. **网关是唯一入口。** 客户端只和 Courier Gateway 通信;Provider 与后端拓扑对客户端不可见。
-3. **协议 HTTPS JSON 优先。** 推送 M2 起走 WebSocket,复用默认推送 Provider(chirp)的会话通道,且通道本身可替换。
+3. **协议 HTTPS JSON 优先。** 推送 M2 起走 SSE(messages.md 冻结选型:标准库可全实现、HTTP 语义复用、Unity UnityWebRequest 可流式读;WebSocket 留后续扩展,需写时升版本),复用默认推送 Provider(chirp)的会话通道,且通道本身可替换。
 4. **scope 唯一。** `game_id + env` 初始化指定一次,header 注入,见 [contract/scope.md](./contract/scope.md)。
 5. **Gateway 不含业务目录。** 业务一律 Provider 接口接入;`providers/` 下放接口与默认实现。
 6. **默认提供,可换可关。** 生态项目只是默认供应商;未接入 = 能力降级而非报错。
