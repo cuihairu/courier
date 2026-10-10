@@ -206,6 +206,15 @@
 - [x] CI:9823261 Deploy Docs 绿,Tests 排队(runner 积压,同形 docs-only 已连绿六次)
 - **落地**:单增量全绿推送;残留 = 部署面 + Godot(停靠)
 
+## 批次 25 — 巡检续批(通读 layers/research 全文,上批指定目标)
+
+- [x] layers.md 九处同步(`0eb1503`):状态行 Draft→Current;L2/L3「下一步」从 M1 口径刷新到当前(UE 引擎集成面待引擎环境、Godot 停靠、真机随部署面);L3 现仓映射从「UPM 三包+其余五端规划」刷到已交付态(UPM 四包 + TS 三端 adapter + UE C++ header-only);L4 映射补 accountalt 批次 18;L5 映射补批次 9/10 M4/M5 e2e;L3 两处 Godot 枚举标规划中
+- [x] **审计声称修正**(`0eb1503`,同一 commit):layers.md L5 职责与接口形状、architecture.md 目录树与安全边界,四处把「审计」列为已实现中间件——代码实况为 trace → 结构化错误 → 限流 → scope(冻结顺序,chain.go 注释),认证按能力路由内挂载,无 audit 中间件;全部改为「审计依赖 trace 贯穿,落库随部署面」;中间件链声称按代码实况改写
+- [x] research/features.md(`055bd29`):第 12 节「这六条」→「这八条」(F69–F76 实为八项,与第 202 行「八条全是核心」矛盾);统计口径 47/13/9/7 = 76 逐行解析核验一致
+- [x] research/competitive.md(`8785dc9`):「落到本仓」列两处现时声称刷新——UPM 三包→四包、「支付收据验真留 M5 契约落点」→已随 M5 冻结;调研快照正文(2026-10-08 口径)不动
+- [x] CI:三增量 Tests + Deploy Docs 全绿(runner 积压已恢复,~35s)
+- **落地**:三增量全绿推送;残留 = 部署面 + Godot(停靠)
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。
