@@ -38,6 +38,7 @@ cd sdks/miniprogram && node --test tests/*.test.ts
 ## 约定
 
 - DTO 以 `../../docs/contract/` 为唯一事实源;未知字段容忍。
+- 三端共享面(src/{contract,core,service} 与同名 tests)逐字节同构,由 `tools/tsync` 守同:改一处须三端同步(cp)。
 - core 零平台引用,平台差异收敛在 Transport/TokenStore 注入与 platform/wechat 绑定。
 - token 走微信 storage(`courier.session` 键,损坏数据按未认证清场),不落明文配置文件。
 - 生命周期信号:小程序 `wx.onAppShow/onAppHide` + `wx.onNetworkStatusChange`(小游戏端为 onShow/onHide,见 cocos)。

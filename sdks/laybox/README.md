@@ -38,6 +38,7 @@ cd sdks/laybox && node --test tests/*.test.ts
 ## 约定
 
 - DTO 以 `../../docs/contract/` 为唯一事实源;未知字段容忍。
+- 三端共享面(src/{contract,core,service} 与同名 tests)逐字节同构,由 `tools/tsync` 守同:改一处须三端同步(cp)。
 - core 零平台引用,平台差异收敛在 Transport/TokenStore 注入与 platform/laya 绑定;引擎版本差异收敛在接入方绑定侧。
 - token 走 LocalStorage(`courier.session` 键,损坏数据按未认证清场),不落明文配置文件。
 - 生命周期信号:LayaAir 运行时为文档可见性 + navigator onLine,接入方桥接到 `LayaboxAppHooks` 结构面。

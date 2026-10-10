@@ -264,6 +264,16 @@
 - [x] 观察项(记录不扩范围,冻结契约面留契约通道):auth.md GET /session 示例含 `accessExpiresAt` 但网关不下发且 SDK 未建模;support.md ticket 响应未列 `category` 但三端 SDK 均有(请求字段回显,跨端一致);assistant.md transferTicket 预留字段各端均未建模(一致);Unity README 中文版无对应英文对等节(批次 28 双语结论维持)
 - **落地**:三增量全绿推送(`469e809` DTO 对齐、`b250622` 二进制卫生、本 docs 收尾);残留 = 部署面 + Godot(停靠)
 
+## 批次 31 — 巡检续批(三端 TS 守同工具化 + CI 工具面补全)
+
+- [x] 缺口定位:三端 TS(cocos/laybox/miniprogram)共享面(src/{contract,core,service} 与同名 tests)是同构复制,此前**无任何守同机制**——批次 30 的 sed 漏同步 laybox/miniprogram 正是此失效模式;且 CI 只跑 `tools/contractgen/...`,**packcheck 从未进 CI**(本地绿但无门禁)
+- [x] 新增 `tools/tsync`(packcheck 同构:Go 测试即结构检查,repoRoot 相对定位):共享目录文件集合三端一致 + 内容逐字节一致;同名 tests 出现于 ≥2 端时逐字节一致;平台/可选包专属 tests(laya/wechat/ui/diagnostics)豁免——生命周期信号随端实现不同(小游戏 `wx.onShow` vs 小程序 `wx.onAppShow`),测试随端走
+- [x] 首跑即抓到一个真实差异:`tests/wechat.test.ts` cocos≠miniprogram——核实为**合理差异**(两端 monitor 调用的 wx API 本就不同),按豁免规则收编,未误改代码
+- [x] CI:`go test ./tools/contractgen/...` → `go test ./tools/...`(contractgen+packcheck+tsync 同门禁),步骤改名 root module tools,头部覆盖说明同步
+- [x] 三端 README 各补一条约定:共享面由 tools/tsync 守同,改一处须三端同步(cp)
+- [x] 验证:tools 三件套 + `go vet ./...` 绿;三端套件 102/83/82 全绿(wechat.test.ts 还原后 miniprogram 83/83)
+- **落地**:双增量推送(工具+CI、docs 收尾);残留 = 部署面 + Godot(停靠)
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。

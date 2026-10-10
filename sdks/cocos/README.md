@@ -51,6 +51,7 @@ cd sdks/cocos && node --test tests/*.test.ts
 
 - 生命周期:`client.init()` → 登录流 → PlayerReady;切后台/断网经 `WechatLifecycleMonitor` 注入(平台差异归 Adapter,状态机平台无关;非法信号幂等否决)。
 - 分支判断只认 wire code(`e.wire`);`e.code` 为生成枚举,未登记码 = undefined 落兜底(容忍未知)。
+- 三端共享面(src/{contract,core,service} 与同名 tests)逐字节同构,由 `tools/tsync` 守同:改一处须三端同步(cp)。
 - 能力未接(501 COMMON_CAPABILITY_DISABLED)→ 域方法返回 `null`(隐藏入口,不进报错路径);app/branding 匿名可。
 - 下单只收 `skuId`(服务端定价红线);payToken 仅下单响应出现,消费归渠道 SDK。
 - 实名姓名/证件号只经 `submitAsync` 传输一次:不缓存、不落盘、不进日志。
