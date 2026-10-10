@@ -51,6 +51,7 @@ export default defineConfig({
           { text: '诊断', link: '/contract/diagnostics' },
           { text: '助手(M4)', link: '/contract/assistant' },
           { text: '支付(M5)', link: '/contract/payment' },
+          { text: 'Fixtures(机器可读快照)', link: '/contract/fixtures/' },
         ]
       }
     ],
