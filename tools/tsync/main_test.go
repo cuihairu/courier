@@ -1,7 +1,8 @@
 // 批次 31 跨端守同:cocos / laybox / miniprogram 三端 TS 共享面
 // (src/{contract,core,service} 与同名 tests)必须逐字节一致——三端是同构复制,
 // 漂移即 bug(批次 30 已手工修过一轮:sed 漏同步 laybox/miniprogram)。
-// 平台绑定面(src/platform/**)与端专属 tests(laya/wechat/ui/diagnostics)不参与。
+// 批次 41 起 ui/diagnostics 三端对齐,目录与同名 tests 一并纳入共享校验;
+// 平台绑定面(src/platform/**)与端专属 tests(laya/wechat)不参与。
 package tsync
 
 import (
@@ -18,7 +19,7 @@ const repoRoot = "../.."
 
 var ends = []string{"cocos", "laybox", "miniprogram"}
 
-var sharedDirs = []string{"src/contract", "src/core", "src/service"}
+var sharedDirs = []string{"src/contract", "src/core", "src/service", "src/ui", "src/diagnostics"}
 
 func listFiles(t *testing.T, dir string) map[string][]byte {
 	t.Helper()
@@ -75,13 +76,12 @@ func TestSharedDirsParity(t *testing.T) {
 	}
 }
 
-// perEndTests 平台/可选包专属测试:生命周期信号随端实现不同(小游戏 wx.onShow
-// vs 小程序 wx.onAppShow;laya/ui/diagnostics 各端自持),不参与同名校验。
+// perEndTests 平台专属测试:生命周期信号随端实现不同(小游戏 wx.onShow
+// vs 小程序 wx.onAppShow;laya/wechat 各端自持),不参与同名校验。
+// ui/diagnostics 曾为 cocos 专属(批次 17/20),批次 41 三端对齐后纳入共享校验。
 var perEndTests = map[string]bool{
-	"laya.test.ts":        true,
-	"wechat.test.ts":      true,
-	"ui.test.ts":          true,
-	"diagnostics.test.ts": true,
+	"laya.test.ts":   true,
+	"wechat.test.ts": true,
 }
 
 func TestSharedTestsParity(t *testing.T) {
