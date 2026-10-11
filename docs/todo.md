@@ -556,6 +556,15 @@
 - [ ] 评审通过与批次 47 同批冻结 → errors.md v5(AUTH 两码 + SUPPORT 两码)+ contractgen 六端同步 + 各端 SDK 实现 + e2e(宽限期 / 撤销 / 过滤命中 / 上下文回显 / 申诉闭环)
 - **剩余缺口**:F44 附件(需对象存储面设计,Provider 口径)、F36 跑马灯 UI 呈现(实现非契约)、F01 第三方 OAuth(新域契约)、F31/F33 维持
 
+## 批次 49 — 新域契约草案:第三方身份提供方 OAuth(F01,Draft v0.1,2026-10-11)
+
+> 来源:批次 48 剩余缺口里唯一值得立项的契约面。auth.md:10 明示「第三方 OAuth / 手机号」留后续域契约扩展,本批落位新域文件;同口径:Draft 未冻结,评审(≥ Unity + 一非 C# 端)前不实现。
+
+- [ ] **F01 第三方 OAuth 登录** → [oauth.md](./contract/oauth.md) 新域草案:`exchange` / `bind` / 解绑 / 绑定列表四端点;**复用 auth 域账号/会话/token 全套模型,只加 `account_identities` 映射表**;`provider` 开集字符串(管理面注册,契约不枚举);红线:不存第三方凭证原文、`subject` 客户端不得自报、验证全服务端在线;拟新增 3 错误码(`OAUTH_` 前缀预留)
+- [ ] [index.md](./contract/index.md) 域契约(后续)行 + 索引登记 oauth.md;[auth.md](./contract/auth.md) F03 提案扩展表交叉引用新域
+- [ ] 评审通过与批次 47/48 五提案同批冻结 → errors.md v5(AUTH 两码 + SUPPORT 两码 + OAUTH 三码)+ contractgen 六端同步 + SDK 实现 + e2e(exchange 换会话 / bind 冲突 / 解绑幂等)
+- **剩余缺口**:F44 附件(需对象存储面,Provider 口径)、F36 跑马灯 UI 呈现(实现非契约)、F31/F33 维持——**契约面提案全部立项完毕,进入评审与冻结阶段**
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。

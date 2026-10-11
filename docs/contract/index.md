@@ -41,7 +41,7 @@ Gateway、Provider、herald、Chirp、Croupier、Oddsmaker 全部只是「契约
 | --- | --- | --- |
 | 基元契约 | [primitives](./primitives.md) / [errors](./errors.md) / [scope](./scope.md) / [versioning](./versioning.md) / [events](./events.md) | **M0 已冻结 v1** |
 | 域契约 | [auth](./auth.md)(**Frozen v1 · M1**);[announcement](./announcement.md) / [support](./support.md) / [messages](./messages.md)(**Frozen v1 · M2**);[realname](./realname.md)(**Frozen v1 · M2 后段**);[config](./config.md) / [app](./app.md) / [branding](./branding.md) / [player](./player.md)(**Frozen v1 · M3**);[diagnostics](./diagnostics.md)(**Frozen v1 · M3 · 可选包默认全关**);[assistant](./assistant.md)(**Frozen v1 · M4**);[payment](./payment.md)(**Frozen v1.1 · M5**) | 全部域契约已冻结;后续只加不改,破坏性变更升版本 |
-| 域契约(后续) | (预留) | 新域经变更流程提案后冻结 |
+| 域契约(后续) | [oauth](./oauth.md)(第三方身份提供方,**Draft 提案中**,批次 49) | 新域经变更流程提案后冻结;冻结前不实现 |
 
 ## 变更流程
 
@@ -85,3 +85,4 @@ Gateway、Provider、herald、Chirp、Croupier、Oddsmaker 全部只是「契约
 - [diagnostics.md](./diagnostics.md) — 诊断(默认关,四类能力上报 Schema;Frozen v1 · M3)
 - [assistant.md](./assistant.md) — 小助手(FAQ 检索问答 + 转人工;Frozen v1 · M4)
 - [payment.md](./payment.md) — 支付(订单-发货核心流,四形态开放;Frozen v1.1 · M5,v1.1 追加推送事件)
+- [oauth.md](./oauth.md) — 第三方身份提供方(凭证换会话+绑定;Draft 提案中,未冻结)

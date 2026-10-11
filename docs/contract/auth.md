@@ -234,6 +234,6 @@ CREATE TABLE devices (
 | --- | --- |
 | 宽限期时长 / 是否立即删 | 管理面配置,玩家契约不动 |
 | 下游数据级联范围(各游戏后端数据不同) | Provider 钩子 `OnAccountDeleted(accountId)` **注册制**——网关不认识任何下游存储,每个 Provider 自行订阅清理;新 Provider 接入 = 注册钩子,契约不动 |
-| 第三方 OAuth 账号(本契约 v1 不覆盖) | delete 端点与 `type` 无关;OAuth 域契约扩展时 `type` 加枚举值即覆盖,delete/cancel 直接复用 |
+| 第三方 OAuth 账号(本契约 v1 不覆盖) | delete 端点与 `type` 无关;OAuth 域契约([oauth.md](./oauth.md) Draft)冻结时 `type` 加 `OAUTH` 枚举值即覆盖,delete/cancel 直接复用 |
 | 监管要求物理删行 | 行为升版(wire 不变)走 v2 提案;v1 匿名化保留审计与外键完整性 |
 | 注销原因 / 申诉留档 | 管理面字段,不进玩家契约(PII 风险,玩家侧无需回传) |
