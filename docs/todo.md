@@ -521,6 +521,32 @@
 - [x] roadmap 补「验证与交付四阶段」(A 证据审计→B 跨端一致→C 可替换性→D 可交付)与验收七问 → [roadmap.md](./roadmap.md)
 - [x] 实现状态汇总表落档 → [implementation-status.md](./research/implementation-status.md)(批次 45 同产出)
 
+## 批次 47 — 契约扩展性加固:三份 v1.1 提案 + 七份扩展预留补注(Draft,2026-10-11)
+
+> 来源:批次 45 缺口清单 + 外部评审「不要设计太死,每个接口要写明万一扩展怎么处理」。**全部为加法**:提案标 Draft 未冻结,预留节为加注不动冻结行;不动实现、不动 fixtures、不升 Frozen 版本号——冻结升版 + 错误码入 errors.md + contractgen 六端同步随评审通过一批落地。
+
+### v1.1 提案(待评审:≥ Unity + 一非 C# 端过读)
+
+- [ ] **F03 账号注销与数据删除** → [auth.md](./contract/auth.md) v1.1 提案:delete/cancel 两端点、宽限期(GUEST 立即删)、受理即吊销会话、匿名化保留外键、`OnAccountDeleted` Provider 钩子承载级联;拟新增 2 错误码
+- [ ] **F35 公告定向过滤** → [announcement.md](./contract/announcement.md) v1.1 提案:复用 config 投影语义(缺省维度跳过 + DSL 不进玩家契约)、`filters` 开集 map 只读回显、零新错误码
+- [ ] **F43 工单上下文** → [support.md](./contract/support.md) v1.1 提案:`context` 开集 map 服务端零解释透传、SDK 自动附带基础事实面且不可覆写、零新错误码
+
+### 扩展预留补注(每域接口的「万一要扩展怎么处理」)
+
+- [x] [primitives.md](./contract/primitives.md):加字段只可选 / 未知字段容忍 / ID 前缀登记制 / 语义变更升版
+- [x] [errors.md](./contract/errors.md):加码兼容走兜底 / 废弃码保留不重用 / 域前缀登记制
+- [x] [scope.md](./contract/scope.md):env 不得封闭枚举 / orgId 维度预留 / token 跨游戏永不原地放开
+- [x] [branding.md](./contract/branding.md):新素材位加可选字段走管理面 / 缺省走兜底链 / 素材托管归接入方
+- [x] [payment.md](./contract/payment.md):新渠道签名面不变 / 形态加枚举不改状态机 / 订阅·余额·退款扩展位预留
+- [x] [app.md](./contract/app.md):新只读端点兼容 / 合规文案归 Branding / 更新分发预留后续域
+- [x] [diagnostics.md](./contract/diagnostics.md):新类别默认关红线不变 / props 开集 / sampling·consent 预留 / 直发红线不松动
+- [x] [index.md](./contract/index.md) 变更流程第 1 步固化:每条提案必须含「扩展与演进」节,禁止钉死封闭枚举
+
+### 冻结与实现(评审通过后)
+
+- [ ] 评审通过 → 三域升 Frozen v1.1 + errors.md v5(仅 AUTH 两码)+ contractgen 六端同步 + 各端 SDK 实现 + e2e(宽限期 / 撤销 / 过滤命中 / 上下文回显)
+- **下一步缺口**:F45 举报申诉(需新端点组设计)、F76 多语言(与 F35 的 `language` 维度耦合,F35 冻结后并入)、F01 第三方 OAuth(新域契约)、F44 附件、F36 跑马灯 UI 呈现
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。

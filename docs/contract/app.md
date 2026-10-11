@@ -76,3 +76,15 @@
 - 收到 `503 APP_MAINTENANCE`:展示维护页并按 `estimatedRecoveryAt` 轮询本端点,不做其他请求。
 - 收到 `426 APP_VERSION_UNSUPPORTED`:按 `updateUrl` 引导;SDK 不自动跳转商店。
 - `501 COMMON_CAPABILITY_DISABLED` = App 能力未接:跳过版本/维护检查直接登录(能力安静地不存在)。
+
+---
+
+## 扩展预留(2026-10-11 补注)
+
+| 可能的扩展 | 兼容处理方式 |
+| --- | --- |
+| 新增只读端点 | 加端点 = 兼容,随域契约冻结 |
+| 强制更新的合规文案 / 弹窗 | 归 Branding(本契约已明示);SDK 只按 `426 + updateUrl` 引导,不内置文案 |
+| 更新包分发 / 差分 | 本契约不覆盖,预留后续域提案 |
+| 维护白名单扩容 | 管理面配置(现内建 `/v1/app/*` + `/healthz`),客户端契约不动 |
+| 灰度发布 / 分版本维护 | 管理面语义,玩家侧只见 version / maintenance 投影(同 config 口径) |

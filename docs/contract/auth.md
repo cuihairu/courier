@@ -206,3 +206,34 @@ CREATE TABLE devices (
   UNIQUE (account_id, device_id)
 );
 ```
+
+---
+
+## v1.1 提案(Draft,未冻结 · 2026-10-11)
+
+> 来源:[features.md](../research/features.md) F03 账号注销与数据删除(商店政策硬门槛)。**本节为提案草案:未评审冻结前任何端不得据此实现**;冻结升版、错误码入 [errors.md](./errors.md)、六端 contractgen 同步随评审通过后一批落地。
+
+### 端点(拟新增)
+
+| 端点 | 认证 | 说明 |
+| --- | --- | --- |
+| `POST /v1/identity/account/delete` | Bearer | 申请注销。EMAIL 账号进入 `PENDING_DELETE` 宽限期;GUEST 立即删除。幂等受理 |
+| `POST /v1/identity/account/delete/cancel` | 匿名 | 宽限期内撤销,凭 `cancelToken`(受理响应返回,一次性,TTL = 宽限期) |
+
+### 语义(拟定义)
+
+- **受理即吊销全部会话**——符合「注销 = 一切登录态失效」的玩家预期,不拖到宽限期结束才失效。
+- **宽限期**:缺省 14 天,管理面可配 0–30 天(`0` = 立即删除);仅 EMAIL 账号可挂宽限(GUEST 无恢复价值,直接删)。
+- **PENDING 态不可登录**:`login` / `bind` 对该邮箱返回 `AUTH_ACCOUNT_PENDING_DELETE`(403)——防止盗号者「登录即复活」账号;撤销走 `cancelToken`,不依赖会话。
+- **执行语义 = 匿名化,非物理删行**:清 PII(email、凭证、设备行),`accounts.id` 保留供外键与审计;`status` 增枚举值 `PENDING_DELETE` / `DELETED`。
+- **拟新增 2 个错误码**:`AUTH_ACCOUNT_PENDING_DELETE`(403,login/bind 期间)、`AUTH_DELETE_TOKEN_INVALID`(401,cancel 时 token 缺失/失效/过期)。
+
+### 扩展与演进
+
+| 可能的扩展 | 兼容处理方式 |
+| --- | --- |
+| 宽限期时长 / 是否立即删 | 管理面配置,玩家契约不动 |
+| 下游数据级联范围(各游戏后端数据不同) | Provider 钩子 `OnAccountDeleted(accountId)` **注册制**——网关不认识任何下游存储,每个 Provider 自行订阅清理;新 Provider 接入 = 注册钩子,契约不动 |
+| 第三方 OAuth 账号(本契约 v1 不覆盖) | delete 端点与 `type` 无关;OAuth 域契约扩展时 `type` 加枚举值即覆盖,delete/cancel 直接复用 |
+| 监管要求物理删行 | 行为升版(wire 不变)走 v2 提案;v1 匿名化保留审计与外键完整性 |
+| 注销原因 / 申诉留档 | 管理面字段,不进玩家契约(PII 风险,玩家侧无需回传) |

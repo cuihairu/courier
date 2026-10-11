@@ -11,7 +11,7 @@
 | --- | --- | --- | --- |
 | F01 | 登录方式聚合 | ◑ | 游客+邮箱密码落地:auth.md Frozen v1,批次 3(`3c24cfc`/`39b5007`);第三方 OAuth/手机号 auth.md:10 明示不覆盖(后续域契约扩展) |
 | F02 | 绑定/解绑 | ✅ | auth.md bind/解绑;批次 3/18(`d0936eb`);多正式账号合并不在 v1 |
-| F03 | 注销与数据删除 | ❌ | 仅设备解绑(auth.md:24);账号注销端点未建 |
+| F03 | 注销与数据删除 | ❌ | 仅设备解绑(auth.md:24);账号注销端点未建——v1.1 提案 Draft 已写(批次 47) |
 | F04 | 跨平台身份贯通 | ✅ | 多设备会话+设备列表 auth.md;批次 3/18 |
 | F05 | SDK 不带 UI | ✅ | UPM 四包+TS 三端可选包;批次 5/17/41 |
 | F06 | 匿名/静默登录 | ✅ | 游客设备登录 e2e 全链路;批次 3/4(`8b9ed8a`) |
@@ -36,11 +36,11 @@
 | F31 | 年龄门/同意(海外) | ❌ | realname.md:100 明示 v1.1 预留 consent 组(出海需求触发再冻结);未立项 |
 | F33 | 审计留痕 | ❌ | trace 贯穿已有(layers.md L5);审计落库随部署面 |
 | F34 | 公告系统 | ✅ | announcement.md Frozen+herald;批次 6(`38fe759`) |
-| F35 | 公告定向过滤 | ❌ | v1 无 filters;落点 announcement v1.1(§14 建议) |
+| F35 | 公告定向过滤 | ❌ | v1 无 filters;v1.1 提案 Draft 已写(批次 47,复用 config 投影语义) |
 | F36 | 跑马灯 | ◑ | 数据面零新契约(severity 字段 announcement.md:32);跑马灯呈现归 UI 包未做 |
 | F41 | 工单 | ✅ | support.md Frozen+croupier;批次 6 |
 | F42 | FAQ 自助 | ✅ | FAQ+sage 检索;批次 6/9(`2481383`) |
-| F43 | 上下文附带 | ❌ | support v1.1 context 未立项;现 extras 承载 |
+| F43 | 上下文附带 | ❌ | v1.1 提案 Draft 已写(批次 47);现 extras 承载 |
 | F44 | 反馈+日志上传 | ❌ | support.md:11 明示附件后续扩展;diagnostics 联动未定义 |
 | F45 | 举报/申诉 | ❌ | 无契约面 |
 | F46 | 客服补单 | ✅ | Reconcile 补发通道;批次 10/11;工具面归 croupier |
@@ -91,12 +91,12 @@
 | ID | 缺口 | 建议落点 |
 | --- | --- | --- |
 | F01 | 第三方 OAuth/手机号登录 | auth 契约 v1.1 提案 |
-| F03 | 账号注销+数据级联删除 | auth 契约 v1.1(商店政策硬门槛) |
+| F03 | 账号注销+数据级联删除 | auth 契约 v1.1(商店政策硬门槛;提案 Draft 已写,批次 47) |
 | F31 | 年龄门/家长同意(海外) | realname v1.1 consent 组(realname.md:100 已预留) |
 | F33 | 审计落库 | 部署面;trace 已贯穿 |
-| F35 | 公告定向过滤 | announcement v1.1 `filters` |
+| F35 | 公告定向过滤 | announcement v1.1 `filters`(提案 Draft 已写,批次 47) |
 | F36 | 跑马灯呈现 | UI 包 severity 渲染(零新契约) |
-| F43 | 工单上下文附带 | support v1.1 `context` |
+| F43 | 工单上下文附带 | support v1.1 `context`(提案 Draft 已写,批次 47) |
 | F44 | 反馈+日志上传 | support×diagnostics 联动定义 |
 | F45 | 举报/处罚申诉 | support 域新端点提案 |
 | F76 | 多语言与本地化 | announcement/branding 语种字段评估 |
