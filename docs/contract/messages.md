@@ -1,6 +1,6 @@
 # 推送通道契约(Messages)
 
-> 状态:**Frozen v1** · 里程碑 M2 · 冻结日期 2026-10-08。
+> 状态:**Frozen v1.1** · 里程碑 M2 · 冻结日期 2026-10-08(v1.1 · 2026-10-11 追加「传输分框」服务端硬要求——澄清流式流读所依赖的分框语义,不改变任何端点/头/DTO/wire 形态)。
 > 本域**无专属错误码前缀**(通道层错误全复用通用码,见 [errors.md](./errors.md) 说明);本文档是 M2 服务端(默认供应商 **chirp**)与各端 SDK 的一致性依据,冻结后只加不改,破坏性变更升版本(见 [versioning.md](./versioning.md))。
 
 ## 能力与范围
@@ -24,6 +24,8 @@
 ## 流协议
 
 响应头:`Content-Type: text/event-stream`(SSE 标准,[WHATWG HTML §server-sent-events](https://html.spec.whatwg.org/multipage/server-sent-events.html))。
+
+**传输分框(服务端硬要求)**:响应须以流式分框下发——不设 `Content-Length`(chunked 或等价流式传输),且每帧后须 flush。六端 SDK 的流读实现(fetch / wx.request enableChunked / XHR onprogress / UnityWebRequest / HTTPClient poll / UE 接缝)均按增量可读语义实现,定长缓冲响应会破坏流读。
 
 帧格式(SSE 标准,非 JSON 信封):
 

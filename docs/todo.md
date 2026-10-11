@@ -375,6 +375,14 @@
 - [x] tsync 守同扩面:ui/diagnostics 目录与同名 tests 从"端专属豁免"收进共享校验(批次 41 三端对齐后的自然收口;laya/wechat 仍豁免——生命周期信号真随端不同)
 - **落地**:文档账面修正 + 守同面扩大;无产品代码变更
 
+## 批次 43 — 巡检续批(只读复核):契约分框缺口补登
+
+- [x] 全仓健康检查(只读):Go tools 3 包 ✓、gateway 17 包 ✓、TS 三端各 123/123 ✓、UE 七套 exit 0 ✓、Unity dotnet 144 例(48/77/8/11)✓、Godot headless 八套 ✓;工作树干净,origin/main 与本地 0/0 同步
+- [x] docs 对账:三端 README 计数(123)与实际一致;unity README 计数(8+48+77+11=144)与实跑一致;ue 七套/godot 八套声称与实际一致;todo 0 未勾、批次 42 条目齐;契约域(11)↔ 网关能力前缀(9)映射一致(config/branding 归 app 域、认证经 scope 中间件、diagnostics SDK 直发不经网关);最近 12 commit 走查——英文短句、无 AI 痕迹、署名唯一
+- [x] **发现并修复契约缺口**:messages.md 流协议节从未写明服务端分框要求,而六端流读实现(fetch / wx.enableChunked / XHR onprogress / UnityWebRequest / HTTPClient poll / UE 接缝)均按增量可读语义实现——定长缓冲响应会破坏流读,契约与实现存在未写明的硬依赖。按 index.md「只加不改」原则补「传输分框(服务端硬要求)」一条;并实测网关 chirp handler 已满足(`Content-Type` 设定后逐帧 `Flusher.Flush()`,Go net/http 在无 Content-Length 时自动 chunked)
+- [x] 版本登记:messages.md Frozen v1 → **Frozen v1.1**(2026-10-11 追加传输分框硬要求,不改变端点/头/DTO/wire 形态),index.md 状态行同步
+- **落地**:契约 v1.1 只增不改登记完成;复核未发现其他漂移或缺陷
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。
