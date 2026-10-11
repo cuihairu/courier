@@ -18,10 +18,12 @@ export interface SseStreamRequest {
   readonly tokenProvider?: () => string | null;
 }
 
-/** 一次已建立的流连接:状态码 + 头(键小写归一)+ 逐行读(流尾 resolve null)。 */
+/** 一次已建立的流连接:状态码 + 头(键小写归一)+ 逐行读(流尾 resolve null)。
+ *  statusCode/headers 非只读:部分平台(微信 enableChunked)响应头在 success 回调
+ *  才到,接线实现需建连后回填(与 unity 的 settable 属性同口径)。 */
 export interface SseStreamConnection {
-  readonly statusCode: number;
-  readonly headers: Readonly<Record<string, string>>;
+  statusCode: number;
+  headers: Readonly<Record<string, string>>;
   /** 读一行(不含换行符);流尾(服务端关流)resolve null;网络中断抛 TransportError。 */
   readLine(): Promise<string | null>;
   close(): void;

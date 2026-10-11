@@ -23,8 +23,30 @@ export interface WxRequestOptions {
   fail(err: { errMsg: string }): void;
 }
 
+/** wx.request 分块(chunked)选项:options 带 enableChunked,响应体经
+ *  requestTask.onChunkReceived 交付,success 回调不再携带 data。 */
+export interface WxChunkedRequestOptions {
+  url: string;
+  method: string;
+  header: Record<string, string>;
+  enableChunked: boolean;
+  success(res: { statusCode: number; header: Record<string, string> }): void;
+  fail(err: { errMsg: string }): void;
+}
+
+/** 分块任务面:多一个 onChunkReceived(按块交付 ArrayBuffer)。 */
+export interface WxChunkedRequestTask extends WxRequestTask {
+  onChunkReceived(callback: (res: { data: ArrayBuffer }) => void): void;
+}
+
 export interface WxRequester {
-  request(options: WxRequestOptions): WxRequestTask;
+  /** 普通请求与分块请求共用同一方法;options 带 enableChunked 时按分块处理。 */
+  request(options: WxRequestOptions | WxChunkedRequestOptions): WxRequestTask | WxChunkedRequestTask;
+}
+
+/** 流式适配需要的 wx 面(createWechatSseSource 入参;真实 wx 天然满足)。 */
+export interface WxChunkedRequester {
+  request(options: WxChunkedRequestOptions): WxChunkedRequestTask;
 }
 
 /** 前后台/网络信号面(小游戏:wx.onShow/onHide/onNetworkStatusChange)。 */
