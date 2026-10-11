@@ -41,7 +41,7 @@
 | F41 | 工单 | ✅ | support.md Frozen+croupier;批次 6 |
 | F42 | FAQ 自助 | ✅ | FAQ+sage 检索;批次 6/9(`2481383`) |
 | F43 | 上下文附带 | ❌ | v1.1 提案 Draft 已写(批次 47);现 extras 承载 |
-| F44 | 反馈+日志上传 | ❌ | support.md:11 明示附件后续扩展;diagnostics 联动未定义 |
+| F44 | 反馈+日志上传 | ❌ | support.md:11 明示附件后续扩展;v1.1 提案 Draft 已写(批次 50,presigned 直传面);diagnostics 自有面不变 |
 | F45 | 举报/申诉 | ❌ | 无契约面——v1.1 提案 Draft 已写(批次 48,reports/penalties/appeal 四端点) |
 | F46 | 客服补单 | ✅ | Reconcile 补发通道;批次 10/11;工具面归 croupier |
 | F47 | 远程配置 | ✅ | config.md Frozen+scribe 条件投影热生效;批次 8(`33c5c18`) |
@@ -97,6 +97,6 @@
 | F35 | 公告定向过滤 | announcement v1.1 `filters`(提案 Draft 已写,批次 47) |
 | F36 | 跑马灯呈现 | UI 包 severity 渲染(零新契约) |
 | F43 | 工单上下文附带 | support v1.1 `context`(提案 Draft 已写,批次 47) |
-| F44 | 反馈+日志上传 | support×diagnostics 联动定义 |
+| F44 | 反馈+日志上传 | support v1.1 presigned 直传(提案 Draft 已写,批次 50;diagnostics 联动不在契约面) |
 | F45 | 举报/处罚申诉 | support v1.1 端点组(提案 Draft 已写,批次 48) |
 | F76 | 多语言与本地化 | announcement v1.1 语种维度(提案 Draft 已写,批次 48,单语分条契约化) |

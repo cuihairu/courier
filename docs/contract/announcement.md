@@ -15,7 +15,7 @@
 | 端点 | 认证 | 说明 |
 | --- | --- | --- |
 | `GET /v1/announcements` | Bearer | 可见公告列表(分页,`publishedAt` 倒序) |
-| `GET /v1/announcements/{id}` | Bearer | 公告详情 |
+| `GET /v1/announcements/{announcementId}` | Bearer | 公告详情 |
 
 - 认证与 scope header 要求同 [auth.md](./auth.md)(`Authorization: Bearer` + `X-Courier-Game-Id` / `X-Courier-Env`);缺失 → 对应通用码。
 - 成功响应 HTTP 200,信封与分页见 [primitives.md](./primitives.md)(`items` + `nextCursor`,`nextCursor` 空/缺省 = 末页)。

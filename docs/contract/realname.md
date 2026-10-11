@@ -151,3 +151,13 @@ HealthCheck() → bool
 - `PENDING_REVIEW` 是安全态:不引导重试、不放行受保护操作,提示「审核中」;是否转人工由接入方决定。
 - `REALNAME_REQUIRED` → 引导进入实名流程;`REALNAME_CURFEW_BLOCKED` / `REALNAME_CHARGE_BLOCKED` → 按 `data` 字段展示,不得自造文案口径。
 - 姓名与证件号**只经 `Submit` 传输一次**:不缓存、不重放、不打印;UI 展示一律走 `RealNameMask`。
+
+## 扩展预留(2026-10-11 补注)
+
+| 可能的扩展 | 兼容处理方式 |
+| --- | --- |
+| 海外年龄门/家长同意(F31) | `consent` 端点组 v1.1 预留(上文「防沉迷钩子」节,出海需求触发再冻结);现有字段与端点不动 |
+| Provider 结果扩展 | `policyExtension` 扩展位已预留,未知字段必须忽略;新策略字段 = 加法兼容 |
+| 验证通过回调 | `OnRealNameVerified` 客户端回调已预留;触发时机细化 = 加参数提案 |
+| 第三方核验生态 | `RealNameProvider` 接口可插拔 + 路由表热切换已冻结;接新供应商 = 新适配,契约不动 |
+| 时段/额度规则调整 | 管理面配置(curfew 窗口、分龄限额);契约不冻结具体值,红线(默认关、显式开)不因扩展松动 |

@@ -71,3 +71,13 @@ v1 **零新增错误码**:全部复用通用码(参数错误 `COMMON_INVALID_ARG
 - `matched:false` 且 `suggestTransfer:true` → UI 展示「转人工」:调用 support 域提单([support.md](./support.md)),提单成功后复用 `support.ticket_replied` 实时链路。
 - `text` 超长/为空是使用方错误(SDK 直接 400 抛出);UI 侧应先本地限制输入长度。
 - 无本地缓存:答案随知识库更新变化,不缓存(与 config 不同——config 是版本化快照,assistant 是即席查询)。
+
+## 扩展预留(2026-10-11 补注)
+
+| 可能的扩展 | 兼容处理方式 |
+| --- | --- |
+| LLM 实现替换 | 接口已预留、默认不依赖(上文能力节);换供应商 = 换 Provider 配置,契约语义不变(消费侧不感知实现) |
+| 转工单闭环 | `transferTicket` 预留位(上文响应字段);v1 客户端直调 support 域,服务端回填 = v1.2 加字段 |
+| 多轮会话 | 加可选 `conversationId` 提案;v1 单轮问答语义不变,无本地缓存的口径随提案重审 |
+| 知识源扩展(FAQ 之外) | sage Provider 面,玩家契约只见 query/answer 形状;命中评分规则不进契约(上文已冻结) |
+| 域内细分限流 | `ASSISTANT` 前缀已注册未用(上文错误码节);新增须走 errors.md 变更流程 |

@@ -166,3 +166,47 @@
 | 举报证据附件 | 与 F44 附件共用独立端点提案,不塞 report |
 | 跨游戏 / 公司级处罚 | penalty 增可选 `gameId?`(缺省 = 签发 scope)走加字段扩展,v1 仅当前 scope |
 | 举报流转进度 | 不向举报人反馈(防骚扰),管理面内部流转;产品若需要可另提匿名化进度端点提案 |
+
+---
+
+## v1.1 提案(续二):工单附件(F44,Draft,未冻结 · 2026-10-11)
+
+> 来源:[features.md](../research/features.md) F44 反馈+日志上传。v1 第 11 行明示附件不覆盖、留新端点扩展,本节兑现。**网关不落盘二进制**:契约只定义「申请直传」的形状,存储本体挡在 Provider 后面(同公告/配置的投影模式)——换 S3 / OSS / 本地签名 URL,契约不动。未评审冻结前不得实现。
+
+### 端点(拟新增)
+
+| 端点 | 认证 | 说明 |
+| --- | --- | --- |
+| `POST /v1/support/tickets/{ticketId}/attachments` | Bearer | 申请附件直传,返回短时效预签名 URL |
+
+- 单端点设计:客户端拿 `uploadUrl` **直传存储**(HTTP `PUT`,不经网关),完成确认走存储→Provider 回调,玩家侧以工单详情为准——网关二进制零流量,天然免疫大文件打爆网关。
+
+### 请求与响应(拟定义)
+
+请求体 `{ "fileName", "contentType", "sizeBytes", "kind"? }`:
+
+| 字段 | 说明 |
+| --- | --- |
+| `fileName` | 1–255 字符,展示用原文回显,服务端不解释 |
+| `contentType` | MIME;须在管理面 allowlist 内(缺省 `image/png` / `image/jpeg` / `text/plain` / `application/zip` / `application/pdf`),不在 → `COMMON_INVALID_ARGUMENT` |
+| `sizeBytes` | ≤ 10 MiB;超限 → 413 `SUPPORT_ATTACHMENT_TOO_LARGE` |
+| `kind` | 可选枚举 `IMAGE` / `LOG` / `OTHER`(开集,客户端容忍未知) |
+
+响应 `data`:`{ "attachmentId": "att_…", "uploadUrl", "method": "PUT", "headers": {…}, "expiresAt" }`——`uploadUrl` 为短时效预签名 URL(缺省 10 分钟,管理面可配),过期重新申请即可,**无恢复语义**。
+
+### 语义(拟定义)
+
+- 工单须归属当前玩家(否则 404 `SUPPORT_TICKET_NOT_FOUND`)且未关闭(409 `SUPPORT_TICKET_CLOSED`);每工单 ≤ 3 个附件,超限 → 409 `SUPPORT_ATTACHMENT_LIMIT`。
+- 工单详情(已冻结 `GET /tickets/{id}`)拟追加 `attachments[]`:`{ id, fileName, contentType, sizeBytes, kind?, createdAt, downloadUrl? }`——`downloadUrl` 同为短时效预签名,玩家只见自己的;坐席侧走 croupier 管理面。
+- **拟新增 2 个错误码**:`SUPPORT_ATTACHMENT_TOO_LARGE`(413,retryable=false)、`SUPPORT_ATTACHMENT_LIMIT`(409,retryable=false)。
+- 红线:服务端与 SDK **零内容解释**(不扫描语义、不改写);病毒扫描/内容审核归管理面;附件与 `context`(F43 提案)互斥承载——二进制永不进 `context`。
+
+### 扩展与演进
+
+| 可能的扩展 | 兼容处理方式 |
+| --- | --- |
+| 举报证据附件(F45 提案已预留承诺) | 端点组泛化提案(`targetType` 维度,F45 冻结后一并),共用同一存储面与限额语义 |
+| 存储供应商更换(S3 / OSS / 本地盘) | 预签名 URL 抽象已把存储挡在 Provider 后;契约只认「短时效直传 URL」形状,换存储 = 换 Provider 配置,契约不动 |
+| 新附件类型(视频 / 大文件) | 管理面 allowlist 与限额配置扩;超大文件走 Provider 直传面,不进玩家契约(字段最小化) |
+| 缩略图 / 预览 | Provider/管理面能力;玩家侧只认 `downloadUrl`,契约不加预览语义 |
+| 附件删除 | v1 只增不删(工单关闭即整体不可再传);玩家侧删除入口如有合规需求走 v1.2 加端点提案 |

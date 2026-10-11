@@ -565,6 +565,36 @@
 - [ ] 评审通过与批次 47/48 五提案同批冻结 → errors.md v5(AUTH 两码 + SUPPORT 两码 + OAUTH 三码)+ contractgen 六端同步 + SDK 实现 + e2e(exchange 换会话 / bind 冲突 / 解绑幂等)
 - **剩余缺口**:F44 附件(需对象存储面,Provider 口径)、F36 跑马灯 UI 呈现(实现非契约)、F31/F33 维持——**契约面提案全部立项完毕,进入评审与冻结阶段**
 
+## 批次 50 — F44 附件提案 + 全契约扩展预留收口 + 七提案机械核对(2026-10-12)
+
+> 来源:批次 49「契约面提案全部立项完毕」的收尾:最后一个契约面缺口 F44 落 Draft;扩展预留节补齐剩余 7 域(批次 47 已覆盖 7 域);评审门前先做机器核对。同口径:加法提案与加注,不动冻结行 / fixtures / 版本号。
+
+### v1.1 提案(待评审,随批次 47/48 同批)
+
+- [ ] **F44 工单附件** → [support.md](./contract/support.md) v1.1 提案(续二):申请直传单端点(返回短时效预签名 URL,客户端 PUT **直传存储,网关二进制零流量**);存储挡在 Provider 后(换 S3/OSS/本地 = 换配置,契约不动);拟新增 2 错误码(`SUPPORT_ATTACHMENT_TOO_LARGE` / `SUPPORT_ATTACHMENT_LIMIT`);附件与 `context` 互斥承载(二进制永不进 context);举报证据附件(F45 承诺)留端点组泛化提案
+
+### 扩展预留收口(剩余 7 域,加注不动冻结行)
+
+- [x] [realname.md](./contract/realname.md):consent v1.1 预留落表 / policyExtension 容忍 / OnRealNameVerified 回调 / 核验生态走已冻结的路由表热切换
+- [x] [player.md](./contract/player.md):解绑端点 v1.1 预留 / 新档案字段加法 / 角色删除对齐 auth F03 语义 / 跨游戏聚合归管理面
+- [x] [messages.md](./contract/messages.md):新事件登记制 / 未知事件容忍兜底 / WebSocket 升版不原地换 / APNs/FCM 归 Provider
+- [x] [events.md](./contract/events.md):事件登记制加行 / 载荷只加字段·语义变更换新名 / 传输载体升版本
+- [x] [config.md](./contract/config.md):`CONFIG_NOT_FOUND` 单键查询预留 / 维度开集走缺省跳过 / 类型化值 v1.2 加字段 / 回滚语义已冻结无需新机制
+- [x] [assistant.md](./contract/assistant.md):LLM 换供应商不动契约 / `transferTicket` 预留 / 多轮加字段提案 / `ASSISTANT` 前缀注册未用
+- [x] [versioning.md](./contract/versioning.md):本身即演进规则,只登记结论(新域 = 新文件 + 前缀随冻结注册;破坏性走矩阵;基元加节先例)
+
+### 机械核对(评审门预检,机器验证)
+
+- [x] 拟新增 **9 错误码**(AUTH 2 + SUPPORT 4 + OAUTH 3)grep errors.md **零冲突**(冻结时随 v5 入表)
+- [x] 拟新增 **11 路由** vs 全契约既有路由**零冲突**(`POST /v1/support/tickets` 双出现 = F43 同端点加可选字段,非冲突)
+- [x] errata:[announcement.md](./contract/announcement.md) 端点总览 `{id}` → `{announcementId}`(与端点契约节记法统一;**wire 不变,不升版**——先例 M0 评审记录 #1/#2 修正冻结文档记法)
+- [x] 扩展与演进/扩展预留节:**16/16 契约全覆盖**(批次 47 七域 + 本批七域 + versioning 登记 + 各 Draft 自带)
+
+### 评审门(用户侧,冻结红线不由 agent 判断)
+
+- [ ] 七份 Draft(47 三 + 48 两 + 49 一 + 50 一)同批过读(≥ Unity + 一非 C# 端)→ 冻结升版 + errors.md v5(AUTH 2 + SUPPORT 4 + OAUTH 3)+ contractgen 六端同步 + SDK 实现 + e2e(宽限期 / 撤销 / 过滤命中 / 上下文回显 / 申诉闭环 / exchange 换会话 / 附件直传)
+- **此后契约面无待立项项**:剩余 F36(实现)、F31/F33(预留/部署面)不产生新契约
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。
