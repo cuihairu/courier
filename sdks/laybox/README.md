@@ -14,19 +14,20 @@ sdks/laybox/
     contract/        契约生成物(errors.ts / envelope.ts,tools/contractgen 生成)
     core/            L2 平台无关内核
       transport.ts        Transport 注入接口 + FetchTransport
+      sseStream.ts        messages SSE 流接缝(SseSource)+ FetchSseSource 流读 + 退避纯函数
       tokenStore.ts       TokenStore 注入接口 + 内存实现
       apiClient.ts        scope 头、信封解析、重试退避、TOKEN_EXPIRED 刷新重放
       session.ts          会话域(单飞刷新/安全事件清场/登出)
       identity.ts         身份域(guest/register/login/bind/refresh)
       lifecycle.ts        九态十触发状态机 + 契约事件面
       courierClient.ts    CourierClient 门面(认证流守卫)
-    service/         L2 域服务(九域 + SSE 解析器,courierServices.ts 门面)
+    service/         L2 域服务(九域 + SSE 解析器 + 流编排,courierServices.ts 门面)
     platform/laya/   L3 平台绑定
       layaApi.ts          平台面最小结构类型(LocalStorage/XHR/可见性信号,零依赖)
       tokenStore.ts       LocalStorage 实现
       transport.ts        XMLHttpRequest 实现(响应头小写归一)
       lifecycleMonitor.ts 文档可见性 + navigator onLine → 状态机信号
-  tests/           node --test 82 例(契约 6 / core+lifecycle 53 / service 17 / laya 6)
+  tests/           node --test 91 例(契约 6 / core+lifecycle 53 / service 17 / stream 9 / laya 6)
 ```
 
 ## 运行测试

@@ -12,6 +12,8 @@ src/
                         init() + guestLoginAsync/loginAsync/registerAsync 认证流(驱动状态机)
     lifecycle.ts        生命周期状态机(九态十触发,契约事件 lifecycle.*;平台无关)
     transport.ts        Transport 接口 + FetchTransport(fetch/超时/错误归一)
+    sseStream.ts        messages SSE 流接缝(SseSource/SseStreamConnection)+ FetchSseSource
+                        (fetch 流读,行缓冲跨 chunk)+ 重连退避纯函数(取消经 AbortSignal)
     apiClient.ts        scope 头、Bearer 附着、信封解析、空体状态码兜底、退避重试、
                         AUTH_TOKEN_EXPIRED 刷新重放一次
     session.ts          会话(adopt/单飞刷新/REUSED 清库/尽力而为登出/设备管理)
@@ -25,6 +27,7 @@ src/
   service/
     courierServices.ts  门面:new CourierServices(client) → 九域服务
     announcementService.ts / supportService.ts / sseParser.ts   M2 通讯与客服
+    sseStreamClient.ts  M2 推送通道长连编排(501 降级/401 终态/退避重连/每连现取 token)
     appService.ts / appConfigService.ts / brandingService.ts    M3 应用状态与远程配置
     playerService.ts / assistantService.ts                      M3 档案 / M4 小助手
     paymentService.ts / realnameService.ts                      M5 支付 / 实名
@@ -38,7 +41,7 @@ src/
                         直发接入方自有端点(不经网关,不复用认证 Transport 语义);
                         失败静默不重试不缓存,breadcrumb 环形 20 关闭即清空,
                         trace 只记 path 去 query,埋点 props 原始类型单条 ≤1KB 违例抛使用方错
-tests/                  零依赖 node --test(契约 6 / core+lifecycle 53 / service 17 / wechat 7 / ui 8 / diagnostics 11,共 102 例)
+tests/                  零依赖 node --test(契约 6 / core+lifecycle 53 / service 17 / stream 9 / wechat 7 / ui 8 / diagnostics 11,共 111 例)
 ```
 
 ## 运行测试

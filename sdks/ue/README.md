@@ -10,6 +10,7 @@ sdks/ue/
   core/        L2 平台无关内核
     json.hpp            手写 RFC 8259 解析器 + dump
     transport.hpp       Transport 注入接口(引擎侧实现)
+    sse_stream.hpp      messages SSE 流接缝(SseSource/SseStream)+ 退避纯函数(引擎侧实现)
     token_store.hpp     TokenStore 注入接口 + 内存实现
     api_client.hpp      scope 头、信封解析、重试退避、TOKEN_EXPIRED 刷新重放
     session.hpp         会话域(刷新/登出/设备列表)
@@ -17,15 +18,17 @@ sdks/ue/
     lifecycle.hpp       九态十触发状态机 + 契约事件面
     courier_client.hpp  CourierClient 门面(认证流守卫)
     *_test.cpp          各模块单测(CHECK 宏 + main)
-  service/     L2 域服务(九域 + SSE 解析器)
+  service/     L2 域服务(九域 + SSE 解析器 + 流编排)
     sse_parser.hpp       SSE 帧解析(注释/多行 data/未知字段容忍)
+    sse_stream_client.hpp  messages 长连编排(501/401 终态/退避重连/should_stop 净停;
+                           SseSource 接缝在 core/sse_stream.hpp,引擎接线留 L3 集成面)
     service_dto.hpp      M2 DTO(公告/工单/FAQ)
     announcement_service.hpp / support_service.hpp
     app_dto.hpp          App/Config/Branding DTO
     app_service.hpp / app_config_service.hpp / branding_service.hpp
     player_service.hpp / assistant_service.hpp / payment_service.hpp / realname_service.hpp
-    service_test.cpp / service2_test.cpp
-  run_tests.sh  六套测试独立编译 + 运行(contract/json/core/lifecycle/service/service2)
+    service_test.cpp / service2_test.cpp / sse_stream_test.cpp
+  run_tests.sh  七套测试独立编译 + 运行(contract/json/core/lifecycle/service/service2/stream)
 ```
 
 ## 运行测试

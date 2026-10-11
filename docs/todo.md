@@ -330,6 +330,17 @@
 - [x] 验证:四套 dotnet 全绿(8+48+77+11)+ `go test ./tools/packcheck/` + `go vet` 绿
 - **落地**:三增量推送(ci gate、stream client、adapter;docs 收尾);残留 = Unity 引擎内 Test Runner 实跑与真机联调(随部署面)
 
+## 批次 38 — TS 三端 + UE messages SSE 流客户端(六端流编排同构收口)
+
+- [x] cocos 参照实现:`core/sseStream.ts`(接缝 SseSource/SseStreamConnection/SseStreamRequest + 退避纯函数 sseBackoffDelayMs + FetchSseSource fetch 流读默认实现;行切分按 \n 剥尾 \r,多字节经 TextDecoder stream:true 跨 chunk 安全;取消经 AbortSignal,网络失败归一 TransportError)+ `service/sseStreamClient.ts`(编排:501→capability_disabled、401→unauthenticated 终态不重试;断线指数退避重连 1s/60s 封顶、Retry-After 秒头优先;健康连重置退避;Authorization 每连现取;逐行喂 SseParser)——与 unity SseStream/SseStreamClient 全同构
+- [x] 测试(`tests/stream.test.ts`,+9 例 = 111):退避纯函数、帧上抛/心跳静默/重连换 token/净停、501/401 终态、Retry-After 优先且仅对本次响应生效、建连故障重连、取消先行不建连 + **FetchSseSource 真服务器 e2e**(node:http chunked 分框、断流重连现取 token、真 501)
+- [x] **三坑实测入档**:①注入 sleep 立即返回时 `lastDelayMs` 只留最新值,可观察断言须在注入 sleep 捕获实参(unity 用真实 7s 延迟掩盖了此竞态);②client 已按次现取 token 拼头,source 不得再调 tokenProvider(否则首连即取走第二个 token);③测试侧 run 循环未净停即返回会让子进程永不退出(宏任务自旋),每用例 finally abort+settle
+- [x] laybox/miniprogram 同构复制(共享面 core/service 逐字节一致,批次 31 工具已守同):node:test 91/92 例全绿
+- [x] UE C++:`core/sse_stream.hpp`(接缝 SseSource/SseStream/SseReadResult 值语义 + 退避纯函数,与 UE Transport 同口径——引擎接线留 L3 集成面)+ `service/sse_stream_client.hpp`(同构编排,净停靠 should_stop 谓词,sleep 注入;头键小写归一)+ `service/sse_stream_test.cpp`(7 例:退避、帧/心跳/重连换 token/退避序列、501、401、Retry-After、建连故障重连+事件后净停、取消先行),`run_tests.sh` 七套全绿
+- [x] **UE 语义差入档**:should_stop 以"收到事件"为据时,事件后的下一读循环顶即净停(停了不重连)——客户端行为正确,测试预期须按此设;C++ 类作用域名先声明后使用(成员别名置于类首)
+- [x] 验证:cocos 111/111、laybox 91/91、miniprogram 92/92(node:test)、UE 七套 g++ 全绿(exit 0)+ `go vet` 绿
+- **落地**:三增量推送(cocos、laybox+miniprogram、UE;docs 收尾);残留 = 平台特化流源(wx.request enableChunked、laya XHR 流读)与 UE 引擎接线(随平台/引擎环境)
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。

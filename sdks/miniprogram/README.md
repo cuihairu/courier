@@ -14,19 +14,20 @@ sdks/miniprogram/
     contract/        契约生成物(errors.ts / envelope.ts,tools/contractgen 生成)
     core/            L2 平台无关内核
       transport.ts        Transport 注入接口 + FetchTransport
+      sseStream.ts        messages SSE 流接缝(SseSource)+ FetchSseSource 流读 + 退避纯函数
       tokenStore.ts       TokenStore 注入接口 + 内存实现
       apiClient.ts        scope 头、信封解析、重试退避、TOKEN_EXPIRED 刷新重放
       session.ts          会话域(单飞刷新/安全事件清场/登出)
       identity.ts         身份域(guest/register/login/bind/refresh)
       lifecycle.ts        九态十触发状态机 + 契约事件面
       courierClient.ts    CourierClient 门面(认证流守卫)
-    service/         L2 域服务(九域 + SSE 解析器,courierServices.ts 门面)
+    service/         L2 域服务(九域 + SSE 解析器 + 流编排,courierServices.ts 门面)
     platform/wechat/ L3 平台绑定
       wxApi.ts            wx 最小结构类型(零依赖)
       tokenStore.ts       wx storage 实现
       transport.ts        wx.request 实现
       lifecycleMonitor.ts wx.onAppShow/onAppHide/断网 → 状态机信号
-  tests/           node --test 83 例(契约 6 / core+lifecycle 53 / service 17 / wechat 7)
+  tests/           node --test 92 例(契约 6 / core+lifecycle 53 / service 17 / stream 9 / wechat 7)
 ```
 
 ## 运行测试
