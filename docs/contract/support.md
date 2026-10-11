@@ -128,3 +128,41 @@
 | 某键升级为结构化字段(如设备信息) | v1.2 加可选字段,`context` 旧键保留兼容读取,不删不改 |
 | 附件 / 日志上传(F44) | 独立端点提案;**不用 `context` 传二进制**(本契约已明示附件不覆盖);诊断日志走 diagnostics 自有端点 |
 | 坐席侧筛选 / 聚合上下文 | 管理面能力(croupier),玩家契约不动 |
+
+---
+
+## v1.1 提案(续):举报与处罚申诉(F45,Draft,未冻结 · 2026-10-11)
+
+> 来源:[features.md](../research/features.md) F45。**处罚的判定与执行全在管理面**(croupier / GM / 接入方风控);本契约只是玩家侧只读投影 + 申诉入口——与公告/配置同模式,网关不执行风控。
+
+### 端点(拟新增)
+
+| 端点 | 认证 | 说明 |
+| --- | --- | --- |
+| `POST /v1/support/reports` | Bearer | 提交举报 |
+| `GET /v1/support/penalties` | Bearer | 我的处罚列表(分页,`issuedAt` 倒序) |
+| `GET /v1/support/penalties/{penaltyId}` | Bearer | 处罚详情(含申诉状态) |
+| `POST /v1/support/penalties/{penaltyId}/appeal` | Bearer | 提交申诉(每处罚至多一个进行中申诉) |
+
+### 数据模型(拟新增)
+
+**report(举报)**:`id`(`rpt_` 前缀)、`targetType`(`PLAYER` / `MESSAGE` / `TICKET`,开集可扩)、`targetId`、`reason`(`CHEATING` / `ABUSE` / `SPAM` / `INAPPROPRIATE` / `OTHER`,管理面可扩)、`detail?`(≤1000 字符)。受理即返回 `id`,**举报进展不向举报人反馈**(防骚扰设计)。
+
+**penalty(处罚投影)**:`id`(`pen_`)、`type`(`MUTE` / `SUSPENSION` / `LEADERBOARD_BAN`,开集,客户端容忍未知)、`reason`(面向玩家的人类可读说明,不含内部与坐席信息)、`state`(`ACTIVE` / `EXPIRED` / `LIFTED`)、`issuedAt` / `expiresAt?`、`appeal?`(`{ "state": "PENDING" | "ACCEPTED" | "REJECTED", "submittedAt", "decidedAt?" }`)。
+
+### 语义(拟定义)
+
+- 申诉判定走管理面,结果以拉取为准(`appeal.state`);已有进行中申诉再提交 → 409 `SUPPORT_APPEAL_EXISTS`。
+- 非本人 / 不存在处罚 → 404 `SUPPORT_PENALTY_NOT_FOUND`(不泄露存在性)。
+- **拟新增 2 个错误码**:`SUPPORT_PENALTY_NOT_FOUND`(404,retryable=false)、`SUPPORT_APPEAL_EXISTS`(409,retryable=false)。
+- v1 **不改变 auth 登录语义**:处罚是否拦截登录由接入方策略与管理面决定(见扩展节)。
+
+### 扩展与演进
+
+| 可能的扩展 | 兼容处理方式 |
+| --- | --- |
+| 新处罚类型 / 新举报理由 | 管理面扩集合;type 开集客户端容忍未知,reason 集合登记于本节即可 |
+| 处罚拦截登录 | v1.2 可选语义提案(如 `AUTH_ACCOUNT_SUSPENDED` 联动);v1 不动 auth |
+| 举报证据附件 | 与 F44 附件共用独立端点提案,不塞 report |
+| 跨游戏 / 公司级处罚 | penalty 增可选 `gameId?`(缺省 = 签发 scope)走加字段扩展,v1 仅当前 scope |
+| 举报流转进度 | 不向举报人反馈(防骚扰),管理面内部流转;产品若需要可另提匿名化进度端点提案 |

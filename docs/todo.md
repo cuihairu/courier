@@ -547,6 +547,15 @@
 - [ ] 评审通过 → 三域升 Frozen v1.1 + errors.md v5(仅 AUTH 两码)+ contractgen 六端同步 + 各端 SDK 实现 + e2e(宽限期 / 撤销 / 过滤命中 / 上下文回显)
 - **下一步缺口**:F45 举报申诉(需新端点组设计)、F76 多语言(与 F35 的 `language` 维度耦合,F35 冻结后并入)、F01 第三方 OAuth(新域契约)、F44 附件、F36 跑马灯 UI 呈现
 
+## 批次 48 — 契约 v1.1 提案续:多语内容 + 举报处罚申诉(Draft,2026-10-11)
+
+> 来源:批次 47「下一步缺口」前两项。同口径:加法提案、不动冻结行 / fixtures / 版本号;每条含「扩展与演进」节;随批次 47 三提案同批评审,冻结前不实现。
+
+- [ ] **F76 多语言与本地化** → [announcement.md](./contract/announcement.md) v1.1 提案续:单语分条模型契约化(零破坏,`title`/`body` 类型不动)+ DTO 可选 `language`/`groupKey` + SDK 自动附带 `language` 查询参数(游戏可覆写);多语对象 / 多语并存明示 v2 破坏性,永不原地改;语种回退归管理面兜底
+- [ ] **F45 举报与处罚申诉** → [support.md](./contract/support.md) v1.1 提案续:reports / penalties / appeal 四端点;**处罚判定与执行全在管理面**,契约只做玩家侧投影 + 申诉入口(网关不执行风控);拟新增 2 错误码(`SUPPORT_PENALTY_NOT_FOUND` / `SUPPORT_APPEAL_EXISTS`);v1 不动 auth 登录语义,拦截联动留 v1.2 提案
+- [ ] 评审通过与批次 47 同批冻结 → errors.md v5(AUTH 两码 + SUPPORT 两码)+ contractgen 六端同步 + 各端 SDK 实现 + e2e(宽限期 / 撤销 / 过滤命中 / 上下文回显 / 申诉闭环)
+- **剩余缺口**:F44 附件(需对象存储面设计,Provider 口径)、F36 跑马灯 UI 呈现(实现非契约)、F01 第三方 OAuth(新域契约)、F31/F33 维持
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。
