@@ -15,6 +15,7 @@ sdks/laybox/
     core/            L2 平台无关内核
       transport.ts        Transport 注入接口 + FetchTransport
       sseStream.ts        messages SSE 流接缝(SseSource)+ FetchSseSource 流读 + 退避纯函数
+      utf8.ts             增量 UTF-8 解码器(跨块多字节不撕裂,非法输入 U+FFFD 降级)
       tokenStore.ts       TokenStore 注入接口 + 内存实现
       apiClient.ts        scope 头、信封解析、重试退避、TOKEN_EXPIRED 刷新重放
       session.ts          会话域(单飞刷新/安全事件清场/登出)
@@ -27,7 +28,7 @@ sdks/laybox/
       tokenStore.ts       LocalStorage 实现
       transport.ts        XMLHttpRequest 实现(响应头小写归一)
       lifecycleMonitor.ts 文档可见性 + navigator onLine → 状态机信号
-  tests/           node --test 91 例(契约 6 / core+lifecycle 53 / service 17 / stream 9 / laya 6)
+  tests/           node --test 98 例(契约 6 / core+lifecycle 60 / service 17 / stream 9 / laya 6)
 ```
 
 ## 运行测试

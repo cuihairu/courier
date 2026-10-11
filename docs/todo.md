@@ -341,6 +341,16 @@
 - [x] 验证:cocos 111/111、laybox 91/91、miniprogram 92/92(node:test)、UE 七套 g++ 全绿(exit 0)+ `go vet` 绿
 - **落地**:三增量推送(cocos、laybox+miniprogram、UE;docs 收尾);残留 = 平台特化流源(wx.request enableChunked、laya XHR 流读)与 UE 引擎接线(随平台/引擎环境)
 
+## 批次 39 — 手写 UTF-8 解码器 + 微信 enableChunked 流源(平台特化第一批)
+
+- [x] `core/utf8.ts` 增量 UTF-8 解码器(三端同构):跨块多字节不撕裂、非法输入(超长/代理区/越界/孤立续字节)U+FFFD 降级、流尾截断冲刷——wx 等无 TextDecoder 环境安全;+7 例(全切分点扫描、逐字节、emoji 三块、截断冲刷)
+- [x] 微信流源 `platform/wechat/sseSource.ts`(cocos + miniprogram):`createWechatSseSource`——wx.request enableChunked,success 头到回填连接(statusCode/headers),onChunkReceived 增量解码→行缓冲→阻塞读;fail 按是否已建连分流(建连失败重试 / 已建连归一断流重连);AbortSignal → task.abort() → wx 以 fail 收场
+- [x] 接缝调整:`SseStreamConnection.statusCode/headers` 改非只读(wx 响应头在 success 回调才到,接线须建连后回填;与 unity settable 同口径),三端同步
+- [x] 测试(+5 例,cocos/miniprogram `tests/wechatStream.test.ts`,fake wx 手动 pushTo/hangup 驱动):分块行缓冲、跨块 emoji(🎮 F0 9F 8E AE 拆两块)、心跳静默、头键小写归一(GET/enableChunked/Accept/token 断言)、断流重连现取 token(tok-1→tok-2)、建连失败重试、abort 净停(task.abort 被调)、Retry-After 大写头键生效
+- [x] **三坑实测入档**:①wx chunked 无"服务端净关流"回调——断流只以 fail(或静默)呈现,SDK 按 fail 归一重连,静默靠心跳注释与生命周期兜底,真机待验随部署面;②测试 fake 的 abort 必须触发 fail(真机语义 abort 以 fail 收场),否则连接永不苏醒、run 挂死;③无数据时 run 阻塞在读上——推块前 `waitUntil(事件到)` 永不满足,测试须先等请求落地再驱动块
+- [x] 验证:cocos 123/123、miniprogram 104/104、laybox 98/98(node:test)全绿
+- **落地**:残留 = laya XHR 流读(平台特化)、UE SseSource 引擎接线(引擎环境)、微信真机验证(部署面)
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。

@@ -14,6 +14,8 @@ src/
     transport.ts        Transport 接口 + FetchTransport(fetch/超时/错误归一)
     sseStream.ts        messages SSE 流接缝(SseSource/SseStreamConnection)+ FetchSseSource
                         (fetch 流读,行缓冲跨 chunk)+ 重连退避纯函数(取消经 AbortSignal)
+    utf8.ts             增量 UTF-8 解码器(跨块多字节不撕裂,非法输入 U+FFFD 降级,
+                        流尾截断冲刷;wx 等无 TextDecoder 环境安全)
     apiClient.ts        scope 头、Bearer 附着、信封解析、空体状态码兜底、退避重试、
                         AUTH_TOKEN_EXPIRED 刷新重放一次
     session.ts          会话(adopt/单飞刷新/REUSED 清库/尽力而为登出/设备管理)
@@ -23,7 +25,10 @@ src/
     types.ts            auth 域 DTO
   platform/
     wechat/             微信小游戏适配器:TokenStore(wx storage)/ Transport(wx.request)/
-                        WechatLifecycleMonitor(onShow/onHide/断网 → 状态机幂等信号)
+                        WechatLifecycleMonitor(onShow/onHide/断网 → 状态机幂等信号)/
+                        sseSource.ts(createWechatSseSource:wx.request enableChunked
+                        分块流读,头到回填连接,手写 UTF-8 解码;断流/静默归一重连,
+                        真机净关流语义待验随部署面)
   service/
     courierServices.ts  门面:new CourierServices(client) → 九域服务
     announcementService.ts / supportService.ts / sseParser.ts   M2 通讯与客服
@@ -41,7 +46,7 @@ src/
                         直发接入方自有端点(不经网关,不复用认证 Transport 语义);
                         失败静默不重试不缓存,breadcrumb 环形 20 关闭即清空,
                         trace 只记 path 去 query,埋点 props 原始类型单条 ≤1KB 违例抛使用方错
-tests/                  零依赖 node --test(契约 6 / core+lifecycle 53 / service 17 / stream 9 / wechat 7 / ui 8 / diagnostics 11,共 111 例)
+tests/                  零依赖 node --test(契约 6 / core+lifecycle 60 / service 17 / stream 9 / wechat 12 / ui 8 / diagnostics 11,共 123 例)
 ```
 
 ## 运行测试
@@ -59,4 +64,5 @@ cd sdks/cocos && node --test tests/*.test.ts
 - 下单只收 `skuId`(服务端定价红线);payToken 仅下单响应出现,消费归渠道 SDK。
 - 实名姓名/证件号只经 `submitAsync` 传输一次:不缓存、不落盘、不进日志。
 - 推送为提示(SSE 载荷只含提示字段),业务事实以归属校验后的拉取端点为准。
+- 流式接线:SseSource 平台实现(fetch 默认 / 微信 enableChunked);响应头键小写归一;断流统一归一重连,净停经 AbortSignal。
 - token 存储按平台隔离(native localStorage / 微信小游戏 storage),适配器随部署面补。
