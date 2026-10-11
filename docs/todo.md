@@ -351,6 +351,15 @@
 - [x] 验证:cocos 123/123、miniprogram 104/104、laybox 98/98(node:test)全绿
 - **落地**:残留 = laya XHR 流读(平台特化)、UE SseSource 引擎接线(引擎环境)、微信真机验证(部署面)
 
+## 批次 40 — laya XHR 流源(平台特化流源全线收口)
+
+- [x] `platform/laya/sseSource.ts`:`createLayaSseSource`——XHR 流读,onprogress 体增量按消费偏移切行(responseText 已含全部已收字节,浏览器内建流式解码跨块多字节不撕裂);**onload = 净关流回调**(与微信相反,XHR 有干净流尾 → 归一流尾走编排层重连);头/状态码 onprogress/onload 首拍回填连接(XHR 无独立"头到"回调);timeout 置 0 长连不禁超时;onerror/ontimeout/onabort 统一按是否已建连分流(建连失败重试 / 已建连断流重连)
+- [x] `layaApi.ts` XhrLike 补面:readyState/onprogress/onabort(流式源所需;真 XHR 天然满足)
+- [x] 同步修 wx 两份 sseSource 的 `settled` 可见性(private → public:建连回调在工厂闭包按它分流,tsc 消费方会拒 private 越界访问)
+- [x] 测试(+6 例,`tests/layaStream.test.ts`,FakeLayaXhr 手动 head/progress/finish/fail 驱动):帧/心跳静默/多字节跨 progress、净关流重连现取 token(tok-1→tok-2)、建连失败重试、abort → xhr.abort 被调 + 净停、429 Retry-After 大写头键生效、无体直收尾(onload 首拍建连 + 流尾 → 重连)
+- [x] 验证:laybox 104/104、cocos 123/123、miniprogram 104/104(node:test)全绿;共享面(sseStream.ts 三端、wx sseSource 双端)逐字节一致
+- **落地**:六端流源全景 = unity WebRequest / godot HTTPClient / TS fetch / wx enableChunked / laya XHR / UE 接缝(引擎接线随引擎环境);真机验证随部署面
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。

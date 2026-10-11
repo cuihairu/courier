@@ -28,7 +28,9 @@ sdks/laybox/
       tokenStore.ts       LocalStorage 实现
       transport.ts        XMLHttpRequest 实现(响应头小写归一)
       lifecycleMonitor.ts 文档可见性 + navigator onLine → 状态机信号
-  tests/           node --test 98 例(契约 6 / core+lifecycle 60 / service 17 / stream 9 / laya 6)
+      sseSource.ts        createLayaSseSource(XHR 流读:onprogress 增量按消费偏移切行,
+                      onload 净关流重连,头/状态首拍回填;多字节由浏览器流式解码保障)
+  tests/           node --test 104 例(契约 6 / core+lifecycle 60 / service 17 / stream 9 / laya 12)
 ```
 
 ## 运行测试
@@ -41,7 +43,7 @@ cd sdks/laybox && node --test tests/*.test.ts
 
 - DTO 以 `../../docs/contract/` 为唯一事实源;未知字段容忍。
 - 三端共享面(src/{contract,core,service} 与同名 tests)逐字节同构,由 `tools/tsync` 守同:改一处须三端同步(cp)。
-- core 零平台引用,平台差异收敛在 Transport/TokenStore 注入与 platform/laya 绑定;引擎版本差异收敛在接入方绑定侧。
+- core 零平台引用,平台差异收敛在 Transport/TokenStore 注入与 platform/laya 绑定(SseSource 同口径:fetch 默认 / XHR 流读两实现);引擎版本差异收敛在接入方绑定侧。
 - token 走 LocalStorage(`courier.session` 键,损坏数据按未认证清场),不落明文配置文件。
 - 生命周期信号:LayaAir 运行时为文档可见性 + navigator onLine,接入方桥接到 `LayaboxAppHooks` 结构面。
 - UI 面板可选,游戏可自绘;501 能力未接按契约降级(null/空结果),不进报错路径。
