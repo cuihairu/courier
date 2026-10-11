@@ -368,6 +368,12 @@
 - [x] 文档:laybox/miniprogram README 补包结构与计数(104→123);layers.md L3 行改为"ui 包批次 17、diagnostics 包批次 20 落位(cocos 首落,批次 41 三端对齐)"
 - **落地**:TS 三端面全对齐(共享面 + 可选包);剩余差异仅平台绑定(wechat/laya)与端专属测试
 
+## 批次 42 — 声称漂移修复(Godot 绑定"规划中"四处清账)
+
+- [x] 巡检发现:architecture.md 两处 + layers.md 两处仍称 "Godot 规划中"(binding 枚举 / token 存储枚举 / 打包形态 / ITokenStore 接口形状),而批次 34/35/36 已交付真实绑定(HTTPClient poll 真传输、user:// 持久令牌、SSE 流读、前后台信号,八套 headless 全绿)——本机复跑 godot 八套确认仍绿后修文档
+- [x] 修正口径:binding 枚举补 Godot(项目形态已落位,插件化打包随引擎集成面);token 存储枚举补 user:// 持久文件;ITokenStore 接口形状行同步;全仓 grep "Godot 规划中" 清零
+- **落地**:纯文档账面修正(批次 22-27 同纪律);无代码变更
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。

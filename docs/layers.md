@@ -65,7 +65,7 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 
 **职责**
 
-- 平台翻译四件事:网络(原生 HTTP / SSE 流式读)、存储(ITokenStore 安全存储实现)、生命周期(前后台/进程信号→状态机事件)、线程(主线程回调调度);打包形态(UPM / UE 插件 / npm;Godot 插件规划中)。
+- 平台翻译四件事:网络(原生 HTTP / SSE 流式读)、存储(ITokenStore 安全存储实现)、生命周期(前后台/进程信号→状态机事件)、线程(主线程回调调度);打包形态(UPM / UE 插件 / npm;Godot 以项目形态落位,插件化打包随引擎集成面)。
 - **可选 UI 包挂在平台侧**:CourierLoginPanel / AnnouncementPanel / SupportPanel,消费 Branding 下发(见 L2 边界:Core 无品牌逻辑)。
 
 **边界**
@@ -75,7 +75,7 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 
 **接口形状**
 
-- ITokenStore:Unity 加密存储 / UE 平台凭证 / Cocos localStorage / 微信 storage / Layabox 平台存储;Godot 规划中;ITransport:各平台网络栈。
+- ITokenStore:Unity 加密存储 / UE 平台凭证 / Cocos localStorage / 微信 storage / Layabox LocalStorage / Godot user:// 持久文件;ITransport:各平台网络栈。
 
 **现仓映射**:Unity——`sdks/unity/packages/com.courier.core/Runtime/Adapter`(UnityWebRequest 传输 / SecureTokenStore 加密存储 / ApplicationLifecycleMonitor 前后台 / UnityWebRequestSseSource messages SSE 流读,批次 37 落位),`tools/packcheck` 结构验收,UPM 四包(core/service/ui/diagnostics)落位;TS 三端 adapter——cocos 与 miniprogram 的 `platform/wechat`、laybox 的 `platform/laya`(wx.request / wx storage / LayaAir 可见性与 onLine 信号;微信端 sseSource.ts——wx.request enableChunked 分块流读 + 增量 UTF-8 解码,批次 39 落位;laybox 端 sseSource.ts——XHR 流读 onprogress 增量 + onload 净关流重连,批次 40 落位);UE C++ header-only 批次 14 落位(引擎集成面 HttpModule 待引擎环境);Godot `src/platform`(httpTransport——HTTPClient poll 真传输、fileTokenStore——user:// 持久令牌存储、sseStreamTransport——messages SSE 流读 chunked 分框+退避重连、lifecycleMonitor——前后台信号→状态机事件,批次 34/35/36 落位,八套 headless 全绿)。
 
