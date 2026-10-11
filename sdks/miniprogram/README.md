@@ -31,7 +31,11 @@ sdks/miniprogram/
       sseSource.ts        createWechatSseSource(wx.request enableChunked 分块流读,
                       头到回填连接,手写 UTF-8 解码;断流/静默归一重连,
                       真机净关流语义待验随部署面)
-  tests/           node --test 104 例(契约 6 / core+lifecycle 60 / service 17 / stream 9 / wechat 12)
+    ui/              可选 UI 包(cocos 同构):brandingCatalog(品牌兜底链)+ 三面板骨架
+                     (公告栏/客服/助手):纯文本产出经回调交游戏侧渲染,不绑死 UI 框架
+    diagnostics/     可选诊断包(契约 diagnostics.md):crash/trace/performance/analytics
+                     四类独立开关,默认全关零开销;直发接入方自有端点,失败静默
+  tests/           node --test 123 例(契约 6 / core+lifecycle 60 / service 17 / stream 9 / wechat 12 / ui 8 / diagnostics 11)
 ```
 
 ## 运行测试

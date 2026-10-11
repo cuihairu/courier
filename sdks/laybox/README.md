@@ -30,7 +30,11 @@ sdks/laybox/
       lifecycleMonitor.ts 文档可见性 + navigator onLine → 状态机信号
       sseSource.ts        createLayaSseSource(XHR 流读:onprogress 增量按消费偏移切行,
                       onload 净关流重连,头/状态首拍回填;多字节由浏览器流式解码保障)
-  tests/           node --test 104 例(契约 6 / core+lifecycle 60 / service 17 / stream 9 / laya 12)
+    ui/              可选 UI 包(cocos 同构):brandingCatalog(品牌兜底链)+ 三面板骨架
+                     (公告栏/客服/助手):纯文本产出经回调交游戏侧渲染,不绑死 UI 框架
+    diagnostics/     可选诊断包(契约 diagnostics.md):crash/trace/performance/analytics
+                     四类独立开关,默认全关零开销;直发接入方自有端点,失败静默
+  tests/           node --test 123 例(契约 6 / core+lifecycle 60 / service 17 / stream 9 / laya 12 / ui 8 / diagnostics 11)
 ```
 
 ## 运行测试

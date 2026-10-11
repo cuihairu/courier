@@ -360,6 +360,14 @@
 - [x] 验证:laybox 104/104、cocos 123/123、miniprogram 104/104(node:test)全绿;共享面(sseStream.ts 三端、wx sseSource 双端)逐字节一致
 - **落地**:六端流源全景 = unity WebRequest / godot HTTPClient / TS fetch / wx enableChunked / laya XHR / UE 接缝(引擎接线随引擎环境);真机验证随部署面
 
+## 批次 41 — ui/diagnostics 可选包三端对齐(声称漂移修复)
+
+- [x] 巡检发现 layers.md L3 行声称"TS 三端…ui 包批次 17、diagnostics 包批次 20",实际两包只在 cocos(732 行 + 19 例)——文档声称与现仓漂移
+- [x] 移植:`src/ui`(brandingCatalog + 三面板骨架)+ `src/diagnostics`(diagnosticsHub/Types/httpReporters)逐字节复制到 laybox/miniprogram——两包 import 全为共享面路径(core/service/同包),零改动移植即绿
+- [x] 测试:三端各 123/123(cocos 123、miniprogram +19=123、laybox +19=123,node:test);tsync 同构守同仍绿(共享面不含 ui/diagnostics,批次 31 设计如此)
+- [x] 文档:laybox/miniprogram README 补包结构与计数(104→123);layers.md L3 行改为"ui 包批次 17、diagnostics 包批次 20 落位(cocos 首落,批次 41 三端对齐)"
+- **落地**:TS 三端面全对齐(共享面 + 可选包);剩余差异仅平台绑定(wechat/laya)与端专属测试
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。
