@@ -46,6 +46,7 @@ class FakeXhr implements XhrLike {
   sentBody: string | null = null;
   timeout = 0;
   status = 0;
+  readyState = 0;
   responseText = "";
   rawHeaders = "";
   script: XhrScript[] = [];
@@ -53,6 +54,8 @@ class FakeXhr implements XhrLike {
   onload: (() => void) | null = null;
   onerror: (() => void) | null = null;
   ontimeout: (() => void) | null = null;
+  onabort: (() => void) | null = null;
+  onprogress: (() => void) | null = null;
 
   open(method: string, url: string): void {
     this.method = method;

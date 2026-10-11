@@ -10,18 +10,23 @@ export interface LayaStorage {
   removeItem(key: string): void;
 }
 
-/** XMLHttpRequest 最小面(只取 SDK 用到的属性与方法)。 */
+/** XMLHttpRequest 最小面(只取 SDK 用到的属性与方法;onabort 供流式取消归一)。 */
 export interface XhrLike {
   open(method: string, url: string): void;
   setRequestHeader(name: string, value: string): void;
   send(body?: string | null): void;
   timeout: number;
   status: number;
+  /** readyState(流式源按 LOADING/DONE 分流;3 = 体已部分可读,4 = 已收尾)。 */
+  readyState: number;
   responseText: string;
   getAllResponseHeaders(): string;
   onload: (() => void) | null;
   onerror: (() => void) | null;
   ontimeout: (() => void) | null;
+  onabort: (() => void) | null;
+  /** 体增量回调(LOADING 态;responseText 已含全部已收字节,流式源按消费偏移取增量)。 */
+  onprogress: (() => void) | null;
 }
 
 /** XHR 构造面(注入真实 XMLHttpRequest 构造器或测试 fake)。 */

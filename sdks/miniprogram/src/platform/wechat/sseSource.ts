@@ -66,12 +66,12 @@ export function createWechatSseSource(wx: WxChunkedRequester): SseSource {
   };
 }
 
-/** 一次 chunked 流连接:行缓冲(解码→切行)+ 阻塞式读(块回调唤醒)。 */
+/** 一次 chunked 流连接:行缓冲(解码→切行)+ 阻塞式读(块回调唤醒)。
+ *  settled 公开:建连回调在工厂闭包按它分流(已建连 → 断流,未建连 → 建连失败)。 */
 class WxChunkedConnection implements SseStreamConnection {
   statusCode = 0;
   headers: Readonly<Record<string, string>> = {};
-
-  private settled = false;
+  settled = false;
   private closed = false;
   private failure: TransportError | null = null;
   private readonly decoder = new IncrementalUtf8Decoder();
