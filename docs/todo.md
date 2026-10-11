@@ -383,6 +383,31 @@
 - [x] 版本登记:messages.md Frozen v1 → **Frozen v1.1**(2026-10-11 追加传输分框硬要求,不改变端点/头/DTO/wire 形态),index.md 状态行同步
 - **落地**:契约 v1.1 只增不改登记完成;复核未发现其他漂移或缺陷
 
+## 批次 44 — 竞品调研功能点落地(competitive.md 对齐,2026-10-11)
+
+> 来源:[docs/research/competitive.md](./research/competitive.md) 的 6 条可参考项 + 3 条边界。**已有落点的不重复立项**(见本批末「覆盖对照」),以下只补调研点到任务行的缺口:
+
+- [ ] **各端示例齐平**(Nakama 实践第一半:契约跨端一致已由 `tools/contractgen` 六端测试守住,但「示例与文档齐平」缺):现全仓无 `examples/` 目录 —— 为六端(unity / cocos / ue / godot / miniprogram / laybox)各建一个最小可跑示例(接入 → 登录 → 收公告 → 发工单),放 `examples/<端>/`,并给运行方式
+- [ ] **按需选装指南**(MSDK 启示:「不为用不到的功能付体积」是被验证的付费需求):docs 出一页**选装清单** —— UPM 四包(core/service/ui/diagnostics)× Provider 逐项列出「不装省什么、装了得到什么」,附各包**构建产物实测字节**(非估算);现 docs 对「选装/体积」0 命中
+- [ ] **每端 quickstart 实测**(Nakama 实践第二半:示例与文档齐平):逐端跑 README 的 quickstart,给出命令与实际预期输出,跑不通的修文档不改契约
+- [ ] **对标数据时效**(competitive.md 数据口径 2026-10-08):星数/活跃度随巡检批次复核更新;链接失效提 issue
+
+**覆盖对照(调研 9 项的落点,避免重复立项)**:
+
+| 调研项 | 落点 | 状态 |
+| --- | --- | --- |
+| Nakama 跨端契约一致 | 批次 1 `contractgen` 六端生成 + CI 守 | 已有 |
+| Nakama 示例/文档齐平 | **本批 1、3** | 缺口 → 立项 |
+| MSDK 插件化按需选装(设计) | 批次 2/18 Provider 可换、UPM 四包 | 已有 |
+| MSDK 选装的产品化呈现 | **本批 2** | 缺口 → 立项 |
+| QuickSDK 服务端验签 | 批次 3 auth Frozen + 批次 10 回调只认渠道签名 | 已有 |
+| XDSDK 实名防沉迷 | `realname.md` Frozen v1 + 批次 7 熔断/降级 | 已有 |
+| XDSDK/MSDK 登录 UI 剥离 | `com.courier.ui` 独立可选包,批次 17/41 三端对齐 | 已有 |
+| Playgama 平台差异压进 Adapter | `layers.md` L3 + packcheck 结构验收 | 已有 |
+| 边界(实时/渠道不做) | `roadmap.md` 非目标 + 本文件「明确不做」 | 已有 |
+
+- **验收**:六端示例各一条命令真实跑通(报文附运行输出);选装清单含实测字节;quickstart 逐端实测记录;对标口径更新到当期日期
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。
