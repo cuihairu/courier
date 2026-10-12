@@ -6,10 +6,11 @@
 > **更新**(2026-10-12,批次 53):F44 由 ❌ → ✅(support.md 附件节 Frozen v1.1 → 网关 → SDK 六端 → e2e 四批落地,证据 commit 见行内);F11 错误码表 v6→v7(+SUPPORT 附件 2 码)。
 > **更新**(2026-10-13,批次 54):F36 由 ◑ → ✅(跑马灯呈现落 UI 包 `8127ba9`,零新契约;◑ 清零,统计行顺修批次 53 起的差 1)。
 > **更新**(2026-10-13,批次 55):交付面,无 F 项变动——六端 `examples/` + quickstart 实测落地(`425fe55`;附带修网关 `/v1/<cap>` 无斜杠根 307 丢 Authorization → 内部重派 `c5c4814`),六端 README 增「快速开始」;选装清单 `docs/sdk-selection.md`(实测字节 + Provider 降级语义)。
+> **更新**(2026-10-13,批次 57):F76 由 ❌ → ✅(announcement.md Frozen v1.1 多语内容节 → 网关 herald Language/GroupKey → SDK 六端 CourierConfig.language 自动附带 → e2e,证据 commit 见行内);零新错误码(errors.md 仍 v8)。
 > **更新**(2026-10-13,批次 56):F45 由 ❌ → ✅(support.md v1.1 举报与处罚申诉节 Frozen → 网关 → SDK 六端 → e2e 分批落地,证据 commit 见行内);F11 错误码表 v7→v8(+SUPPORT 举报/申诉 2 码,42 码)。
 > **核对方法**:「已有」声称引用批次号+commit(来自 todo 各批验收记录);「缺口」声称以 grep 机器核对为准(零命中/命中行注明,如 announcement.md `filter` 0 命中、support.md `context` 0 命中、auth.md 仅 `DELETE /devices`、全契约 `language/locale` 0 命中);auth.md:10 与 realname.md:100 为契约明示的边界预留。
 > **图例**:✅ 已落地(仓库内有契约+实现+测试/e2e 证据,部署面残留另行注明)· ◑ 部分(核心面已落,剩余明示)· ❌ 缺口(仓库内未立项/未实现)· 🔌 Provider(不进核心契约)· ⏸ 待议 · ⛔ 不做。
-> **统计**:核心 47 = ✅ 44 + ❌ 3 + ◑ 0(批次 56:F45 落地;批次 54 起◑清零);🔌 13;⏸ 9;⛔ 7。
+> **统计**:核心 47 = ✅ 45 + ❌ 2 + ◑ 0(批次 57:F76 落地;批次 54 起◑清零);🔌 13;⏸ 9;⛔ 7。
 
 ## 核心面(47 项)
 
@@ -61,7 +62,7 @@
 | F73 | 弱网/离线降级 | ✅ | 退避重试+config 缓存+拉取兜底;批次 4/6/12 |
 | F74 | 日志诊断开关 | ✅ | diagnostics 开关+traceId;批次 8/20 |
 | F75 | 沙箱环境 | ✅ | scope 三环境+fixtures;批次 1/2 |
-| F76 | 多语言本地化 | ❌ | 契约无语种/locale 字段(grep 零命中);v1.1 提案 Draft 已写(批次 48,单语分条契约化) |
+| F76 | 多语言本地化 | ✅ | announcement.md Frozen v1.1 多语内容节(批次 57 `65d9971`:单语分条模型契约化,行内 `language`(RFC 5646)/`groupKey` 可选元数据,零新错误码;可见性仍由 filters 决定)+ herald 两字段回显 + e2e(`65d9971`)+ SDK 六端 `CourierConfig.language` 自动附带(显式覆写,缺省不附带)(`478c194`) |
 
 ## Provider 面(13 项,不进核心契约)
 
@@ -92,10 +93,9 @@
 | F54 | 买量归因 | ⛔ 不做——垂直领域 |
 | F64–F68 | 社交与实时(好友/聊天/匹配/语音/公会) | ⛔ 不做——roadmap 非目标,与 Nakama/Agones 划界 |
 
-## 缺口汇总(❌ 3 项;截至批次 56,F03/F35/F43/F01/F44/F36/F45 已落地移出)
+## 缺口汇总(❌ 2 项;截至批次 57,F03/F35/F43/F01/F44/F36/F45/F76 已落地移出)
 
 | ID | 缺口 | 建议落点 |
 | --- | --- | --- |
 | F31 | 年龄门/家长同意(海外) | realname v1.1 consent 组(realname.md:100 已预留) |
 | F33 | 审计落库 | 部署面;trace 已贯穿 |
-| F76 | 多语言与本地化 | announcement v1.1 语种维度(提案 Draft 已写,批次 48,单语分条契约化) |
