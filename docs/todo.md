@@ -415,9 +415,9 @@
 
 ### §1 账号与身份
 
-- [ ] **F01 登录方式聚合**(游客/账号密码统一登录入口)｜落点:契约 auth.md / 端 六端 identity——批次 3 已覆盖游客+邮箱密码;第三方 OAuth(Apple/Google/Steam/微信/QQ)与手机号 auth.md:10 明示「不覆盖,后续域契约扩展」
+- [x] **F01 登录方式聚合**(游客/账号密码统一登录入口)｜落点:契约 auth.md / 端 六端 identity——批次 3 已覆盖游客+邮箱密码;第三方 OAuth 已随批次 52 落地(oauth.md Frozen v1);手机号 auth.md:10 明示另提同构域
 - [x] **F02 账号绑定/解绑**(一个账号挂多平台身份,游客升级为正式账号)｜落点:契约 auth.md bind/解绑 / 端 六端(批次 3/18 已覆盖;多正式账号合并不在 v1)
-- [ ] **F03 账号注销与数据删除**(完整注销+下游数据级联删除,商店政策要求游戏内可达)｜落点:契约 auth.md——现仅设备解绑(`DELETE /devices/{deviceId}`,auth.md:24),账号注销端点未建
+- [x] **F03 账号注销与数据删除**(完整注销+下游数据级联删除,商店政策要求游戏内可达)｜落点:契约 auth.md v1.1(批次 51 冻结并落地;下游级联经 `OnAccountDeleted` Provider 钩子)
 - [x] **F04 跨平台身份贯通**(同一账号跨设备共享身份,多设备会话+设备管理)｜落点:契约 auth.md devices / 端 六端(批次 3/18 已覆盖;进度共享归游戏后端,player 档案映射角色批次 8)
 - [x] **F05 SDK 不带 UI,游戏自绘**(数据与回调为主,UI 永远可选包)｜落点:UPM 四包 / TS 三端 ui+diagnostics 包(批次 5/17/41 已覆盖)
 - [x] **F06 匿名登录与静默自动登录**(先进游戏后补账号)｜落点:契约 auth.md 游客设备 / 端 六端(批次 3/4 已覆盖,e2e 全链路)
@@ -464,8 +464,8 @@
 ### §6 消息与触达
 
 - [x] **F34 公告系统**(三形态/起止时间/排序,后台配置下发)｜落点:契约 announcement.md / 网关 herald(批次 6 已覆盖)
-- [ ] **F35 公告定向过滤**(按 OS/渠道/版本/大区过滤,客户端只拿命中项)｜落点:announcement.md v1.1 `filters` 对象(features.md §14 落点建议)——v1 未入
-- [ ] **F36 跑马灯/滚服播报**(全服滚动消息,与公告同源不同呈现)｜落点:数据面复用公告契约零新契约(severity 字段 announcement.md:32);跑马灯呈现归可选 UI 包——未做
+- [x] **F35 公告定向过滤**(按 OS/渠道/版本/大区过滤,客户端只拿命中项)｜落点:announcement.md v1.1 `filters` 对象(批次 51 冻结并落地)
+- [x] **F36 跑马灯/滚服播报**(全服滚动消息,与公告同源不同呈现)｜落点:数据面复用公告契约零新契约(severity 字段 announcement.md:32);跑马灯呈现随批次 54 落 UI 包(`8127ba9`)
 - [Provider·不进核心] **F37 远程推送**(APNs/FCM 厂商通道)｜落点:应用内 SSE 已落(chirp,批次 6/35-40 六端流读);厂商通道随部署面,不自建长连接
 - [Provider·不进核心] **F38 按账号/标签定向推送**
 - [Provider·不进核心] **F39 本地通知/定时提醒**
@@ -475,8 +475,8 @@
 
 - [x] **F41 游戏内工单**(不离开客户端提问/查进度)｜落点:契约 support.md / 网关 croupier(批次 6 已覆盖)
 - [x] **F42 FAQ/知识库自助**(客户端内检索,命中免工单)｜落点:support FAQ+sage 检索问答(批次 6/9 已覆盖)
-- [ ] **F43 上下文自动附带**(自动带 player ID/build/关卡)｜落点:support.md v1.1 可选 `context` 对象(features.md §14 落点建议)——现 croupier 以服务端 extras 承载,契约未入
-- [ ] **F44 反馈与日志上传**(一键反馈+截图/日志附件)｜落点:support.md:11 明示「附件后续扩展」;与 diagnostics 联动未定义
+- [x] **F43 上下文自动附带**(自动带 player ID/build/关卡)｜落点:support.md v1.1 可选 `context` 对象(批次 51 冻结并落地)
+- [x] **F44 反馈与日志上传**(一键反馈+截图/日志附件)｜落点:support.md 附件节 v1.1(批次 53 冻结并落地;diagnostics 联动不在契约面)
 - [ ] **F45 举报与处罚申诉**(举报/封禁通知/申诉闭环)｜落点:无契约面(support.md 无举报域)
 - [x] **F46 客服侧补单/补偿**(按账号查交易/补发)｜落点:支付 Reconcile 补发通道(批次 10/11 已覆盖;工具面归 croupier 管理侧)
 
@@ -527,9 +527,9 @@
 
 ### v1.1 提案(待评审:≥ Unity + 一非 C# 端过读)
 
-- [ ] **F03 账号注销与数据删除** → [auth.md](./contract/auth.md) v1.1 提案:delete/cancel 两端点、宽限期(GUEST 立即删)、受理即吊销会话、匿名化保留外键、`OnAccountDeleted` Provider 钩子承载级联;拟新增 2 错误码
-- [ ] **F35 公告定向过滤** → [announcement.md](./contract/announcement.md) v1.1 提案:复用 config 投影语义(缺省维度跳过 + DSL 不进玩家契约)、`filters` 开集 map 只读回显、零新错误码
-- [ ] **F43 工单上下文** → [support.md](./contract/support.md) v1.1 提案:`context` 开集 map 服务端零解释透传、SDK 自动附带基础事实面且不可覆写、零新错误码
+- [x] **F03 账号注销与数据删除** → [auth.md](./contract/auth.md) v1.1 提案:delete/cancel 两端点、宽限期(GUEST 立即删)、受理即吊销会话、匿名化保留外键、`OnAccountDeleted` Provider 钩子承载级联;拟新增 2 错误码(批次 51 随冻结落地)
+- [x] **F35 公告定向过滤** → [announcement.md](./contract/announcement.md) v1.1 提案:复用 config 投影语义(缺省维度跳过 + DSL 不进玩家契约)、`filters` 开集 map 只读回显、零新错误码(批次 51 随冻结落地)
+- [x] **F43 工单上下文** → [support.md](./contract/support.md) v1.1 提案:`context` 开集 map 服务端零解释透传、SDK 自动附带基础事实面且不可覆写、零新错误码(批次 51 随冻结落地)
 
 ### 扩展预留补注(每域接口的「万一要扩展怎么处理」)
 
@@ -544,16 +544,16 @@
 
 ### 冻结与实现(评审通过后)
 
-- [ ] 评审通过 → 三域升 Frozen v1.1 + errors.md v5(仅 AUTH 两码)+ contractgen 六端同步 + 各端 SDK 实现 + e2e(宽限期 / 撤销 / 过滤命中 / 上下文回显)
+- [x] 评审通过 → 三域升 Frozen v1.1 + errors.md v5(仅 AUTH 两码)+ contractgen 六端同步 + 各端 SDK 实现 + e2e(宽限期 / 撤销 / 过滤命中 / 上下文回显)(实际执行:批次 51,`5317802`/`f20e9ab`/`53eaa7c`/`626542f` 前身四批)
 - **下一步缺口**:F45 举报申诉(需新端点组设计)、F76 多语言(与 F35 的 `language` 维度耦合,F35 冻结后并入)、F01 第三方 OAuth(新域契约)、F44 附件、F36 跑马灯 UI 呈现
 
 ## 批次 48 — 契约 v1.1 提案续:多语内容 + 举报处罚申诉(Draft,2026-10-11)
 
 > 来源:批次 47「下一步缺口」前两项。同口径:加法提案、不动冻结行 / fixtures / 版本号;每条含「扩展与演进」节;随批次 47 三提案同批评审,冻结前不实现。
 
-- [ ] **F76 多语言与本地化** → [announcement.md](./contract/announcement.md) v1.1 提案续:单语分条模型契约化(零破坏,`title`/`body` 类型不动)+ DTO 可选 `language`/`groupKey` + SDK 自动附带 `language` 查询参数(游戏可覆写);多语对象 / 多语并存明示 v2 破坏性,永不原地改;语种回退归管理面兜底
-- [ ] **F45 举报与处罚申诉** → [support.md](./contract/support.md) v1.1 提案续:reports / penalties / appeal 四端点;**处罚判定与执行全在管理面**,契约只做玩家侧投影 + 申诉入口(网关不执行风控);拟新增 2 错误码(`SUPPORT_PENALTY_NOT_FOUND` / `SUPPORT_APPEAL_EXISTS`);v1 不动 auth 登录语义,拦截联动留 v1.2 提案
-- [ ] 评审通过与批次 47 同批冻结 → errors.md v5(AUTH 两码 + SUPPORT 两码)+ contractgen 六端同步 + 各端 SDK 实现 + e2e(宽限期 / 撤销 / 过滤命中 / 上下文回显 / 申诉闭环)
+- [x] **F76 多语言与本地化** → [announcement.md](./contract/announcement.md) v1.1 提案续:单语分条模型契约化(零破坏,`title`/`body` 类型不动)+ DTO 可选 `language`/`groupKey` + SDK 自动附带 `language` 查询参数(游戏可覆写);多语对象 / 多语并存明示 v2 破坏性,永不原地改;语种回退归管理面兜底(批次 48 已落 Draft;冻结待评审)
+- [x] **F45 举报与处罚申诉** → [support.md](./contract/support.md) v1.1 提案续:reports / penalties / appeal 四端点;**处罚判定与执行全在管理面**,契约只做玩家侧投影 + 申诉入口(网关不执行风控);拟新增 2 错误码(`SUPPORT_PENALTY_NOT_FOUND` / `SUPPORT_APPEAL_EXISTS`);v1 不动 auth 登录语义,拦截联动留 v1.2 提案(批次 48 已落 Draft;冻结待评审)
+- [ ] 评审通过与批次 47 同批冻结 → errors.md v5(AUTH 两码 + SUPPORT 两码)+ contractgen 六端同步 + 各端 SDK 实现 + e2e(宽限期 / 撤销 / 过滤命中 / 上下文回显 / 申诉闭环)(部分:同批的 F44 已随批次 53 冻结落地;F45/F76 冻结仍待评审)
 - **剩余缺口**:F44 附件(需对象存储面设计,Provider 口径)、F36 跑马灯 UI 呈现(实现非契约)、F01 第三方 OAuth(新域契约)、F31/F33 维持
 
 ## 批次 49 — 新域契约草案:第三方身份提供方 OAuth(F01,Draft v0.1,2026-10-11)
@@ -592,8 +592,8 @@
 
 ### 评审门(用户侧,冻结红线不由 agent 判断)
 
-- [ ] 七份 Draft(47 三 + 48 两 + 49 一 + 50 一)同批过读(≥ Unity + 一非 C# 端)→ 冻结升版 + errors.md v5(AUTH 2 + SUPPORT 4 + OAUTH 3)+ contractgen 六端同步 + SDK 实现 + e2e(宽限期 / 撤销 / 过滤命中 / 上下文回显 / 申诉闭环 / exchange 换会话 / 附件直传)
-- **此后契约面无待立项项**:剩余 F36(实现)、F31/F33(预留/部署面)不产生新契约
+- [ ] 七份 Draft(47 三 + 48 两 + 49 一 + 50 一)同批过读(≥ Unity + 一非 C# 端)→ 冻结升版 + errors.md v5(AUTH 2 + SUPPORT 4 + OAUTH 3)+ contractgen 六端同步 + SDK 实现 + e2e(宽限期 / 撤销 / 过滤命中 / 上下文回显 / 申诉闭环 / exchange 换会话 / 附件直传)(部分:五份已随批次 51/52/53 冻结落地——评审门改由用户授权拍板口径替代;F45/F76 仍 Draft 待评审)
+- **此后契约面无待立项项**:F36(实现)已随批次 54 落地;剩余 F31/F33(预留/部署面)不产生新契约
 
 ## 批次 51 — v1.1 提案落地第 1 批:F03 + F35 + F43 冻结到实现(用户授权拍板,2026-10-12)
 
@@ -662,6 +662,25 @@
 
 - [x] `go test ./...`(gateway)+ `go test ./tools/...` + 六端 node/ue/dotnet 测试全绿才 commit(node 131×3 / unity 8+55+11+81 / ue 7 套件 / gateway go vet+test / tools 全绿)
 - [x] `docs/research/implementation-status.md` F44 行状态与证据 commit 随每批同步更新
+
+## 批次 54 — F36 跑马灯 UI 呈现落地(patrol-20261013-A1,2026-10-13)
+
+> 来源:批次 47 起多批「下一步缺口」里最后一条实现项(F36,实现非契约)。零新契约:数据面复用公告契约 `severity` 字段(announcement.md:32)。顺带收口:批次 45 审计清单与批次 47/48 提案勾选状态同步到实际执行结果(F01/F03/F35/F43/F44 落地、F45/F76 Draft 待评审)。
+
+### 决策(agent 拍板)
+
+- [x] **跑马灯内容 = `severity=CRITICAL` 公告**,逐条 `title: body`,多条以 `"  |  "` 连接为单行滚动文本(分隔符取纯 ASCII,零编码歧义);无 CRITICAL **不回调**(游戏侧不闪空跑马灯);仅列表 refresh 触发,详情视图(open)不触发
+- [x] **出口归游戏侧**(包内不绑 UI 框架,同面板既有边界):TS 三端 `onMarqueeRendered` 回调 + `formatMarquee` 纯函数导出;Unity `MarqueeRendered` 事件 + `AnnouncementText.FormatMarquee` 纯 C# 静态件(无 UnityEngine,dotnet 可测,同 BrandingCatalog 口径)
+
+### 落地(分批提交)
+
+- [x] **SDK 四端**(UI 包仅 Unity + TS 三端存在;UE/Godot 无 UI 包,不涉及):TS ×3 `announcementPanel.ts` + `ui.test.ts`( cocos 编辑后同步 miniprogram / laybox)(`8127ba9`)
+- [x] **Unity**:AnnouncementText.cs + AnnouncementPanel 接线 + ServiceTests~ 三测;packcheck 结构守卫补 `AnnouncementText.cs` 符号行与 `MarqueeRendered` 断言(`8127ba9`)
+
+### 门禁
+
+- [x] node 132×3 / unity 84+8+55+11 / ue 7 套件 / gateway go vet+test(-count=1)/ tools 全绿才 commit
+- [x] `docs/research/implementation-status.md` F36 行状态与证据 commit 同步更新
 
 ## 明确不做
 
