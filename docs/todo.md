@@ -553,7 +553,7 @@
 
 - [x] **F76 多语言与本地化** → [announcement.md](./contract/announcement.md) v1.1 提案续:单语分条模型契约化(零破坏,`title`/`body` 类型不动)+ DTO 可选 `language`/`groupKey` + SDK 自动附带 `language` 查询参数(游戏可覆写);多语对象 / 多语并存明示 v2 破坏性,永不原地改;语种回退归管理面兜底(批次 48 已落 Draft;冻结待评审)
 - [x] **F45 举报与处罚申诉** → [support.md](./contract/support.md) v1.1 提案续:reports / penalties / appeal 四端点;**处罚判定与执行全在管理面**,契约只做玩家侧投影 + 申诉入口(网关不执行风控);拟新增 2 错误码(`SUPPORT_PENALTY_NOT_FOUND` / `SUPPORT_APPEAL_EXISTS`);v1 不动 auth 登录语义,拦截联动留 v1.2 提案(批次 48 已落 Draft;冻结待评审)
-- [ ] 评审通过与批次 47 同批冻结 → errors.md v5(AUTH 两码 + SUPPORT 两码)+ contractgen 六端同步 + 各端 SDK 实现 + e2e(宽限期 / 撤销 / 过滤命中 / 上下文回显 / 申诉闭环)(部分:同批的 F44 已随批次 53、F45 已随批次 56、F76 已随批次 57 冻结落地)
+- [x] 评审通过与批次 47 同批冻结 → errors.md v5(AUTH 两码 + SUPPORT 两码)+ contractgen 六端同步 + 各端 SDK 实现 + e2e(宽限期 / 撤销 / 过滤命中 / 上下文回显 / 申诉闭环)(同批的 F44 随批次 53、F45 随批次 56、F76 随批次 57 冻结落地)
 - **剩余缺口**:F44 附件(需对象存储面设计,Provider 口径)、F36 跑马灯 UI 呈现(实现非契约)、F01 第三方 OAuth(新域契约)、F31/F33 维持
 
 ## 批次 49 — 新域契约草案:第三方身份提供方 OAuth(F01,Draft v0.1,2026-10-11)
@@ -592,7 +592,7 @@
 
 ### 评审门(用户侧,冻结红线不由 agent 判断)
 
-- [ ] 七份 Draft(47 三 + 48 两 + 49 一 + 50 一)同批过读(≥ Unity + 一非 C# 端)→ 冻结升版 + errors.md v5(AUTH 2 + SUPPORT 4 + OAUTH 3)+ contractgen 六端同步 + SDK 实现 + e2e(宽限期 / 撤销 / 过滤命中 / 上下文回显 / 申诉闭环 / exchange 换会话 / 附件直传)(七份已全部随批次 51/52/53/56/57 冻结落地——评审门改由用户授权拍板口径替代)
+- [x] 七份 Draft(47 三 + 48 两 + 49 一 + 50 一)同批过读(≥ Unity + 一非 C# 端)→ 冻结升版 + errors.md v5(AUTH 2 + SUPPORT 4 + OAUTH 3)+ contractgen 六端同步 + SDK 实现 + e2e(宽限期 / 撤销 / 过滤命中 / 上下文回显 / 申诉闭环 / exchange 换会话 / 附件直传)(七份已全部随批次 51/52/53/56/57 冻结落地——评审门改由用户授权拍板口径替代)
 - **此后契约面无待立项项**:F36(实现)已随批次 54 落地;剩余 F31/F33(预留/部署面)不产生新契约
 
 ## 批次 51 — v1.1 提案落地第 1 批:F03 + F35 + F43 冻结到实现(用户授权拍板,2026-10-12)
