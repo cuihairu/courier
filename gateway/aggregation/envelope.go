@@ -39,7 +39,10 @@ const (
 
 	CodeOauthProviderUnknown = "OAUTH_PROVIDER_UNKNOWN" // v6,oauth.md v1
 	CodeOauthIdentityInvalid = "OAUTH_IDENTITY_INVALID" // v6,oauth.md v1
-	CodeOauthIdentityTaken   = "OAUTH_IDENTITY_TAKEN"   // v6,oauth.md v1
+	CodeOauthIdentityTaken   = "OAUTH_IDENTITY_TAKEN"
+
+	CodeSupportAttachmentTooLarge = "SUPPORT_ATTACHMENT_TOO_LARGE" // v7,support.md 附件
+	CodeSupportAttachmentLimit    = "SUPPORT_ATTACHMENT_LIMIT"     // v6,oauth.md v1
 
 	CodeRealNameRequired = "REALNAME_REQUIRED"
 	CodeRealNameRejected = "REALNAME_REJECTED"
@@ -94,6 +97,9 @@ var codeTable = map[string]codeSpec{
 	CodeOauthProviderUnknown: {http.StatusBadRequest, false},
 	CodeOauthIdentityInvalid: {http.StatusUnauthorized, false},
 	CodeOauthIdentityTaken:   {http.StatusConflict, false},
+
+	CodeSupportAttachmentTooLarge: {http.StatusRequestEntityTooLarge, false},
+	CodeSupportAttachmentLimit:    {http.StatusConflict, false},
 
 	CodeRealNameRequired: {http.StatusForbidden, false},
 	CodeRealNameRejected: {http.StatusForbidden, false},

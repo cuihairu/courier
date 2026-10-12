@@ -571,7 +571,7 @@
 
 ### v1.1 提案(待评审,随批次 47/48 同批)
 
-- [ ] **F44 工单附件** → [support.md](./contract/support.md) v1.1 提案(续二):申请直传单端点(返回短时效预签名 URL,客户端 PUT **直传存储,网关二进制零流量**);存储挡在 Provider 后(换 S3/OSS/本地 = 换配置,契约不动);拟新增 2 错误码(`SUPPORT_ATTACHMENT_TOO_LARGE` / `SUPPORT_ATTACHMENT_LIMIT`);附件与 `context` 互斥承载(二进制永不进 context);举报证据附件(F45 承诺)留端点组泛化提案
+- [x] **F44 工单附件** → [support.md](./contract/support.md) v1.1 提案(续二)(已随批次 53 冻结):申请直传单端点(返回短时效预签名 URL,客户端 PUT **直传存储,网关二进制零流量**);存储挡在 Provider 后(换 S3/OSS/本地 = 换配置,契约不动);拟新增 2 错误码(`SUPPORT_ATTACHMENT_TOO_LARGE` / `SUPPORT_ATTACHMENT_LIMIT`);附件与 `context` 互斥承载(二进制永不进 context);举报证据附件(F45 承诺)留端点组泛化提案
 
 ### 扩展预留收口(剩余 7 域,加注不动冻结行)
 
@@ -640,6 +640,28 @@
 
 - [x] `go test ./...`(gateway)+ `go test ./tools/...` + 六端 node/ue/dotnet 测试全绿才 commit(node 130×3 / unity 55+8+80+11 / ue 7 套件全绿)
 - [x] `docs/research/implementation-status.md` F01 行状态与证据 commit 随每批同步更新(◑ → ✅,缺口汇总 7 → 6 项)
+
+## 批次 53 — F44 工单附件冻结到实现(用户授权拍板,2026-10-12)
+
+> 授权口径同批次 51/52:agent 拍板决策,需决策处自行决定、后续反馈;四批提交(契约 / 网关 / SDK / e2e),门禁全绿才 commit。红线不变:英文短 commit、无 AI 痕迹、pull --rebase 后 push、禁 force push、禁 tag/release。来源:批次 50 写的 support.md「工单附件提案(F44)」Draft。
+
+### 冻结决策(agent 拍板)
+
+- [x] **support.md 附件节按现稿冻结**(Draft · 批次 50 → Frozen,批次 53):单端点 `POST /v1/support/tickets/{ticketId}/attachments` 申请直传,返回短时效预签名 URL;客户端拿 `uploadUrl` 直传存储,**网关二进制零流量**;errors.md 升 v7(+SUPPORT_ATTACHMENT_TOO_LARGE 413 / SUPPORT_ATTACHMENT_LIMIT 409,均不可重试)
+- [x] **补齐提案未写明、实现必须定死的语义**:① **登记即时,无完成确认回调**——附件行在申请端点内创建,详情 `attachments[]` 立即含该附件;`downloadUrl` 与申请同形(短时效预签名 GET 同一对象 key),对象未直传完成前由**存储**返回 404,网关不参与;存储→Provider 回调仅作存储侧内部校验,不进契约;② 限额默认值:每工单 ≤ 3 附件、单文件 ≤ 10 MiB、允许 `contentType` 缺省 5 项(image/png, image/jpeg, text/plain, application/zip, application/pdf)、预签名 TTL 缺省 10 分钟,均管理面可配;超限 → `SUPPORT_ATTACHMENT_LIMIT` 409 / `SUPPORT_ATTACHMENT_TOO_LARGE` 413;`contentType` 不在 allowlist → 400 `COMMON_INVALID_ARGUMENT`;`fileName` 1–255 字符;③ 归属与状态:工单不存在或不属于当前玩家 → 404 `SUPPORT_TICKET_NOT_FOUND`,已关闭 → 409 `SUPPORT_TICKET_CLOSED`;④ 附件与 `context`(F43)互斥承载,二进制永不进 `context`;⑤ 存储挡在 Provider 后:`Signer` 接口(PresignPut/PresignGet),**默认未配置 = fail-closed 501 `COMMON_CAPABILITY_DISABLED`**(同 oauth 校验器注册表口径,不内置假存储到生产 main.go),e2e/单测注入确定性 fake signer,接入方接 S3 / OSS / 本地静态服务器
+- [x] [index.md](./contract/index.md) 顺修:错误码表现已 v5 的旧注记同步到 v7(批次 52 漏更),auth/support 域注记补 OAUTH 与附件两节
+- [x] **契约同步件随冻结一起落**(与 errors v7 强耦合,拆开会让仓库在中间 commit 红灯):contractgen 六端枚举 + Go codeTable 两码 + envelope_sync_test 版本 tripwire 6→7 + UE contract_test kCount 38→40 与 SUPPORT 抽查 + TS contract.test 版本 6→7 ×3 端(门禁:node 130×3 / unity 55+8+80+11 / ue 7 套件 / gateway go vet+test / tools 全绿)
+
+### 落地四批(分批提交)
+
+- [ ] **网关实现**:croupier 附件端点 + `Signer` 接口与 fail-closed 缺省 + 限额/allowlist/归属/状态校验 + 详情 `attachments[]` 加法 + main.go 接线
+- [ ] **SDK 六端**:申请直传方法 + 详情 DTO `attachments[]`(Unity / Cocos / 小程序 / Laybox / UE / Godot)
+- [ ] **e2e 场景**:申请直传返回 uploadUrl+headers+expiresAt / 详情 attachments[] 回显 / 第 4 个附件 409 / 超限单文件 413 / 关闭工单 409 / 他人工单 404 / contentType 越界 400 / 未配置 signer 501
+
+### 门禁
+
+- [ ] `go test ./...`(gateway)+ `go test ./tools/...` + 六端 node/ue/dotnet 测试全绿才 commit
+- [ ] `docs/research/implementation-status.md` F44 行状态与证据 commit 随每批同步更新
 
 ## 明确不做
 

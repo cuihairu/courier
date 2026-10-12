@@ -1,6 +1,6 @@
 # 客服契约(Support)
 
-> 状态:**Frozen v1.1** · 里程碑 M2(v1 冻结 2026-10-08;v1.1 2026-10-12 追加工单上下文,F43)。
+> 状态:**Frozen v1.1** · 里程碑 M2(v1 冻结 2026-10-08;v1.1 2026-10-12 追加工单上下文 F43 与工单附件 F44,分两批冻结)。
 > 域前缀 `SUPPORT` 已注册([errors.md](./errors.md));本文档是 M2 服务端(默认供应商 **croupier**)与各端 SDK 的一致性依据,冻结后只加不改,破坏性变更升版本(见 [versioning.md](./versioning.md))。
 
 ## 能力与范围
@@ -8,7 +8,7 @@
 - 能力域 `support`(`providers.CapSupport`),路由 `/v1/support/*`;默认供应商 **croupier**,可换可关。
 - 玩家侧:提单、追加消息、查列表/详情、FAQ 检索。**坐席侧**(回复、关单、分派)走 croupier 内部管理面,不经网关——网关只有玩家可读可写自己的工单。
 - 坐席回复的实时可见走 [messages.md](./messages.md) 通道(`support.ticket_replied` 事件);通道关闭时靠拉取详情兜底。
-- 本契约**不覆盖**:坐席工作台、工单分派策略、附件(后续扩展,经 `extras` 或新端点)。
+- 本契约**不覆盖**:坐席工作台、工单分派策略(附件已由下文「工单附件」节覆盖,F44;v1 冻结时明示不覆盖,后按提案冻结为扩展节)。
 
 ## 端点总览(挂载 `/v1/support/*`)
 
@@ -118,7 +118,7 @@ F43 工单上下文附带([features.md](../research/features.md) F43)按 2026-10
 | --- | --- |
 | 新上下文键(任意业务字段) | 游戏自定,开集 map,无需契约变更 |
 | 某键升级为结构化字段(如设备信息) | v1.2 加可选字段,`context` 旧键保留兼容读取,不删不改 |
-| 附件 / 日志上传(F44) | 独立端点提案(下文 Draft);**不用 `context` 传二进制**(本契约已明示附件不覆盖);诊断日志走 diagnostics 自有端点 |
+| 附件 / 日志上传(F44) | 独立端点(下文「工单附件」节,已冻结);**不用 `context` 传二进制**;诊断日志走 diagnostics 自有端点 |
 | 坐席侧筛选 / 聚合上下文 | 管理面能力(croupier),玩家契约不动 |
 
 ---
@@ -127,7 +127,7 @@ F43 工单上下文附带([features.md](../research/features.md) F43)按 2026-10
 
 > 来源:[features.md](../research/features.md) F45。**处罚的判定与执行全在管理面**(croupier / GM / 接入方风控);本契约只是玩家侧只读投影 + 申诉入口——与公告/配置同模式,网关不执行风控。
 
-### 端点(拟新增)
+### 端点
 
 | 端点 | 认证 | 说明 |
 | --- | --- | --- |
@@ -142,7 +142,7 @@ F43 工单上下文附带([features.md](../research/features.md) F43)按 2026-10
 
 **penalty(处罚投影)**:`id`(`pen_`)、`type`(`MUTE` / `SUSPENSION` / `LEADERBOARD_BAN`,开集,客户端容忍未知)、`reason`(面向玩家的人类可读说明,不含内部与坐席信息)、`state`(`ACTIVE` / `EXPIRED` / `LIFTED`)、`issuedAt` / `expiresAt?`、`appeal?`(`{ "state": "PENDING" | "ACCEPTED" | "REJECTED", "submittedAt", "decidedAt?" }`)。
 
-### 语义(拟定义)
+### 语义
 
 - 申诉判定走管理面,结果以拉取为准(`appeal.state`);已有进行中申诉再提交 → 409 `SUPPORT_APPEAL_EXISTS`。
 - 非本人 / 不存在处罚 → 404 `SUPPORT_PENALTY_NOT_FOUND`(不泄露存在性)。
@@ -155,17 +155,17 @@ F43 工单上下文附带([features.md](../research/features.md) F43)按 2026-10
 | --- | --- |
 | 新处罚类型 / 新举报理由 | 管理面扩集合;type 开集客户端容忍未知,reason 集合登记于本节即可 |
 | 处罚拦截登录 | v1.2 可选语义提案(如 `AUTH_ACCOUNT_SUSPENDED` 联动);v1 不动 auth |
-| 举报证据附件 | 与 F44 附件共用独立端点提案,不塞 report |
+| 举报证据附件 | 与 F44 附件共用独立端点(`targetType` 维度泛化留 F45 冻结后提案),不塞 report |
 | 跨游戏 / 公司级处罚 | penalty 增可选 `gameId?`(缺省 = 签发 scope)走加字段扩展,v1 仅当前 scope |
 | 举报流转进度 | 不向举报人反馈(防骚扰),管理面内部流转;产品若需要可另提匿名化进度端点提案 |
 
 ---
 
-## 工单附件提案(F44,Draft,未冻结 · 2026-10-11)
+## 工单附件(F44,Frozen · 批次 53,2026-10-12)
 
-> 来源:[features.md](../research/features.md) F44 反馈+日志上传。v1 第 11 行明示附件不覆盖、留新端点扩展,本节兑现。**网关不落盘二进制**:契约只定义「申请直传」的形状,存储本体挡在 Provider 后面(同公告/配置的投影模式)——换 S3 / OSS / 本地签名 URL,契约不动。未评审冻结前不得实现。
+> 来源:[features.md](../research/features.md) F44 反馈+日志上传。v1 明示附件不覆盖、留新端点扩展,本节兑现。**网关不落盘二进制**:契约只定义「申请直传」的形状,存储本体挡在 Provider 后面(同公告/配置的投影模式)——换 S3 / OSS / 本地签名 URL,契约不动。**状态:Frozen**(2026-10-12,批次 53 冻结;原 Draft 提案 2026-10-11 批次 50,按原文冻结不改语义)。
 
-### 端点(拟新增)
+### 端点
 
 | 端点 | 认证 | 说明 |
 | --- | --- | --- |
@@ -173,7 +173,7 @@ F43 工单上下文附带([features.md](../research/features.md) F43)按 2026-10
 
 - 单端点设计:客户端拿 `uploadUrl` **直传存储**(HTTP `PUT`,不经网关),完成确认走存储→Provider 回调,玩家侧以工单详情为准——网关二进制零流量,天然免疫大文件打爆网关。
 
-### 请求与响应(拟定义)
+### 请求与响应
 
 请求体 `{ "fileName", "contentType", "sizeBytes", "kind"? }`:
 
@@ -186,11 +186,11 @@ F43 工单上下文附带([features.md](../research/features.md) F43)按 2026-10
 
 响应 `data`:`{ "attachmentId": "att_…", "uploadUrl", "method": "PUT", "headers": {…}, "expiresAt" }`——`uploadUrl` 为短时效预签名 URL(缺省 10 分钟,管理面可配),过期重新申请即可,**无恢复语义**。
 
-### 语义(拟定义)
+### 语义
 
 - 工单须归属当前玩家(否则 404 `SUPPORT_TICKET_NOT_FOUND`)且未关闭(409 `SUPPORT_TICKET_CLOSED`);每工单 ≤ 3 个附件,超限 → 409 `SUPPORT_ATTACHMENT_LIMIT`。
-- 工单详情(已冻结 `GET /tickets/{id}`)拟追加 `attachments[]`:`{ id, fileName, contentType, sizeBytes, kind?, createdAt, downloadUrl? }`——`downloadUrl` 同为短时效预签名,玩家只见自己的;坐席侧走 croupier 管理面。
-- **拟新增 2 个错误码**:`SUPPORT_ATTACHMENT_TOO_LARGE`(413,retryable=false)、`SUPPORT_ATTACHMENT_LIMIT`(409,retryable=false)。
+- 工单详情(已冻结 `GET /tickets/{id}`)追加 `attachments[]`(加法扩展,旧客户端容忍未知字段):`{ id, fileName, contentType, sizeBytes, kind?, createdAt, downloadUrl? }`——`downloadUrl` 同为短时效预签名,玩家只见自己的;坐席侧走 croupier 管理面。
+- **新增 2 个错误码**(errors.md v7):`SUPPORT_ATTACHMENT_TOO_LARGE`(413,retryable=false)、`SUPPORT_ATTACHMENT_LIMIT`(409,retryable=false)。
 - 红线:服务端与 SDK **零内容解释**(不扫描语义、不改写);病毒扫描/内容审核归管理面;附件与 `context`(F43 提案)互斥承载——二进制永不进 `context`。
 
 ### 扩展与演进

@@ -44,6 +44,8 @@ namespace Courier.Contract
         OauthProviderUnknown = 35,
         OauthIdentityInvalid = 36,
         OauthIdentityTaken = 37,
+        SupportAttachmentTooLarge = 38,
+        SupportAttachmentLimit = 39,
     }
 
     /// <summary>错误码 → wire / HTTP / retryable 冻结映射(下标与枚举值对齐)。</summary>
@@ -97,6 +99,8 @@ namespace Courier.Contract
             new Spec("OAUTH_PROVIDER_UNKNOWN", 400, false),
             new Spec("OAUTH_IDENTITY_INVALID", 401, false),
             new Spec("OAUTH_IDENTITY_TAKEN", 409, false),
+            new Spec("SUPPORT_ATTACHMENT_TOO_LARGE", 413, false),
+            new Spec("SUPPORT_ATTACHMENT_LIMIT", 409, false),
         };
 
         /// <summary>域前缀注册表(新域先注册前缀再定义码)。</summary>

@@ -40,6 +40,8 @@ export const ErrorCode = {
   OauthProviderUnknown: "OAUTH_PROVIDER_UNKNOWN",
   OauthIdentityInvalid: "OAUTH_IDENTITY_INVALID",
   OauthIdentityTaken: "OAUTH_IDENTITY_TAKEN",
+  SupportAttachmentTooLarge: "SUPPORT_ATTACHMENT_TOO_LARGE",
+  SupportAttachmentLimit: "SUPPORT_ATTACHMENT_LIMIT",
 } as const;
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
 
@@ -89,6 +91,8 @@ export const ErrorSpecs: Readonly<Record<ErrorCode, ErrorSpec>> = {
   OauthProviderUnknown: { wire: "OAUTH_PROVIDER_UNKNOWN", http: 400, retryable: false },
   OauthIdentityInvalid: { wire: "OAUTH_IDENTITY_INVALID", http: 401, retryable: false },
   OauthIdentityTaken: { wire: "OAUTH_IDENTITY_TAKEN", http: 409, retryable: false },
+  SupportAttachmentTooLarge: { wire: "SUPPORT_ATTACHMENT_TOO_LARGE", http: 413, retryable: false },
+  SupportAttachmentLimit: { wire: "SUPPORT_ATTACHMENT_LIMIT", http: 409, retryable: false },
 };
 
 /** wire code → 枚举;未知返回 undefined(调用方落兜底分支)。 */

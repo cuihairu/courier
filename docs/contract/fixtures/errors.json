@@ -1,5 +1,5 @@
 {
-  "version": 6,
+  "version": 7,
   "source": "docs/contract/errors.md 错误码表 v1(基元冻结集)",
   "prefixes": [
     "COMMON",
@@ -205,6 +205,16 @@
     },
     {
       "code": "OAUTH_IDENTITY_TAKEN",
+      "http": 409,
+      "retryable": false
+    },
+    {
+      "code": "SUPPORT_ATTACHMENT_TOO_LARGE",
+      "http": 413,
+      "retryable": false
+    },
+    {
+      "code": "SUPPORT_ATTACHMENT_LIMIT",
       "http": 409,
       "retryable": false
     }

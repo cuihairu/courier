@@ -24,8 +24,8 @@ static int gFailed = 0;
 int main() {
     using namespace courier;
 
-    // 冻结码数量(docs/contract/fixtures/errors.json v6 = 38)。
-    CHECK(static_cast<int>(ErrorCode::kCount) == 38, "kCount == 38");
+    // 冻结码数量(docs/contract/fixtures/errors.json v7 = 40)。
+    CHECK(static_cast<int>(ErrorCode::kCount) == 40, "kCount == 40");
 
     // 抽查冻结映射(wire / HTTP / retryable)。
     CHECK(std::strcmp(error_spec(ErrorCode::CommonInternal).wire, "COMMON_INTERNAL") == 0,
@@ -56,6 +56,12 @@ int main() {
     CHECK(error_spec(ErrorCode::OauthIdentityTaken).http == 409 &&
               !error_spec(ErrorCode::OauthIdentityTaken).retryable,
           "OAUTH_IDENTITY_TAKEN 409");
+    CHECK(error_spec(ErrorCode::SupportAttachmentTooLarge).http == 413 &&
+              !error_spec(ErrorCode::SupportAttachmentTooLarge).retryable,
+          "SUPPORT_ATTACHMENT_TOO_LARGE 413");
+    CHECK(error_spec(ErrorCode::SupportAttachmentLimit).http == 409 &&
+              !error_spec(ErrorCode::SupportAttachmentLimit).retryable,
+          "SUPPORT_ATTACHMENT_LIMIT 409");
     CHECK(error_spec(ErrorCode::AppVersionUnsupported).http == 426,
           "APP_VERSION_UNSUPPORTED 426");
     CHECK(error_spec(ErrorCode::RealnameCurfewBlocked).http == 403 &&

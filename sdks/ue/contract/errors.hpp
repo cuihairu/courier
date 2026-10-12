@@ -48,6 +48,8 @@ enum class ErrorCode {
     OauthProviderUnknown = 35,
     OauthIdentityInvalid = 36,
     OauthIdentityTaken = 37,
+    SupportAttachmentTooLarge = 38,
+    SupportAttachmentLimit = 39,
     kCount  // 哨兵,非契约码
 };
 
@@ -98,6 +100,8 @@ inline const ErrorSpec& error_spec(ErrorCode code) {
         {"OAUTH_PROVIDER_UNKNOWN", 400, false},
         {"OAUTH_IDENTITY_INVALID", 401, false},
         {"OAUTH_IDENTITY_TAKEN", 409, false},
+        {"SUPPORT_ATTACHMENT_TOO_LARGE", 413, false},
+        {"SUPPORT_ATTACHMENT_LIMIT", 409, false},
     };
     return kSpecs[static_cast<std::size_t>(code)];
 }

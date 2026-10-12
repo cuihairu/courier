@@ -1,6 +1,6 @@
 # 错误契约
 
-> 状态:Frozen v1(2026-10-08,M0 跨端评审冻结;错误码表 **v6**——v2 追加 M2 域码,v3 追加 REALNAME 时段/额度码,v4 追加 M5 PAYMENT 域码,v5 追加 AUTH 注销码,v6 追加 OAUTH 域码,2026-10-12)。跨 Unity / UE / Cocos / Godot 的错误一致性是 Universal SDK 的核心价值:同一 `code` 在各端映射为同一枚举、同一重试语义。
+> 状态:Frozen v1(2026-10-08,M0 跨端评审冻结;错误码表 **v7**——v2 追加 M2 域码,v3 追加 REALNAME 时段/额度码,v4 追加 M5 PAYMENT 域码,v5 追加 AUTH 注销码,v6 追加 OAUTH 域码,v7 追加 SUPPORT 附件码,2026-10-12)。跨 Unity / UE / Cocos / Godot 的错误一致性是 Universal SDK 的核心价值:同一 `code` 在各端映射为同一枚举、同一重试语义。
 
 ## 错误体
 
@@ -82,6 +82,8 @@
 | OAUTH_PROVIDER_UNKNOWN | 400 | false | 提供方未注册或未开启(oauth.md v1 冻结新增) |
 | OAUTH_IDENTITY_INVALID | 401 | false | 第三方凭证验证失败/过期/伪造;不区分无效与过期,防枚举(oauth.md v1 冻结新增) |
 | OAUTH_IDENTITY_TAKEN | 409 | false | 该第三方身份已绑定其他账号(oauth.md v1 冻结新增) |
+| SUPPORT_ATTACHMENT_TOO_LARGE | 413 | false | 附件超单文件上限(缺省 10 MiB;support.md v1.1 冻结新增) |
+| SUPPORT_ATTACHMENT_LIMIT | 409 | false | 工单附件数达上限(缺省 3;support.md v1.1 冻结新增) |
 
 各域业务错误码随该域契约冻结;本表 code 一经冻结不得改语义。
 

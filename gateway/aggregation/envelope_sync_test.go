@@ -9,7 +9,7 @@ import (
 
 // TestCodeTableMatchesContractFixture 契约测试骨架(服务端参考实现侧):
 // 网关 codeTable 与冻结错误码表 fixture 双向对齐,新增/漂移即失败。
-// fixture 源:docs/contract/errors.md 错误码表 v6(经 tools/contractgen 与各端枚举同步)。
+// fixture 源:docs/contract/errors.md 错误码表 v7(经 tools/contractgen 与各端枚举同步)。
 func TestCodeTableMatchesContractFixture(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join("..", "..", "docs", "contract", "fixtures", "errors.json"))
 	if err != nil {
@@ -26,8 +26,8 @@ func TestCodeTableMatchesContractFixture(t *testing.T) {
 	if err := json.Unmarshal(raw, &f); err != nil {
 		t.Fatalf("解析 errors.json: %v", err)
 	}
-	if f.Version != 6 {
-		t.Fatalf("fixture version = %d,期望 6(升版需走契约变更流程)", f.Version)
+	if f.Version != 7 {
+		t.Fatalf("fixture version = %d,期望 7(升版需走契约变更流程)", f.Version)
 	}
 
 	for _, row := range f.Codes {
