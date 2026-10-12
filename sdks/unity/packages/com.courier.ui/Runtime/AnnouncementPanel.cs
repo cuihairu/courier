@@ -26,6 +26,9 @@ namespace Courier.UI
         /// <summary>渲染出口:游戏侧订阅后把文本投到目标控件。</summary>
         public event Action<string> ListRendered;
 
+        /// <summary>跑马灯出口(F36):refresh 命中 CRITICAL 公告时回调单行滚动文本。</summary>
+        public event Action<string> MarqueeRendered;
+
         /// <summary>打点出口:点开详情时回调公告 id(埋点归游戏)。</summary>
         public event Action<string> AnnouncementOpened;
 
@@ -53,6 +56,11 @@ namespace Courier.UI
             }
             var page = await Services.Announcements.ListAsync(PageSize, null, ct);
             ListRendered?.Invoke(Format(page.Items));
+            var marquee = AnnouncementText.FormatMarquee(page.Items);
+            if (marquee != null)
+            {
+                MarqueeRendered?.Invoke(marquee);
+            }
         }
 
         /// <summary>查看详情:渲染单条全文并回调 id。</summary>

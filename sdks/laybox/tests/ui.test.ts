@@ -117,6 +117,50 @@ test("公告面板:refresh 渲染列表文本;空列表兜底文案;open 渲染�
   assert.equal(rendered[2], "公告\n(暂无公告)");
 });
 
+test("公告面板:跑马灯出口(F36)——CRITICAL 命中回调;纯 INFO 不回调;详情视图不触发", async () => {
+  resetBranding();
+  const transport = new FakeTransport();
+  const svc = await newServices(transport);
+  const panel = new AnnouncementPanel(svc);
+  const marquees: string[] = [];
+  panel.onMarqueeRendered = (text) => marquees.push(text);
+
+  transport.enqueue(200, JSON.stringify({ data: { items: [
+    { id: "ann_1", title: "维护公告", body: "今晚维护", severity: "INFO",
+      startAt: "t", endAt: "t", publishedAt: "t" },
+    { id: "ann_2", title: "限时活动", body: "双倍经验开启", severity: "CRITICAL",
+      startAt: "t", endAt: "t", publishedAt: "t" },
+  ], nextCursor: "" } }));
+  await panel.refreshAsync();
+  assert.deepEqual(marquees, ["限时活动: 双倍经验开启"]); // 仅 CRITICAL 进跑马灯
+
+  transport.enqueue(200, JSON.stringify({ data: { items: [
+    { id: "ann_3", title: "日常公告", body: "版本说明", severity: "INFO",
+      startAt: "t", endAt: "t", publishedAt: "t" },
+  ], nextCursor: "" } }));
+  await panel.refreshAsync();
+  assert.deepEqual(marquees, ["限时活动: 双倍经验开启"]); // 无 CRITICAL:不回调,不闪空跑马灯
+
+  // 多条 CRITICAL 以 "  |  " 连接为单行滚动文本
+  transport.enqueue(200, JSON.stringify({ data: { items: [
+    { id: "ann_4", title: "紧急维护", body: "02:00 停服", severity: "CRITICAL",
+      startAt: "t", endAt: "t", publishedAt: "t" },
+    { id: "ann_5", title: "补偿发放", body: "维护后 48h", severity: "CRITICAL",
+      startAt: "t", endAt: "t", publishedAt: "t" },
+  ], nextCursor: "" } }));
+  await panel.refreshAsync();
+  assert.deepEqual(marquees,
+    ["限时活动: 双倍经验开启", "紧急维护: 02:00 停服  |  补偿发放: 维护后 48h"]);
+
+  // 详情视图(openAsync)不触发跑马灯
+  transport.enqueue(200, JSON.stringify({ data: {
+    id: "ann_2", title: "限时活动", body: "双倍经验开启", severity: "CRITICAL",
+    startAt: "t", endAt: "t", publishedAt: "t",
+  } }));
+  await panel.openAsync("ann_2");
+  assert.equal(marquees.length, 2);
+});
+
 test("公告面板:品牌兜底链(远端 productName → 宿主 brandTitle);typed 404 出错误口;未装配静默", async () => {
   resetBranding();
   const transport = new FakeTransport();

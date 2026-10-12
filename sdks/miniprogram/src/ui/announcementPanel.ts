@@ -9,9 +9,23 @@ import { getProductTitle, tryGetString } from "./brandingCatalog.ts";
 /** 面板默认标(远端 productName 可覆盖)。 */
 export const AnnouncementPanelDefaultTitle = "公告";
 
+/** 跑马灯文本(F36,零新契约):severity=CRITICAL 公告逐条 `title: body`,
+ *  以 "  |  " 连接为单行滚动文本;无 CRITICAL 返回 null(调用方不闪空跑马灯)。 */
+export function formatMarquee(items: readonly AnnouncementDto[]): string | null {
+  const rows: string[] = [];
+  for (const item of items) {
+    if (item.severity === "CRITICAL") {
+      rows.push(item.title + ": " + item.body);
+    }
+  }
+  return rows.length > 0 ? rows.join("  |  ") : null;
+}
+
 export class AnnouncementPanel {
   /** 渲染出口:游戏侧设置后把文本投到目标控件。 */
   onListRendered: ((text: string) => void) | null = null;
+  /** 跑马灯出口(F36):refresh 命中 CRITICAL 公告时回调滚动文本。 */
+  onMarqueeRendered: ((text: string) => void) | null = null;
   /** 打点出口:点开详情时回调公告 id(埋点归游戏)。 */
   onAnnouncementOpened: ((id: string) => void) | null = null;
   /** 错误出口:typed wire code 交游戏侧提示。 */
@@ -39,6 +53,10 @@ export class AnnouncementPanel {
     try {
       const page = await this.services.announcements.listAsync(this.pageSize);
       this.onListRendered?.(this.format(page.items));
+      const marquee = formatMarquee(page.items);
+      if (marquee != null) {
+        this.onMarqueeRendered?.(marquee);
+      }
     } catch (e) {
       this.onError?.(wireOf(e));
     }

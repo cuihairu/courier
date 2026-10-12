@@ -180,10 +180,11 @@ func TestServiceUiRuntime(t *testing.T) {
 
 	// ui 包三面板在位:MonoBehaviour 骨架 + 服务门面消费 + Branding 默认标。
 	uiFiles := map[string][]string{
-		"AnnouncementPanel.cs":    {"class AnnouncementPanel : MonoBehaviour", "CourierServices", "DefaultTitle", "BrandingCatalog", "ResolveTitle"},
+		"AnnouncementPanel.cs":    {"class AnnouncementPanel : MonoBehaviour", "CourierServices", "DefaultTitle", "BrandingCatalog", "ResolveTitle", "MarqueeRendered"},
 		"CustomerServicePanel.cs": {"class CustomerServicePanel : MonoBehaviour", "CourierServices", "NotifyTicketReplied", "BrandingCatalog", "ResolveTitle"},
 		"AssistantPanel.cs":       {"class AssistantPanel : MonoBehaviour", "CourierServices", "AskAsync", "TransferToHumanAsync", "CreateTicketRequest", "BrandingCatalog", "ResolveTitle"},
 		"BrandingCatalog.cs":      {"class BrandingCatalog", "Apply", "DefaultCompanyName", "GetPrimaryColor"},
+		"AnnouncementText.cs":     {"class AnnouncementText", "FormatMarquee", "CRITICAL"},
 	}
 	uiRuntime := unityPkgDir + "/com.courier.ui/Runtime"
 	for file, symbols := range uiFiles {
