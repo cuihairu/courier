@@ -2,6 +2,27 @@
 
 > 目标端。UPM 包结构,四包分离:Core / Service / UI(可选)/ Diagnostics(可选)。
 
+## 快速开始
+
+纯逻辑层零引擎依赖,dotnet 直跑实测(2026-10-13;完整说明见 `examples/README.md`):
+
+```sh
+cd gateway && go build -o /tmp/courier-gateway ./cmd/gateway && /tmp/courier-gateway  # 起本地网关(默认 :8080)
+dotnet run --project examples/unity -- http://127.0.0.1:18099                          # 另开终端
+```
+
+输出:
+
+```text
+login: type=GUEST id=acc_...
+announcements: 0
+ticket: id=tkt_... status=OPEN
+detail: messages=1
+example: done
+```
+
+`announcements: 0` 属正常(本地网关无发布数据)。进引擎只换两件:传输换 `UnityWebRequest`(实现 `ITransport`)、存储换平台安全存储(实现 `ITokenStore`,红线:禁明文 PlayerPrefs),其余代码原样。
+
 ## 结构
 
 ```text

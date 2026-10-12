@@ -2,6 +2,28 @@
 
 > 状态：M1 core + 服务域（M2–M5 契约面）+ 平台适配面已落位（生命周期状态机 + Transport/TokenStore 抽象 + ApiClient + Identity/Session + CourierClient 门面 + SSE 解析器 + 九域服务 + CourierServices 门面 + HTTPClient 真传输 + user:// 持久令牌存储 + messages SSE 流式传输，Godot 4.3 headless 八套测试全绿）；TLS 路径与真机验证随部署面，UI 待引擎集成面。
 
+## 快速开始
+
+headless 直跑实测(2026-10-13;完整说明见 `examples/README.md`):
+
+```sh
+cd gateway && go build -o /tmp/courier-gateway ./cmd/gateway && /tmp/courier-gateway  # 起本地网关(默认 :8080)
+COURIER_ENDPOINT=http://127.0.0.1:18099 godot --headless --path sdks/godot \
+    --script <仓库绝对路径>/examples/godot/example.gd                                  # 另开终端;--script 相对路径按 res:// 解析,故用绝对路径
+```
+
+输出:
+
+```text
+login: type=GUEST id=acc_...
+announcements: 0
+ticket: id=tkt_... status=OPEN
+detail: messages=1
+example: done
+```
+
+`announcements: 0` 属正常(本地网关无发布数据)。传输用平台件 `CourierHTTPTransport`(Godot HTTPClient,与游戏内同一份代码);存储正式接入换 `FileTokenStore`(user:// 持久化)。
+
 ## 目标平台
 
 - Godot Engine 4.3 (GDScript)

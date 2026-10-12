@@ -2,6 +2,27 @@
 
 > 状态:core + service 全域落地(2026-10,对齐 cocos/miniprogram 口径)。TypeScript,零外部依赖,erasure 语法(node ≥ 23.6 原生跑)。
 
+## 快速开始
+
+零依赖直跑(2026-10-13 实测;完整说明见 `examples/README.md`):
+
+```sh
+cd gateway && go build -o /tmp/courier-gateway ./cmd/gateway && /tmp/courier-gateway  # 起本地网关(默认 :8080)
+COURIER_ENDPOINT=http://127.0.0.1:18099 node examples/laybox/example.ts               # 另开终端,网关 :18099 时
+```
+
+输出:
+
+```text
+login: type=GUEST id=acc_...
+announcements: 0
+ticket: id=tkt_... status=OPEN
+detail: messages=1
+example: done
+```
+
+`announcements: 0` 属正常(本地网关无发布数据)。工程内接入:Transport 换 `src/platform/laya/transport.ts` 的 `createLayaboxTransport(factory)`,其余原样。
+
 ## 目标平台
 
 - Layabox (TypeScript/JavaScript)

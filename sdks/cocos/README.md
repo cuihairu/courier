@@ -2,6 +2,27 @@
 
 > 与 Unity 端同构:core(传输/会话/身份)+ service(域客户端门面);冻结契约(`docs/contract/`)唯一事实源。零运行时依赖,Node 原生 TS(erasable 语法,相对导入带 `.ts`)。
 
+## 快速开始
+
+零依赖直跑(2026-10-13 实测;完整说明见 `examples/README.md`):
+
+```sh
+cd gateway && go build -o /tmp/courier-gateway ./cmd/gateway && /tmp/courier-gateway  # 起本地网关(默认 :8080)
+COURIER_ENDPOINT=http://127.0.0.1:18099 node examples/cocos/example.ts                # 另开终端,网关 :18099 时
+```
+
+输出:
+
+```text
+login: type=GUEST id=acc_...
+announcements: 0
+ticket: id=tkt_... status=OPEN
+detail: messages=1
+example: done
+```
+
+`announcements: 0` 属正常(本地网关无发布数据)。工程内接入:import 路径换成包导入,Transport 默认 fetch 即用。
+
 ## 结构(已落地)
 
 ```text

@@ -2,6 +2,29 @@
 
 > M2 跟进端(Unity 稳定后对齐)。纯 ISO C++17 header-only,零外部依赖。
 
+## 快速开始
+
+纯逻辑层 g++ 直跑实测(2026-10-13;完整说明见 `examples/README.md`):
+
+```sh
+cd gateway && go build -o /tmp/courier-gateway ./cmd/gateway && /tmp/courier-gateway   # 起本地网关(默认 :8080)
+g++ -std=c++17 -Wall -Wextra examples/ue/example.cpp \
+    -Isdks/ue/service -Isdks/ue/core -Isdks/ue/contract -o /tmp/ue_example             # 另开终端
+/tmp/ue_example http://127.0.0.1:18099
+```
+
+输出:
+
+```text
+login: type=GUEST id=acc_...
+announcements: 0
+ticket: id=tkt_... status=OPEN
+detail: messages=1
+example: done
+```
+
+`announcements: 0` 属正常(本地网关无发布数据)。进引擎只换一件:`Transport` 换 UE Http 模块异步适配(结果桥回游戏线程),其余代码原样;域服务直接以 `ApiClient*` 构造。
+
 ## 结构
 
 ```text
