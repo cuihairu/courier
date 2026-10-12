@@ -755,6 +755,16 @@
 
 - [x] 指南内符号与缺省行为逐条对照源码核验(registry.go / capability.go / config.go / main.go / croupier,teller Options / hooks / switchable.go / routing.go);文档间链接全部实存
 
+## 批次 59 — F31/F33 触发条件复核 + 口径一致性只读审计(2026-10-13)
+
+> 来源:巡检推进单(PD1013CRER)。两项门控项不越权启动,本轮只做触发条件复核与文档↔代码一致性核对(批次 22 审计口径:逐条对照仓库证据)。零契约/零实现改动。
+
+- [x] **F31 触发条件复核:未变,维持未立项**——`features.md:105` 分类「必备(**海外**)」、`features.md:253`「主战场优先级在国内合规;按出海需求评估」;`realname.md:100` v1.1 预留 consent 组口径未动;warden 代码 consent/家长同意零命中(grep 实证,预留=未实现);competitive.md 对标口径 2026-10-13 复核未变(批次 55)
+- [x] **F33 触发条件复核:未变,维持随部署面**——部署面凭据未到位;口径与代码逐条一致:`layers.md:121`(审计依赖 trace 贯穿,落库随部署面)/ `layers.md:138`(中间件冻结顺序 trace→结构化错误→限流→scope = chain.go:3)/ `architecture.md:225`(写操作可审计)均与实现相符;**TraceID 消费覆盖 9/9 默认 Provider**(grep `middleware.TraceID` 实证);失败信封必带 traceId、成功信封不带(envelope.go:3/134-148,契约口径如此);无 audit 中间件(批次 22 修正未回退)
+- [x] **依赖欠账**:Dependabot 告警 15 条**全部 state=fixed**(root lockfile 的 VitePress 依赖历史告警:vite/mermaid/dompurify/katex/esbuild 等),**open = 0**
+- [x] **CI**:批次 57/58 推送全绿(`96b3d15` 七 job success 含 examples 六端 e2e);`ad91846`(docs-only)queued 中(runner 排队,先前 `38290127729` 同因排队后全绿)
+- [x] **门禁补验**:批次 58 `config.mjs` 侧栏改动经 `vitepress build` 实跑通过(18.3s 零错误;dist 已 gitignore 不入库)
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。
