@@ -33,7 +33,7 @@ type confClock struct {
 	t  time.Time
 }
 
-func newConfClock() *confClock          { return &confClock{t: time.Now()} }
+func newConfClock() *confClock { return &confClock{t: time.Now()} }
 func (c *confClock) Now() time.Time {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -225,8 +225,8 @@ func runIdentityContract(t *testing.T, h *confHarness) {
 
 	t.Run("注册校验:400 COMMON_INVALID_ARGUMENT", func(t *testing.T) {
 		cases := map[string]string{
-			"email 非法": confRegisterBody("not-an-email", "password8", ""),
-			"密码过短":     confRegisterBody("x@b.co", "short", ""),
+			"email 非法":    confRegisterBody("not-an-email", "password8", ""),
+			"密码过短":        confRegisterBody("x@b.co", "short", ""),
 			"deviceId 过长": confRegisterBody("x@b.co", "password8", string(bytes.Repeat([]byte("d"), 129))),
 		}
 		for name, body := range cases {
@@ -469,6 +469,106 @@ func runIdentityContract(t *testing.T, h *confHarness) {
 			t.Fatalf("伪造 token 应 401, got %d", bad.status)
 		}
 	})
+
+	// v1.1 注销三景(auth.md POST /account/delete + /account/delete/cancel;
+	// 装配 DeleteGrace 24h):受理吊销 / 撤销恢复 / 惰性终态化,两实现同断言。
+	t.Run("v1.1 注销:受理即吊销全部会话 + 宽限期拒登", func(t *testing.T) {
+		h.do(t, http.MethodPost, "/v1/identity/register", confRegisterBody("delc@b.co", "password8", ""), "", "")
+		s1 := h.confLogin(t, "delc@b.co", "password8", "dev-1")
+		s2 := h.confLogin(t, "delc@b.co", "password8", "dev-2")
+
+		r := h.do(t, http.MethodPost, "/v1/identity/account/delete", "", confStr(t, s1, "accessToken"), "")
+		if r.status != http.StatusOK {
+			t.Fatalf("delete status = %d code=%s", r.status, r.code)
+		}
+		var d struct {
+			Status        string `json:"status"`
+			CancelToken   string `json:"cancelToken"`
+			PendingDelete bool   `json:"pendingDelete"`
+			DeletedAt     any    `json:"deletedAt"`
+		}
+		if err := json.Unmarshal(r.data, &d); err != nil {
+			t.Fatalf("解析 delete data: %v (raw=%s)", err, r.data)
+		}
+		if d.Status != "PENDING_DELETE" || !d.PendingDelete || d.CancelToken == "" || d.DeletedAt != nil {
+			t.Fatalf("delete data = %+v", d)
+		}
+
+		for name, tok := range map[string]string{"dev-1": confStr(t, s1, "accessToken"), "dev-2": confStr(t, s2, "accessToken")} {
+			if rr := h.do(t, http.MethodGet, "/v1/identity/session", "", tok, ""); rr.status != http.StatusUnauthorized || rr.code != "AUTH_TOKEN_REVOKED" {
+				t.Fatalf("%s 旧会话应已吊销: status=%d code=%s", name, rr.status, rr.code)
+			}
+		}
+		if rr := h.do(t, http.MethodPost, "/v1/identity/login", confRegisterBody("delc@b.co", "password8", ""), "", ""); rr.status != http.StatusForbidden || rr.code != "AUTH_ACCOUNT_PENDING_DELETE" {
+			t.Fatalf("宽限期拒登: status=%d code=%s", rr.status, rr.code)
+		}
+	})
+
+	t.Run("v1.1 注销:一次性 token 撤销恢复 + 重复受理重签", func(t *testing.T) {
+		h.do(t, http.MethodPost, "/v1/identity/register", confRegisterBody("delr@b.co", "password8", ""), "", "")
+		s := h.confLogin(t, "delr@b.co", "password8", "dev-1")
+		tokA := confStr(t, h.do(t, http.MethodPost, "/v1/identity/account/delete", "", confStr(t, s, "accessToken"), "").sessionData(t), "cancelToken")
+
+		if r := h.do(t, http.MethodPost, "/v1/identity/account/delete/cancel", `{"cancelToken":"junk"}`, "", ""); r.status != http.StatusUnauthorized || r.code != "AUTH_DELETE_TOKEN_INVALID" {
+			t.Fatalf("错 token: status=%d code=%s", r.status, r.code)
+		}
+		if r := h.do(t, http.MethodPost, "/v1/identity/account/delete/cancel", `{"cancelToken":"`+tokA+`"}`, "", ""); r.status != http.StatusOK {
+			t.Fatalf("撤销: status=%d code=%s", r.status, r.code)
+		}
+		if r := h.do(t, http.MethodPost, "/v1/identity/account/delete/cancel", `{"cancelToken":"`+tokA+`"}`, "", ""); r.status != http.StatusUnauthorized || r.code != "AUTH_DELETE_TOKEN_INVALID" {
+			t.Fatalf("重放: status=%d code=%s, 期望一次性", r.status, r.code)
+		}
+		if r := h.do(t, http.MethodGet, "/v1/identity/session", "", confStr(t, s, "accessToken"), ""); r.status != http.StatusUnauthorized {
+			t.Fatalf("已吊销会话不随撤销恢复: status=%d", r.status)
+		}
+		s3 := h.confLogin(t, "delr@b.co", "password8", "dev-1") // 撤销后可重登
+
+		tokB := confStr(t, h.do(t, http.MethodPost, "/v1/identity/account/delete", "", confStr(t, s3, "accessToken"), "").sessionData(t), "cancelToken")
+		if tokB == tokA {
+			t.Fatal("重复受理应重签 token")
+		}
+		if r := h.do(t, http.MethodPost, "/v1/identity/account/delete/cancel", `{"cancelToken":"`+tokA+`"}`, "", ""); r.status != http.StatusUnauthorized || r.code != "AUTH_DELETE_TOKEN_INVALID" {
+			t.Fatalf("旧 token 应作废: status=%d code=%s", r.status, r.code)
+		}
+	})
+
+	t.Run("v1.1 注销:游客恒立即删,同设备再进 = 新游客", func(t *testing.T) {
+		g := h.do(t, http.MethodPost, "/v1/identity/guest", `{"deviceId":"g-del"}`, "", "").sessionData(t)
+		r := h.do(t, http.MethodPost, "/v1/identity/account/delete", "", confStr(t, g, "accessToken"), "")
+		if r.status != http.StatusOK {
+			t.Fatalf("delete status = %d code=%s", r.status, r.code)
+		}
+		var d struct {
+			Status      string `json:"status"`
+			CancelToken string `json:"cancelToken"`
+			DeletedAt   string `json:"deletedAt"`
+		}
+		if err := json.Unmarshal(r.data, &d); err != nil {
+			t.Fatalf("解析 delete data: %v", err)
+		}
+		if d.Status != "DELETED" || d.DeletedAt == "" || d.CancelToken != "" {
+			t.Fatalf("立即删 data = %+v", d)
+		}
+		g2 := h.do(t, http.MethodPost, "/v1/identity/guest", `{"deviceId":"g-del"}`, "", "").sessionData(t)
+		if g2["account"].(map[string]any)["id"] == g["account"].(map[string]any)["id"] {
+			t.Fatal("同设备再进应得到新游客账号")
+		}
+	})
+
+	t.Run("v1.1 注销:宽限期满惰性终态化,PII 清除后同邮箱可重注册", func(t *testing.T) {
+		h.do(t, http.MethodPost, "/v1/identity/register", confRegisterBody("fin@b.co", "password8", ""), "", "")
+		s := h.confLogin(t, "fin@b.co", "password8", "")
+		if r := h.do(t, http.MethodPost, "/v1/identity/account/delete", "", confStr(t, s, "accessToken"), ""); r.status != http.StatusOK {
+			t.Fatalf("delete status = %d code=%s", r.status, r.code)
+		}
+		h.clock.Advance(25 * time.Hour) // 装配宽限期 24h;终态化惰性(login 前顺手)
+		if r := h.do(t, http.MethodPost, "/v1/identity/login", confRegisterBody("fin@b.co", "password8", ""), "", ""); r.status != http.StatusUnauthorized || r.code != "AUTH_INVALID_CREDENTIALS" {
+			t.Fatalf("终态化后按未知账号: status=%d code=%s", r.status, r.code)
+		}
+		if r := h.do(t, http.MethodPost, "/v1/identity/register", confRegisterBody("fin@b.co", "password8", ""), "", ""); r.status != http.StatusOK {
+			t.Fatalf("同邮箱重注册: status=%d code=%s", r.status, r.code)
+		}
+	})
 }
 
 // TestIdentityContractConformance 一致性主测:两个实现同一场景全绿。
@@ -480,6 +580,7 @@ func TestIdentityContractConformance(t *testing.T) {
 				MaxDevices:    2,
 				RatePerMinute: 1000,
 				RateBurst:     1000,
+				DeleteGrace:   24 * time.Hour, // v1.1 注销宽限期(0 = 立即删,须显式给)
 				Clock:         clock,
 			})
 			return acc, acc.Verifier()
@@ -494,6 +595,7 @@ func TestIdentityContractConformance(t *testing.T) {
 				MaxDevices:    2,
 				RatePerMinute: 1000,
 				RateBurst:     1000,
+				DeleteGrace:   24 * time.Hour,
 				Clock:         clock,
 			})
 			return alt, alt.Verifier()

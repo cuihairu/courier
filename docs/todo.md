@@ -610,12 +610,12 @@
 
 - [x] **契约**:[auth.md](./contract/auth.md) v1.1 冻结(端点 ×2 + status 枚举 + 错误码节);[announcement.md](./contract/announcement.md) F35 冻结(F76 多语留 Draft);[support.md](./contract/support.md) F43 冻结(F45 / F44 留 Draft);[errors.md](./contract/errors.md) v5 + [fixtures/errors.json](./contract/fixtures/errors.json) version 5;contractgen 六端错误码同步并校验零漂移
 - [ ] **网关实现**:aggregation codeTable + auth sentinel + session 状态判定 + account 与 accountalt 双实现 delete/cancel(一致性同口径)+ herald `filters` + croupier `context` + OnAccountDeleted 钩子注册 + main.go 接线
-- [ ] **SDK 六端**:delete / cancel 方法 + 公告过滤参数 + 提单 context(Unity / Cocos / 小程序 / Laybox / UE / Godot)
-- [ ] **e2e 四条场景**:宽限期受理与会话吊销 / 宽限期撤销恢复 / 公告过滤命中未命中 / 工单上下文回显
+- [x] **SDK 六端**:delete / cancel 方法 + 公告过滤参数 + 提单 context(Unity / Cocos / 小程序 / Laybox / UE / Godot)(`53eaa7c`;顺修 UE contract_test kCount 33→35、TS contract.test version 4→5 两处批次 1 漏更的漂移 tripwire)
+- [x] **e2e 四条场景**:宽限期受理与会话吊销 / 宽限期撤销恢复(runIdentityContract 增 4 个 v1.1 子场景,双实现同断言 + GUEST 立即删 + 惰性终态化)/ 公告过滤命中未命中 / 工单上下文回显(TestAnnouncementTargetedFilters_V11、TestTicketContextEcho_V11)
 
 ### 门禁
 
-- [ ] `go test ./...`(gateway)+ `go test ./tools/...`(contractgen)+ 六端 node/ue/dotnet 测试全绿才 commit 提交
+- [x] `go test ./...`(gateway)+ `go test ./tools/...`(contractgen/tsync/packcheck)+ 六端 node/ue/dotnet 测试全绿才 commit(node 128×3 / unity 51+80+8+11 / ue 7 套件全绿)
 - [ ] `docs/research/implementation-status.md` 三行状态与证据 commit 随每批同步更新(F03 / F35 / F43)
 
 ## 明确不做

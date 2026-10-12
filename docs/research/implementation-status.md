@@ -1,9 +1,10 @@
 # 实现状态汇总(features.md 76 项对照)
 
 > **口径**(2026-10-11,批次 45):对 [features.md](./features.md) 全量 76 项逐条核对仓库证据;任务条目与状态注记在 [todo.md](../todo.md) 批次 45,本表是汇总视图。
+> **更新**(2026-10-12,批次 51):F03 / F35 / F43 由 ❌ → ✅(契约 Frozen v1.1 → 网关 → SDK 六端 → e2e 四批落地,证据 commit 见行内);F11 错误码表 v4→v5。
 > **核对方法**:「已有」声称引用批次号+commit(来自 todo 各批验收记录);「缺口」声称以 grep 机器核对为准(零命中/命中行注明,如 announcement.md `filter` 0 命中、support.md `context` 0 命中、auth.md 仅 `DELETE /devices`、全契约 `language/locale` 0 命中);auth.md:10 与 realname.md:100 为契约明示的边界预留。
 > **图例**:✅ 已落地(仓库内有契约+实现+测试/e2e 证据,部署面残留另行注明)· ◑ 部分(核心面已落,剩余明示)· ❌ 缺口(仓库内未立项/未实现)· 🔌 Provider(不进核心契约)· ⏸ 待议 · ⛔ 不做。
-> **统计**:核心 47 = ✅ 37 + ❌ 10;🔌 13;⏸ 9;⛔ 7。
+> **统计**:核心 47 = ✅ 40 + ❌ 7(批次 51:F03/F35/F43 落地);🔌 13;⏸ 9;⛔ 7。
 
 ## 核心面(47 项)
 
@@ -11,14 +12,14 @@
 | --- | --- | --- | --- |
 | F01 | 登录方式聚合 | ◑ | 游客+邮箱密码落地:auth.md Frozen v1,批次 3(`3c24cfc`/`39b5007`);第三方 OAuth/手机号 auth.md:10 明示不覆盖(后续域契约扩展);OAuth 新域草案已写(批次 49,oauth.md Draft),手机号另提同构域 |
 | F02 | 绑定/解绑 | ✅ | auth.md bind/解绑;批次 3/18(`d0936eb`);多正式账号合并不在 v1 |
-| F03 | 注销与数据删除 | ❌ | 仅设备解绑(auth.md:24);账号注销端点未建——v1.1 提案 Draft 已写(批次 47) |
+| F03 | 注销与数据删除 | ✅ | auth.md Frozen v1.1(delete/cancel + 宽限期 + 受理即吊销 + OnAccountDeleted 钩子);网关双实现同口径(`f20e9ab`)+ SDK 六端(`53eaa7c`)+ 一致性 e2e ×2 实现;批次 51(`5317802`) |
 | F04 | 跨平台身份贯通 | ✅ | 多设备会话+设备列表 auth.md;批次 3/18 |
 | F05 | SDK 不带 UI | ✅ | UPM 四包+TS 三端可选包;批次 5/17/41 |
 | F06 | 匿名/静默登录 | ✅ | 游客设备登录 e2e 全链路;批次 3/4(`8b9ed8a`) |
 | F08 | 令牌轮换 | ✅ | 单飞刷新+重放一次;批次 3/4/12/14/32;primitives v1.1 并发纪律 |
 | F09 | 服务端验签 | ✅ | auth Bearer(批次 3)+回调 HMAC fail-closed(批次 10 `ddcbd03`) |
 | F10 | scope 隔离 | ✅ | scope.md Frozen+网关 scope 中间件;批次 2(`cdd391d`) |
-| F11 | 统一错误码 | ✅ | errors.md v4 33 码六端生成对差零漂移;批次 1/29 |
+| F11 | 统一错误码 | ✅ | errors.md v5 35 码六端生成对差零漂移;批次 1/29/51(`5317802`) |
 | F12 | 凭据管理 | ✅ | 客户端零 Provider 凭证(architecture.md 安全边界) |
 | F16 | 玩家档案 | ✅ | player.md Frozen+archivist;批次 8(`72bf15c`) |
 | F18 | 服务端权威写入 | ✅ | Gateway 唯一入口(批次 2)+支付服务端定价(批次 10) |
@@ -36,11 +37,11 @@
 | F31 | 年龄门/同意(海外) | ❌ | realname.md:100 明示 v1.1 预留 consent 组(出海需求触发再冻结);未立项 |
 | F33 | 审计留痕 | ❌ | trace 贯穿已有(layers.md L5);审计落库随部署面 |
 | F34 | 公告系统 | ✅ | announcement.md Frozen+herald;批次 6(`38fe759`) |
-| F35 | 公告定向过滤 | ❌ | v1 无 filters;v1.1 提案 Draft 已写(批次 47,复用 config 投影语义) |
+| F35 | 公告定向过滤 | ✅ | announcement.md Frozen v1.1 `filters` 开集 map + 四查询维度;herald 匹配 + SDK list 参数(`53eaa7c`)+ e2e 命中/未命中/详情 404;批次 51(`5317802`/`f20e9ab`) |
 | F36 | 跑马灯 | ◑ | 数据面零新契约(severity 字段 announcement.md:32);跑马灯呈现归 UI 包未做 |
 | F41 | 工单 | ✅ | support.md Frozen+croupier;批次 6 |
 | F42 | FAQ 自助 | ✅ | FAQ+sage 检索;批次 6/9(`2481383`) |
-| F43 | 上下文附带 | ❌ | v1.1 提案 Draft 已写(批次 47);现 extras 承载 |
+| F43 | 上下文附带 | ✅ | support.md Frozen v1.1 `context` 开集 map 服务端零解释透传;croupier 校验 + SDK 六端(`53eaa7c`)+ e2e 回显与 400;批次 51(`5317802`/`f20e9ab`) |
 | F44 | 反馈+日志上传 | ❌ | support.md:11 明示附件后续扩展;v1.1 提案 Draft 已写(批次 50,presigned 直传面);diagnostics 自有面不变 |
 | F45 | 举报/申诉 | ❌ | 无契约面——v1.1 提案 Draft 已写(批次 48,reports/penalties/appeal 四端点) |
 | F46 | 客服补单 | ✅ | Reconcile 补发通道;批次 10/11;工具面归 croupier |
@@ -86,17 +87,14 @@
 | F54 | 买量归因 | ⛔ 不做——垂直领域 |
 | F64–F68 | 社交与实时(好友/聊天/匹配/语音/公会) | ⛔ 不做——roadmap 非目标,与 Nakama/Agones 划界 |
 
-## 缺口汇总(❌ 10 项;截至批次 49 契约面提案全部已写 Draft,进入评审与冻结阶段)
+## 缺口汇总(❌ 7 项;截至批次 51,F03/F35/F43 已落地移出)
 
 | ID | 缺口 | 建议落点 |
 | --- | --- | --- |
 | F01 | 第三方 OAuth/手机号登录 | 独立域 oauth.md(提案 Draft 已写,批次 49);手机号另提同构域 |
-| F03 | 账号注销+数据级联删除 | auth 契约 v1.1(商店政策硬门槛;提案 Draft 已写,批次 47) |
 | F31 | 年龄门/家长同意(海外) | realname v1.1 consent 组(realname.md:100 已预留) |
 | F33 | 审计落库 | 部署面;trace 已贯穿 |
-| F35 | 公告定向过滤 | announcement v1.1 `filters`(提案 Draft 已写,批次 47) |
 | F36 | 跑马灯呈现 | UI 包 severity 渲染(零新契约) |
-| F43 | 工单上下文附带 | support v1.1 `context`(提案 Draft 已写,批次 47) |
 | F44 | 反馈+日志上传 | support v1.1 presigned 直传(提案 Draft 已写,批次 50;diagnostics 联动不在契约面) |
 | F45 | 举报/处罚申诉 | support v1.1 端点组(提案 Draft 已写,批次 48) |
 | F76 | 多语言与本地化 | announcement v1.1 语种维度(提案 Draft 已写,批次 48,单语分条契约化) |

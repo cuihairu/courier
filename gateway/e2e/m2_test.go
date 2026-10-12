@@ -396,3 +396,151 @@ func TestStreamRequiresAuth_Anonymous401(t *testing.T) {
 		t.Fatalf("status = %d, body = %s", resp.StatusCode, body)
 	}
 }
+
+// scopePost 带认证的 POST;返回状态码与 body。
+func (h *harness) scopePost(t *testing.T, path, body, token string) (int, string) {
+	t.Helper()
+	req, _ := http.NewRequest(http.MethodPost, h.srv.URL+path, strings.NewReader(body))
+	h.scopeHeaders(req)
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("POST %s: %v", path, err)
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, string(raw)
+}
+
+// v1.1 公告定向过滤(announcement.md「定向过滤匹配规则」):维度全命中才可见;
+// 请求缺该维度 = 不排除;filters 值空集合 = 维度不启用;未命中详情同码 404 不泄露存在性。
+func TestAnnouncementTargetedFilters_V11(t *testing.T) {
+	h := newHarness(t, true)
+	token := h.login(t)
+
+	targeted, err := h.announce.Publish("iOS 专属活动", "仅 iOS 中国区可见", "INFO", nil, nil,
+		map[string][]string{"platform": {"ios"}, "region": {"CN"}})
+	if err != nil {
+		t.Fatalf("publish targeted: %v", err)
+	}
+	open, err := h.announce.Publish("全量公告", "所有人均可见", "INFO", nil, nil, nil)
+	if err != nil {
+		t.Fatalf("publish open: %v", err)
+	}
+	emptyDim, err := h.announce.Publish("空维度公告", "platform 空集合 = 不过滤", "INFO", nil, nil,
+		map[string][]string{"platform": {}})
+	if err != nil {
+		t.Fatalf("publish emptyDim: %v", err)
+	}
+
+	assertIDs := func(listStatus int, listBody string, want ...string) {
+		t.Helper()
+		if listStatus != http.StatusOK {
+			t.Fatalf("list status = %d, body = %s", listStatus, listBody)
+		}
+		var page struct {
+			Data struct {
+				Items []struct {
+					ID string `json:"id"`
+				} `json:"items"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal([]byte(listBody), &page); err != nil {
+			t.Fatalf("list decode: %v (body=%s)", err, listBody)
+		}
+		got := map[string]bool{}
+		for _, it := range page.Data.Items {
+			got[it.ID] = true
+		}
+		for _, id := range want {
+			if !got[id] {
+				t.Fatalf("应含 %s, got %v (body=%s)", id, got, listBody)
+			}
+		}
+		if len(got) != len(want) {
+			t.Fatalf("条数不符: got %v, 期望 %v", got, want)
+		}
+	}
+
+	// 维度全命中:三条全可见。
+	st, bd := h.scopeGet(t, "/v1/announcements?limit=20&platform=ios&region=CN", token)
+	assertIDs(st, bd, targeted.ID, open.ID, emptyDim.ID)
+	// 维度未命中(platform=android):定向公告被排除;open 不过滤;空集合维度不启用。
+	st, bd = h.scopeGet(t, "/v1/announcements?limit=20&platform=android", token)
+	assertIDs(st, bd, open.ID, emptyDim.ID)
+	// 请求缺维度 = 该维度不排除(不带参数 → 全量)。
+	st, bd = h.scopeGet(t, "/v1/announcements?limit=20", token)
+	assertIDs(st, bd, targeted.ID, open.ID, emptyDim.ID)
+	// 只给 region(命中)而缺 platform:定向公告对缺维度不排除 → 仍可见。
+	st, bd = h.scopeGet(t, "/v1/announcements?limit=20&region=CN", token)
+	assertIDs(st, bd, targeted.ID, open.ID, emptyDim.ID)
+
+	// 详情:未命中维度 → 404 ANNOUNCEMENT_NOT_FOUND(同码,不泄露存在性);命中 → 200。
+	status, body := h.scopeGet(t, "/v1/announcements/"+targeted.ID+"?platform=android", token)
+	if status != http.StatusNotFound || !strings.Contains(body, "ANNOUNCEMENT_NOT_FOUND") {
+		t.Fatalf("未命中详情: status = %d, body = %s", status, body)
+	}
+	status, body = h.scopeGet(t, "/v1/announcements/"+targeted.ID+"?platform=ios&region=CN", token)
+	if status != http.StatusOK {
+		t.Fatalf("命中详情: status = %d, body = %s", status, body)
+	}
+}
+
+// v1.1 工单上下文(support.md POST /tickets context):服务端零解释透传回
+// ticket.context(列表/详情一致);形状违规 → 400 COMMON_INVALID_ARGUMENT。
+func TestTicketContextEcho_V11(t *testing.T) {
+	h := newHarness(t, true)
+	token := h.login(t)
+
+	status, body := h.scopePost(t, "/v1/support/tickets",
+		`{"title":"充值没到账","body":"订单未发货","context":{"orderId":"o-1","vip":true,"level":42}}`,
+		token)
+	if status != http.StatusOK {
+		t.Fatalf("create status = %d, body = %s", status, body)
+	}
+	var created struct {
+		Data struct {
+			ID      string         `json:"id"`
+			Context map[string]any `json:"context"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(body), &created); err != nil {
+		t.Fatalf("create decode: %v", err)
+	}
+	if created.Data.Context["orderId"] != "o-1" || created.Data.Context["vip"] != true || created.Data.Context["level"] != float64(42) {
+		t.Fatalf("context 回显不符: %v", created.Data.Context)
+	}
+
+	// 详情再读:透传值一致。
+	status, body = h.scopeGet(t, "/v1/support/tickets/"+created.Data.ID, token)
+	if status != http.StatusOK {
+		t.Fatalf("detail status = %d, body = %s", status, body)
+	}
+	var detail struct {
+		Data struct {
+			Ticket struct {
+				Context map[string]any `json:"context"`
+			} `json:"ticket"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(body), &detail); err != nil {
+		t.Fatalf("detail decode: %v", err)
+	}
+	if detail.Data.Ticket.Context["orderId"] != "o-1" {
+		t.Fatalf("详情 context 不一致: %v", detail.Data.Ticket.Context)
+	}
+
+	// 违规形状 → 400(键非法字符 / 超 10 键 / 值嵌套对象)。
+	bad := []string{
+		`{"title":"t","body":"b","context":{"bad-key!":1}}`,
+		`{"title":"t","body":"b","context":{"k1":1,"k2":1,"k3":1,"k4":1,"k5":1,"k6":1,"k7":1,"k8":1,"k9":1,"k10":1,"k11":1}}`,
+		`{"title":"t","body":"b","context":{"nested":{"a":1}}}`,
+	}
+	for _, b := range bad {
+		if st, _ := h.scopePost(t, "/v1/support/tickets", b, token); st != http.StatusBadRequest {
+			t.Fatalf("违规 context 应 400, got %d: %s", st, b)
+		}
+	}
+}
