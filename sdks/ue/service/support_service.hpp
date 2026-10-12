@@ -76,6 +76,67 @@ public:
         return result;
     }
 
+    /// 提交举报(F45):受理即返回 id;进展不向举报人反馈(防骚扰设计),无查询端点。
+    ServiceOutcome<ReportResult> create_report(const ReportRequest& request) {
+        const json::Value body = encode_report(request);
+        RequestOutcome out = api_->request("POST", "/v1/support/reports", &body, true);
+        ServiceOutcome<ReportResult> result;
+        if (out.ok) {
+            result.ok = true;
+            result.data = decode_report_result(out.data);
+        } else {
+            result.error = out.error;
+        }
+        return result;
+    }
+
+    /// 我的处罚列表(F45,issuedAt 倒序;处罚判定与执行全在管理面,此处只读投影)。
+    ServiceOutcome<Page<PenaltyDto>> list_penalties(int limit, const std::string& cursor = "") {
+        std::string path = "/v1/support/penalties?limit=" + std::to_string(limit);
+        if (!cursor.empty()) {
+            path += "&cursor=" + url_encode(cursor);
+        }
+        RequestOutcome out = api_->request("GET", path, nullptr, true);
+        ServiceOutcome<Page<PenaltyDto>> result;
+        if (out.ok) {
+            result.ok = true;
+            result.data = decode_page(out.data, decode_penalty);
+        } else {
+            result.error = out.error;
+        }
+        return result;
+    }
+
+    /// 处罚详情(F45,含申诉状态);非本人 / 不存在一律 typed
+    /// SUPPORT_PENALTY_NOT_FOUND(404,不泄露存在性)。
+    ServiceOutcome<PenaltyDto> get_penalty(const std::string& penalty_id) {
+        RequestOutcome out =
+            api_->request("GET", "/v1/support/penalties/" + url_encode(penalty_id), nullptr, true);
+        ServiceOutcome<PenaltyDto> result;
+        if (out.ok) {
+            result.ok = true;
+            result.data = decode_penalty(out.data);
+        } else {
+            result.error = out.error;
+        }
+        return result;
+    }
+
+    /// 提交申诉(F45):每处罚至多一个进行中申诉,重复 → typed
+    /// SUPPORT_APPEAL_EXISTS(409,不重试);判定结果以拉取详情为准。
+    ServiceOutcome<PenaltyDto> appeal_penalty(const std::string& penalty_id) {
+        RequestOutcome out = api_->request(
+            "POST", "/v1/support/penalties/" + url_encode(penalty_id) + "/appeal", nullptr, true);
+        ServiceOutcome<PenaltyDto> result;
+        if (out.ok) {
+            result.ok = true;
+            result.data = decode_penalty(out.data);
+        } else {
+            result.error = out.error;
+        }
+        return result;
+    }
+
     /// 追加玩家消息;工单 CLOSED → typed SUPPORT_TICKET_CLOSED(409,不重试)。
     ServiceOutcome<TicketMessageDto> append_message(const std::string& ticket_id,
                                                     const std::string& body) {

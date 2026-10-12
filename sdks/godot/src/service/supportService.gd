@@ -49,6 +49,33 @@ func request_attachment_upload(ticket_id: String, request: Dictionary) -> Dictio
 			PREFIX + "tickets/" + ticket_id.uri_encode() + "/attachments", request, true)
 
 
+## 提交举报(F45):受理即返回 id;进展不向举报人反馈(防骚扰设计),无查询端点。
+## request 形状 {targetType, targetId, reason[, detail]};detail 缺省键不下发。
+func create_report(request: Dictionary) -> Dictionary:
+	return await api.request("POST", PREFIX + "reports", request, true)
+
+
+## 我的处罚列表(F45,issuedAt 倒序;处罚判定与执行全在管理面,此处只读投影)。
+func list_penalties(limit: int, cursor: String = "") -> Dictionary:
+	var path := PREFIX + "penalties?limit=" + str(limit)
+	if cursor != "":
+		path += "&cursor=" + cursor.uri_encode()
+	return await api.request("GET", path, null, true)
+
+
+## 处罚详情(F45,含申诉状态);非本人 / 不存在一律 typed
+## SUPPORT_PENALTY_NOT_FOUND(404,不泄露存在性)。
+func get_penalty(penalty_id: String) -> Dictionary:
+	return await api.request("GET", PREFIX + "penalties/" + penalty_id.uri_encode(), null, true)
+
+
+## 提交申诉(F45):每处罚至多一个进行中申诉,重复 → typed
+## SUPPORT_APPEAL_EXISTS(409,不重试);判定结果以拉取详情为准。
+func appeal_penalty(penalty_id: String) -> Dictionary:
+	return await api.request("POST",
+			PREFIX + "penalties/" + penalty_id.uri_encode() + "/appeal", null, true)
+
+
 ## FAQ 检索(关键词命中为空是常态,不是错误);keyword 空串不带参数。
 func faq(limit: int, keyword: String = "") -> Dictionary:
 	var path := PREFIX + "faq?limit=" + str(limit)

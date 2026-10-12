@@ -126,6 +126,43 @@ namespace Courier.Service
         public string ExpiresAt { get; set; }
     }
 
+    /// <summary>举报请求(F45):targetType PLAYER/MESSAGE/TICKET(开集)、reason
+    /// CHEATING/ABUSE/SPAM/INAPPROPRIATE/OTHER;detail ≤1000 字符。</summary>
+    public sealed class ReportRequest
+    {
+        public string TargetType { get; set; }
+        public string TargetId { get; set; }
+        public string Reason { get; set; }
+        public string Detail { get; set; } // 可空;缺省键不下发
+    }
+
+    /// <summary>举报受理响应(F45):仅 id——举报进展不向举报人反馈(防骚扰设计)。</summary>
+    public sealed class ReportResult
+    {
+        public string Id { get; set; }
+    }
+
+    /// <summary>申诉状态(F45;判定走管理面,结果以拉取为准)。</summary>
+    public sealed class AppealDto
+    {
+        public string State { get; set; } // PENDING / ACCEPTED / REJECTED
+        public string SubmittedAt { get; set; }
+        public string DecidedAt { get; set; } // 可空
+    }
+
+    /// <summary>处罚投影(F45):type 开集客户端容忍未知;reason 面向玩家,
+    /// 不含内部与坐席信息。</summary>
+    public sealed class PenaltyDto
+    {
+        public string Id { get; set; }
+        public string Type { get; set; } // MUTE / SUSPENSION / LEADERBOARD_BAN…开集
+        public string Reason { get; set; }
+        public string State { get; set; } // ACTIVE / EXPIRED / LIFTED
+        public string IssuedAt { get; set; }
+        public string ExpiresAt { get; set; } // 可空
+        public AppealDto Appeal { get; set; } // 可空
+    }
+
     /// <summary>提单请求(POST /support/tickets;category 缺省 OTHER)。Context 为 v1.1
     /// 开集 map:键 1–32 位 [a-zA-Z0-9_.],≤10 键,值 string/number/boolean ≤256 字符,
     /// 整体 ≤1KiB;服务端零解释透传回 ticket.context。</summary>

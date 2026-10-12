@@ -3,10 +3,13 @@
 import type { ApiClient } from "../core/apiClient.ts";
 import type { Page } from "../contract/envelope.ts";
 import type {
+  AppealDto,
   AttachmentUploadRequest,
   AttachmentUploadResult,
   CreateTicketRequest,
   FaqDto,
+  PenaltyDto,
+  ReportRequest,
   TicketDetailDto,
   TicketDto,
   TicketMessageDto,
@@ -54,6 +57,34 @@ export class SupportService {
     Promise<AttachmentUploadResult> {
     return await this.api.request<AttachmentUploadResult>("POST",
       prefix + "tickets/" + encodeURIComponent(ticketId) + "/attachments", request, true);
+  }
+
+  /** 提交举报(F45):受理即返回 id;进展不向举报人反馈(防骚扰设计),无查询端点。 */
+  async createReportAsync(request: ReportRequest): Promise<{ id: string }> {
+    return await this.api.request<{ id: string }>("POST", prefix + "reports", request, true);
+  }
+
+  /** 我的处罚列表(F45,issuedAt 倒序;处罚判定与执行全在管理面,此处只读投影)。 */
+  async listPenaltiesAsync(limit: number, cursor?: string): Promise<Page<PenaltyDto>> {
+    let path = prefix + "penalties?limit=" + limit;
+    if (cursor) {
+      path += "&cursor=" + encodeURIComponent(cursor);
+    }
+    return await this.api.request<Page<PenaltyDto>>("GET", path, undefined, true);
+  }
+
+  /** 处罚详情(F45,含申诉状态);非本人 / 不存在一律 typed
+   *  SUPPORT_PENALTY_NOT_FOUND(404,不泄露存在性)。 */
+  async getPenaltyAsync(penaltyId: string): Promise<PenaltyDto> {
+    return await this.api.request<PenaltyDto>("GET",
+      prefix + "penalties/" + encodeURIComponent(penaltyId), undefined, true);
+  }
+
+  /** 提交申诉(F45):每处罚至多一个进行中申诉,重复 → typed
+   *  SUPPORT_APPEAL_EXISTS(409,不重试);判定结果以拉取详情为准。 */
+  async appealPenaltyAsync(penaltyId: string): Promise<PenaltyDto> {
+    return await this.api.request<PenaltyDto>("POST",
+      prefix + "penalties/" + encodeURIComponent(penaltyId) + "/appeal", undefined, true);
   }
 
   /** FAQ 检索(关键词命中为空是常态,不是错误)。 */

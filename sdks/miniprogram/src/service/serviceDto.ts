@@ -91,3 +91,30 @@ export interface AttachmentUploadResult {
   readonly headers: Readonly<Record<string, string>>;
   readonly expiresAt: string;
 }
+
+/** 举报请求(F45):targetType PLAYER/MESSAGE/TICKET(开集)、reason
+ *  CHEATING/ABUSE/SPAM/INAPPROPRIATE/OTHER;detail ≤1000 字符。 */
+export interface ReportRequest {
+  readonly targetType: string;
+  readonly targetId: string;
+  readonly reason: string;
+  readonly detail?: string;
+}
+
+/** 申诉状态(F45;判定走管理面,结果以拉取为准)。 */
+export interface AppealDto {
+  readonly state: "PENDING" | "ACCEPTED" | "REJECTED";
+  readonly submittedAt: string;
+  readonly decidedAt?: string;
+}
+
+/** 处罚投影(F45):type 开集客户端容忍未知;reason 面向玩家,不含内部与坐席信息。 */
+export interface PenaltyDto {
+  readonly id: string;
+  readonly type: string;
+  readonly reason: string;
+  readonly state: string; // ACTIVE / EXPIRED / LIFTED
+  readonly issuedAt: string;
+  readonly expiresAt?: string;
+  readonly appeal?: AppealDto;
+}

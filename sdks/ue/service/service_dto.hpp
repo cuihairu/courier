@@ -114,6 +114,38 @@ struct AttachmentUploadResult {
     std::string expiresAt;
 };
 
+/// 举报请求(F45):targetType PLAYER/MESSAGE/TICKET(开集)、reason
+/// CHEATING/ABUSE/SPAM/INAPPROPRIATE/OTHER;detail ≤1000 字符(缺省不下发)。
+struct ReportRequest {
+    std::string targetType;
+    std::string targetId;
+    std::string reason;
+    std::optional<std::string> detail;
+};
+
+/// 举报受理响应(F45):仅 id——举报进展不向举报人反馈(防骚扰设计)。
+struct ReportResult {
+    std::string id;
+};
+
+/// 申诉状态(F45;判定走管理面,结果以拉取为准)。
+struct AppealDto {
+    std::string state;  // PENDING / ACCEPTED / REJECTED
+    std::string submittedAt;
+    std::optional<std::string> decidedAt;
+};
+
+/// 处罚投影(F45):type 开集客户端容忍未知;reason 面向玩家,不含内部与坐席信息。
+struct PenaltyDto {
+    std::string id;
+    std::string type;  // MUTE / SUSPENSION / LEADERBOARD_BAN…开集
+    std::string reason;
+    std::string state;  // ACTIVE / EXPIRED / LIFTED
+    std::string issuedAt;
+    std::optional<std::string> expiresAt;
+    std::optional<AppealDto> appeal;
+};
+
 // ---- 解码(wire JSON → DTO;字段缺失安全) ----
 
 inline AnnouncementDto decode_announcement(const json::Value& v) {
@@ -232,6 +264,36 @@ inline FaqDto decode_faq(const json::Value& v) {
     return d;
 }
 
+inline AppealDto decode_appeal(const json::Value& v) {
+    AppealDto d;
+    d.state = json::get_str(v, "state");
+    d.submittedAt = json::get_str(v, "submittedAt");
+    std::string s;
+    if (json::get_opt_str(v, "decidedAt", s)) d.decidedAt = s;
+    return d;
+}
+
+inline PenaltyDto decode_penalty(const json::Value& v) {
+    PenaltyDto d;
+    d.id = json::get_str(v, "id");
+    d.type = json::get_str(v, "type");
+    d.reason = json::get_str(v, "reason");
+    d.state = json::get_str(v, "state");
+    d.issuedAt = json::get_str(v, "issuedAt");
+    std::string s;
+    if (json::get_opt_str(v, "expiresAt", s)) d.expiresAt = s;
+    if (const json::Value* a = v.find("appeal"); a && a->is_object()) {
+        d.appeal = decode_appeal(*a);
+    }
+    return d;
+}
+
+inline ReportResult decode_report_result(const json::Value& v) {
+    ReportResult d;
+    d.id = json::get_str(v, "id");
+    return d;
+}
+
 /// 分页解码(items + nextCursor;decode 为单项解码器)。
 template <typename T>
 inline Page<T> decode_page(const json::Value& v, T (*decode)(const json::Value&)) {
@@ -271,6 +333,17 @@ inline json::Value encode_attachment_upload(const AttachmentUploadRequest& r) {
     v.set("sizeBytes", json::Value::integer(r.sizeBytes));
     if (r.kind.has_value()) {
         v.set("kind", json::Value::str(*r.kind));
+    }
+    return v;
+}
+
+inline json::Value encode_report(const ReportRequest& r) {
+    json::Value v = json::Value::object();
+    v.set("targetType", json::Value::str(r.targetType));
+    v.set("targetId", json::Value::str(r.targetId));
+    v.set("reason", json::Value::str(r.reason));
+    if (r.detail.has_value()) {
+        v.set("detail", json::Value::str(*r.detail));
     }
     return v;
 }

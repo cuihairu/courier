@@ -211,6 +211,91 @@ namespace Courier.ServiceTests
             Assert.Equal(2, transport.Requests.Count); // 409 不重试
         }
 
+        // --- v1.1 F45:举报与处罚申诉(croupier 路由:reports、penalties)---
+
+        [Fact]
+        public async Task Support_Report_AcceptsAndReturnsIdOnly()
+        {
+            var (svc, transport) = NewServices();
+            transport.EnqueueJson(200, Fixtures.Success("{\"id\":\"rpt_01J\"}"));
+
+            var rep = await svc.Support.CreateReportAsync(new ReportRequest
+            {
+                TargetType = "PLAYER", TargetId = "acc_evil", Reason = "CHEATING", Detail = "自瞄",
+            }, CancellationToken.None);
+
+            var req = transport.Requests.Last();
+            Assert.Equal("POST", req.Method);
+            Assert.Equal("https://api.example.com/v1/support/reports", req.Url);
+            Assert.Equal("{\"targetType\":\"PLAYER\",\"targetId\":\"acc_evil\"," +
+                "\"reason\":\"CHEATING\",\"detail\":\"自瞄\"}", req.JsonBody);
+            Assert.Equal("rpt_01J", rep.Id);
+
+            // detail 缺省:键不下发(NullValueHandling.Ignore)。
+            transport.EnqueueJson(200, Fixtures.Success("{\"id\":\"rpt_02\"}"));
+            await svc.Support.CreateReportAsync(new ReportRequest
+            {
+                TargetType = "TICKET", TargetId = "tkt_01J", Reason = "SPAM",
+            }, CancellationToken.None);
+            Assert.Equal("{\"targetType\":\"TICKET\",\"targetId\":\"tkt_01J\",\"reason\":\"SPAM\"}",
+                transport.Requests.Last().JsonBody);
+        }
+
+        [Fact]
+        public async Task Support_Penalties_ListDetailAppeal_TypedErrors()
+        {
+            var (svc, transport) = NewServices();
+            transport.EnqueueJson(200, Fixtures.Success(
+                "{\"items\":[{\"id\":\"pen_02\",\"type\":\"SUSPENSION\",\"reason\":\"停权 30 天\"," +
+                "\"state\":\"ACTIVE\",\"issuedAt\":\"2026-10-13T10:00:00.000Z\"," +
+                "\"expiresAt\":\"2026-11-12T10:00:00.000Z\"}],\"nextCursor\":\"2\"}"));
+
+            var page = await svc.Support.ListPenaltiesAsync(10, "2", CancellationToken.None);
+
+            var req = transport.Requests.Last();
+            Assert.Equal("GET", req.Method);
+            Assert.Equal("https://api.example.com/v1/support/penalties?limit=10&cursor=2", req.Url);
+            Assert.Equal("pen_02", page.Items[0].Id);
+            Assert.Equal("SUSPENSION", page.Items[0].Type);
+            Assert.Null(page.Items[0].Appeal); // 无申诉 = 字段缺省
+            Assert.Equal("2", page.NextCursor);
+
+            transport.EnqueueJson(200, Fixtures.Success(
+                "{\"id\":\"pen_02\",\"type\":\"SUSPENSION\",\"reason\":\"停权 30 天\"," +
+                "\"state\":\"ACTIVE\",\"issuedAt\":\"2026-10-13T10:00:00.000Z\"," +
+                "\"appeal\":{\"state\":\"PENDING\",\"submittedAt\":\"2026-10-13T11:00:00.000Z\"}}"));
+            var pen = await svc.Support.GetPenaltyAsync("pen_02", CancellationToken.None);
+            Assert.Equal("https://api.example.com/v1/support/penalties/pen_02",
+                transport.Requests.Last().Url);
+            Assert.Equal("PENDING", pen.Appeal.State);
+            Assert.Null(pen.Appeal.DecidedAt); // 未判定 = 字段缺省
+
+            transport.EnqueueJson(200, Fixtures.Success(
+                "{\"id\":\"pen_02\",\"type\":\"SUSPENSION\",\"reason\":\"停权 30 天\"," +
+                "\"state\":\"ACTIVE\",\"issuedAt\":\"2026-10-13T10:00:00.000Z\"," +
+                "\"appeal\":{\"state\":\"PENDING\",\"submittedAt\":\"2026-10-13T11:00:00.000Z\"}}"));
+            var appealed = await svc.Support.AppealPenaltyAsync("pen_02", CancellationToken.None);
+            var ap = transport.Requests.Last();
+            Assert.Equal("POST", ap.Method);
+            Assert.Equal("https://api.example.com/v1/support/penalties/pen_02/appeal", ap.Url);
+            Assert.Null(ap.JsonBody); // 申诉无请求体
+            Assert.Equal("PENDING", appealed.Appeal.State);
+
+            transport.EnqueueJson(409, Fixtures.Failure("SUPPORT_APPEAL_EXISTS", "已有申诉", false));
+            var dup = await Assert.ThrowsAsync<CourierException>(
+                () => svc.Support.AppealPenaltyAsync("pen_02", CancellationToken.None));
+            Assert.Equal("SUPPORT_APPEAL_EXISTS", dup.Error.WireCode);
+            Assert.False(dup.Error.Retryable);
+
+            transport.EnqueueJson(404,
+                Fixtures.Failure("SUPPORT_PENALTY_NOT_FOUND", "不存在", false));
+            var miss = await Assert.ThrowsAsync<CourierException>(
+                () => svc.Support.GetPenaltyAsync("pen_nope", CancellationToken.None));
+            Assert.Equal("SUPPORT_PENALTY_NOT_FOUND", miss.Error.WireCode);
+            Assert.False(miss.Error.Retryable);
+            Assert.Equal(6, transport.Requests.Count); // 409/404 不重试
+        }
+
         [Fact]
         public async Task Support_Faq_KeywordUrlEncoded()
         {

@@ -205,6 +205,72 @@ func t_support_faq() -> void:
 			"空关键词不带参数")
 
 
+# ---- v1.1 F45:举报与处罚申诉 ----
+
+func t_support_report() -> void:
+	var transport := FakeTransport.new(self)
+	var svc := await new_services(transport)
+	transport.enqueue(200, success('{"id":"rpt_1"}'))
+
+	var rep: Dictionary = await svc.support.create_report(
+			{"targetType": "PLAYER", "targetId": "acc_evil", "reason": "CHEATING", "detail": "自瞄"})
+
+	var req: Dictionary = transport.requests[1]
+	check(req["method"] == "POST", "举报应为 POST")
+	check(str(req["url"]) == "https://api.example.com/v1/support/reports", "举报 URL 不符")
+	check(JSON.parse_string(str(req.get("jsonBody", ""))) == {"targetType": "PLAYER", "targetId": "acc_evil", "reason": "CHEATING", "detail": "自瞄"},
+			"举报 body 不符")
+	check(str(rep["data"]["id"]) == "rpt_1", "举报应返回 rpt_ id")
+
+	# detail 缺省:键不下发
+	transport.enqueue(200, success('{"id":"rpt_2"}'))
+	await svc.support.create_report({"targetType": "TICKET", "targetId": "tkt_1", "reason": "SPAM"})
+	var raw: Dictionary = JSON.parse_string(str(transport.requests[2].get("jsonBody", "")))
+	check(not raw.has("detail"), "detail 缺省键不应下发")
+
+
+func t_support_penalties() -> void:
+	var transport := FakeTransport.new(self)
+	var svc := await new_services(transport)
+	transport.enqueue(200, success('{"items":[{"id":"pen_2","type":"SUSPENSION","reason":"停权 30 天","state":"ACTIVE","issuedAt":"2026-10-13T10:00:00.000Z","expiresAt":"2026-11-12T10:00:00.000Z"}],"nextCursor":"2"}'))
+
+	var page: Dictionary = await svc.support.list_penalties(10, "2")
+	check(str(transport.requests[1]["url"]) == "https://api.example.com/v1/support/penalties?limit=10&cursor=2",
+			"处罚列表 URL 不符:" + str(transport.requests[1]["url"]))
+	check(str(page["data"]["items"][0]["id"]) == "pen_2", "处罚应解析")
+	check(not page["data"]["items"][0].has("appeal"), "无申诉时 appeal 不应出现")
+	check(str(page["data"]["nextCursor"]) == "2", "处罚分页游标应解析")
+
+	transport.enqueue(200, success('{"id":"pen_2","type":"SUSPENSION","reason":"停权 30 天","state":"ACTIVE","issuedAt":"2026-10-13T10:00:00.000Z","appeal":{"state":"PENDING","submittedAt":"2026-10-13T11:00:00.000Z"}}'))
+	var pen: Dictionary = await svc.support.get_penalty("pen_2")
+	check(str(transport.requests[2]["url"]) == "https://api.example.com/v1/support/penalties/pen_2",
+			"处罚详情 URL 不符")
+	check(str(pen["data"]["appeal"]["state"]) == "PENDING", "申诉状态应解析")
+
+	transport.enqueue(200, success('{"id":"pen_2","type":"SUSPENSION","reason":"停权 30 天","state":"ACTIVE","issuedAt":"2026-10-13T10:00:00.000Z","appeal":{"state":"PENDING","submittedAt":"2026-10-13T11:00:00.000Z"}}'))
+	var appealed: Dictionary = await svc.support.appeal_penalty("pen_2")
+	var ap: Dictionary = transport.requests[3]
+	check(ap["method"] == "POST", "申诉应为 POST")
+	check(str(ap["url"]) == "https://api.example.com/v1/support/penalties/pen_2/appeal",
+			"申诉 URL 不符")
+	check(ap.get("jsonBody", "") == "" or ap.get("jsonBody") == null, "申诉应无请求体")
+	check(str(appealed["data"]["appeal"]["state"]) == "PENDING", "申诉后状态应回显")
+
+	transport.enqueue(409, '{"error":{"code":"SUPPORT_APPEAL_EXISTS","message":"已有申诉","retryable":false}}')
+	var dup: Dictionary = await svc.support.appeal_penalty("pen_2")
+	check(err_wire(dup) == "SUPPORT_APPEAL_EXISTS", "重复申诉应 typed 409")
+	check(str(dup.get("error", {}).get("code", "")) == "SupportAppealExists",
+			"枚举名应为 SupportAppealExists(实得 %s)" % str(dup.get("error", {}).get("code")))
+	check(int(dup["error"]["http"]) == 409, "重复申诉 http 应 409")
+
+	transport.enqueue(404, '{"error":{"code":"SUPPORT_PENALTY_NOT_FOUND","message":"不存在","retryable":false}}')
+	var miss: Dictionary = await svc.support.get_penalty("pen_nope")
+	check(err_wire(miss) == "SUPPORT_PENALTY_NOT_FOUND", "缺失处罚应 typed 404")
+	check(str(miss.get("error", {}).get("code", "")) == "SupportPenaltyNotFound",
+			"枚举名应为 SupportPenaltyNotFound(实得 %s)" % str(miss.get("error", {}).get("code")))
+	check(transport.requests.size() == 6, "409/404 不重试(实际 %d)" % transport.requests.size())
+
+
 func _init() -> void:
 	await t_sse_standard()
 	await t_sse_multiline()
@@ -214,5 +280,7 @@ func _init() -> void:
 	await t_support_create()
 	await t_support_detail_append()
 	await t_support_faq()
+	await t_support_report()
+	await t_support_penalties()
 	print("godot service tests: %s (%d failed)" % ["all green" if failed == 0 else "FAILED", failed])
 	quit(1 if failed > 0 else 0)

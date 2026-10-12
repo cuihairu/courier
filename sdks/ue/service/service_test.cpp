@@ -329,6 +329,104 @@ int main() {
               "faq empty keyword no param");
     }
 
+    // ---- v1.1 F45:举报与处罚申诉 ----
+    {
+        // 举报:受理返回 rpt_ id;detail 缺省键不下发
+        Harness h;
+        h.sign_in();
+        h.transport.enqueue(200, data_envelope("{\"id\":\"rpt_1\"}"));
+
+        SupportService svc(&h.client->api());
+        ReportRequest report;
+        report.targetType = "PLAYER";
+        report.targetId = "acc_evil";
+        report.reason = "CHEATING";
+        report.detail = std::string("自瞄");
+        const ServiceOutcome<ReportResult> rep = svc.create_report(report);
+
+        CHECK(rep.ok, "report ok");
+        const TransportRequest& req = h.transport.requests[1];
+        CHECK(req.method == "POST", "report method");
+        CHECK(req.url == "https://api.example.com/v1/support/reports", "report url");
+        CHECK(req.json_body ==
+                  "{\"targetType\":\"PLAYER\",\"targetId\":\"acc_evil\",\"reason\":\"CHEATING\","
+                  "\"detail\":\"自瞄\"}",
+              "report body with detail");
+        CHECK(rep.data.id == "rpt_1", "report id");
+
+        ReportRequest bare;
+        bare.targetType = "TICKET";
+        bare.targetId = "tkt_1";
+        bare.reason = "SPAM";
+        h.transport.enqueue(200, data_envelope("{\"id\":\"rpt_2\"}"));
+        const ServiceOutcome<ReportResult> rep2 = svc.create_report(bare);
+        CHECK(rep2.ok, "report without detail ok");
+        CHECK(h.transport.requests[2].json_body ==
+                  "{\"targetType\":\"TICKET\",\"targetId\":\"tkt_1\",\"reason\":\"SPAM\"}",
+              "detail omitted when empty");
+    }
+    {
+        // 处罚:列表分页 + 详情申诉字段 + 申诉 409/404 typed 不重试
+        Harness h;
+        h.sign_in();
+        h.transport.enqueue(200, data_envelope(
+            "{\"items\":[{\"id\":\"pen_2\",\"type\":\"SUSPENSION\",\"reason\":\"停权 30 天\","
+            "\"state\":\"ACTIVE\",\"issuedAt\":\"2026-10-13T10:00:00.000Z\","
+            "\"expiresAt\":\"2026-11-12T10:00:00.000Z\"}],\"nextCursor\":\"2\"}"));
+
+        SupportService svc(&h.client->api());
+        const ServiceOutcome<Page<PenaltyDto>> page = svc.list_penalties(10, "2");
+        CHECK(page.ok, "penalty list ok");
+        CHECK(h.transport.requests[1].url ==
+                  "https://api.example.com/v1/support/penalties?limit=10&cursor=2",
+              "penalty list url with cursor");
+        CHECK(page.data.items.size() == 1, "penalty list size");
+        CHECK(page.data.items[0].id == "pen_2", "penalty id");
+        CHECK(!page.data.items[0].appeal.has_value(), "no appeal by default");
+        CHECK(page.data.nextCursor == "2", "penalty nextCursor");
+
+        h.transport.enqueue(200, data_envelope(
+            "{\"id\":\"pen_2\",\"type\":\"SUSPENSION\",\"reason\":\"停权 30 天\",\"state\":\"ACTIVE\","
+            "\"issuedAt\":\"2026-10-13T10:00:00.000Z\","
+            "\"appeal\":{\"state\":\"PENDING\",\"submittedAt\":\"2026-10-13T11:00:00.000Z\"}}"));
+        const ServiceOutcome<PenaltyDto> pen = svc.get_penalty("pen_2");
+        CHECK(pen.ok, "penalty detail ok");
+        CHECK(h.transport.requests[2].url == "https://api.example.com/v1/support/penalties/pen_2",
+              "penalty detail url");
+        CHECK(pen.data.appeal.has_value() && pen.data.appeal->state == "PENDING",
+              "appeal pending");
+        CHECK(!pen.data.appeal->decidedAt.has_value(), "no decidedAt before ruling");
+
+        h.transport.enqueue(200, data_envelope(
+            "{\"id\":\"pen_2\",\"type\":\"SUSPENSION\",\"reason\":\"停权 30 天\",\"state\":\"ACTIVE\","
+            "\"issuedAt\":\"2026-10-13T10:00:00.000Z\","
+            "\"appeal\":{\"state\":\"PENDING\",\"submittedAt\":\"2026-10-13T11:00:00.000Z\"}}"));
+        const ServiceOutcome<PenaltyDto> appealed = svc.appeal_penalty("pen_2");
+        CHECK(appealed.ok, "appeal ok");
+        const TransportRequest& ap = h.transport.requests[3];
+        CHECK(ap.method == "POST", "appeal method");
+        CHECK(ap.url == "https://api.example.com/v1/support/penalties/pen_2/appeal",
+              "appeal url");
+        CHECK(ap.json_body.empty(), "appeal has no body");
+        CHECK(appealed.data.appeal.has_value() && appealed.data.appeal->state == "PENDING",
+              "appeal state echoed");
+
+        h.transport.enqueue(409, error_envelope("SUPPORT_APPEAL_EXISTS", "已有申诉"));
+        const ServiceOutcome<PenaltyDto> dup = svc.appeal_penalty("pen_2");
+        CHECK(!dup.ok, "duplicate appeal fails");
+        CHECK(dup.error.wire == "SUPPORT_APPEAL_EXISTS", "typed wire code APPEAL_EXISTS");
+        CHECK(dup.error.http == 409, "typed http status APPEAL_EXISTS");
+        CHECK(!dup.error.retryable, "not retryable APPEAL_EXISTS");
+
+        h.transport.enqueue(404, error_envelope("SUPPORT_PENALTY_NOT_FOUND", "不存在"));
+        const ServiceOutcome<PenaltyDto> miss = svc.get_penalty("pen_nope");
+        CHECK(!miss.ok, "absent penalty fails");
+        CHECK(miss.error.wire == "SUPPORT_PENALTY_NOT_FOUND", "typed wire code PENALTY_NOT_FOUND");
+        CHECK(miss.error.http == 404, "typed http status PENALTY_NOT_FOUND");
+        CHECK(!miss.error.retryable, "not retryable PENALTY_NOT_FOUND");
+        CHECK(h.transport.requests.size() == 6, "no retry on 409/404");
+    }
+
     // ---- v1.1:公告定向过滤 + 工单上下文 ----
     {
         // 定向参数进查询串;缺省维度不带参数

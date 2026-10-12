@@ -303,3 +303,90 @@ test("提单:v1.1 context 开集 map 原样透传(键值类型 string/number/boo
     { orderId: "o-1", vip: true, level: 42 });
   assert.deepEqual(ticket.context, { orderId: "o-1", vip: true, level: 42 });
 });
+
+// ---- v1.1 F45:举报与处罚申诉 ----
+
+test("举报:受理返回 rpt_ id;detail 缺省键不下发", async () => {
+  const transport = new FakeTransport();
+  const svc = await newServices(transport);
+  transport.enqueue(200, JSON.stringify({ data: { id: "rpt_1" } }));
+
+  const rep = await svc.support.createReportAsync({
+    targetType: "PLAYER", targetId: "acc_evil", reason: "CHEATING", detail: "自瞄",
+  });
+
+  const req = transport.requests[1];
+  assert.equal(req.method, "POST");
+  assert.equal(req.url, "https://api.example.com/v1/support/reports");
+  assert.deepEqual(JSON.parse(req.jsonBody ?? "{}"),
+    { targetType: "PLAYER", targetId: "acc_evil", reason: "CHEATING", detail: "自瞄" });
+  assert.equal(rep.id, "rpt_1");
+
+  transport.enqueue(200, JSON.stringify({ data: { id: "rpt_2" } }));
+  await svc.support.createReportAsync({ targetType: "TICKET", targetId: "tkt_1", reason: "SPAM" });
+  const raw = JSON.parse(transport.requests[2].jsonBody ?? "{}");
+  assert.ok(!("detail" in raw));
+});
+
+test("处罚(F45):列表 issuedAt 倒序分页 + 详情申诉字段;申诉 409/404 typed 不重试", async () => {
+  const transport = new FakeTransport();
+  const svc = await newServices(transport);
+  transport.enqueue(200, JSON.stringify({
+    data: {
+      items: [{
+        id: "pen_2", type: "SUSPENSION", reason: "停权 30 天", state: "ACTIVE",
+        issuedAt: "2026-10-13T10:00:00.000Z",
+        expiresAt: "2026-11-12T10:00:00.000Z",
+      }],
+      nextCursor: "2",
+    },
+  }));
+
+  const page = await svc.support.listPenaltiesAsync(10, "1");
+  assert.equal(transport.requests[1].url,
+    "https://api.example.com/v1/support/penalties?limit=10&cursor=1");
+  assert.equal(page.items[0].id, "pen_2");
+  assert.equal(page.nextCursor, "2");
+  assert.equal(page.items[0].appeal, undefined);
+
+  transport.enqueue(200, JSON.stringify({
+    data: {
+      id: "pen_2", type: "SUSPENSION", reason: "停权 30 天", state: "ACTIVE",
+      issuedAt: "2026-10-13T10:00:00.000Z",
+      appeal: { state: "PENDING", submittedAt: "2026-10-13T11:00:00.000Z" },
+    },
+  }));
+  const pen = await svc.support.getPenaltyAsync("pen_2");
+  assert.equal(transport.requests[2].url,
+    "https://api.example.com/v1/support/penalties/pen_2");
+  assert.equal(pen.appeal?.state, "PENDING");
+
+  transport.enqueue(200, JSON.stringify({
+    data: {
+      id: "pen_2", type: "SUSPENSION", reason: "停权 30 天", state: "ACTIVE",
+      issuedAt: "2026-10-13T10:00:00.000Z",
+      appeal: { state: "PENDING", submittedAt: "2026-10-13T11:00:00.000Z" },
+    },
+  }));
+  const appealed = await svc.support.appealPenaltyAsync("pen_2");
+  assert.equal(transport.requests[3].method, "POST");
+  assert.equal(transport.requests[3].url,
+    "https://api.example.com/v1/support/penalties/pen_2/appeal");
+  assert.equal(appealed.appeal?.state, "PENDING");
+
+  transport.enqueue(409, JSON.stringify({
+    error: { code: "SUPPORT_APPEAL_EXISTS", message: "已有申诉", retryable: false },
+  }));
+  const dup = await svc.support.appealPenaltyAsync("pen_2").catch((x) => x);
+  assert.equal(dup.code, "SupportAppealExists");
+  assert.equal(dup.http, 409);
+  assert.equal(transport.requests.length, 5); // 不重试
+
+  transport.enqueue(404, JSON.stringify({
+    error: { code: "SUPPORT_PENALTY_NOT_FOUND", message: "不存在", retryable: false },
+  }));
+  const miss = await svc.support.getPenaltyAsync("pen_nope").catch((x) => x);
+  assert.equal(miss.code, "SupportPenaltyNotFound");
+  assert.equal(miss.http, 404);
+  assert.equal(transport.requests.length, 6); // 不重试
+});
