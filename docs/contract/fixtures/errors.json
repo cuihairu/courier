@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 5,
   "source": "docs/contract/errors.md 错误码表 v1(基元冻结集)",
   "prefixes": [
     "COMMON",
@@ -95,6 +95,16 @@
     {
       "code": "AUTH_EMAIL_TAKEN",
       "http": 409,
+      "retryable": false
+    },
+    {
+      "code": "AUTH_ACCOUNT_PENDING_DELETE",
+      "http": 403,
+      "retryable": false
+    },
+    {
+      "code": "AUTH_DELETE_TOKEN_INVALID",
+      "http": 401,
       "retryable": false
     },
     {

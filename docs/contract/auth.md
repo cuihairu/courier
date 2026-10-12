@@ -1,6 +1,6 @@
 # 认证契约(Auth / Identity)
 
-> 状态:**Frozen v1** · 里程碑 M1 · 冻结日期 2026-10-08。
+> 状态:**Frozen v1.1** · 里程碑 M1(v1 冻结 2026-10-08;v1.1 2026-10-12 追加账号注销与数据删除,F03)。
 > 域前缀 `AUTH` 已注册([errors.md](./errors.md));本文档是 M1 服务端(AccountProvider 自建实现)与各端 SDK 的一致性依据,冻结后只加不改,破坏性变更升版本(见 [versioning.md](./versioning.md))。
 
 ## 能力与范围
@@ -22,6 +22,8 @@
 | `GET /v1/identity/session` | Bearer | 当前会话信息 |
 | `GET /v1/identity/devices` | Bearer | 已绑定设备列表 |
 | `DELETE /v1/identity/devices/{deviceId}` | Bearer | 解绑设备并吊销其全部会话 |
+| `POST /v1/identity/account/delete` | Bearer | 申请注销:EMAIL 进宽限期、GUEST 立即删除(幂等受理;受理即吊销全部会话) |
+| `POST /v1/identity/account/delete/cancel` | 匿名 | 宽限期内撤销注销(凭一次性 `cancelToken`) |
 
 - 认证列 `Bearer` = 请求头 `Authorization: Bearer <accessToken>`;缺失/格式错 → `COMMON_UNAUTHENTICATED`(401)。
 - 所有请求必带 scope header(`X-Courier-Game-Id` / `X-Courier-Env`,见 [scope.md](./scope.md));缺失 → `COMMON_INVALID_ARGUMENT`。
@@ -38,7 +40,7 @@
 | `id` | id | 服务端生成,UUIDv7,前缀 `acc_` |
 | `type` | 枚举 | `EMAIL` / `GUEST` |
 | `email` | email? | `EMAIL` 账号必填、全局唯一;`GUEST` 为空 |
-| `status` | 枚举 | `ACTIVE` / `DISABLED`;`DISABLED` 登录与已签发会话均拒(`AUTH_ACCOUNT_DISABLED`) |
+| `status` | 枚举 | `ACTIVE` / `DISABLED` / `PENDING_DELETE` / `DELETED`(后两值 v1.1);`DISABLED` 登录与已签发会话均拒(`AUTH_ACCOUNT_DISABLED`);`PENDING_DELETE` 登录/绑定拒(`AUTH_ACCOUNT_PENDING_DELETE`);`DELETED` 行已匿名化,不可再认证 |
 | `createdAt` / `updatedAt` | timestamp | RFC 3339 毫秒 UTC |
 
 ### account_credentials(凭证,1:1 accounts)
@@ -98,6 +100,7 @@
 
 - 账号不存在或密码不符 → `AUTH_INVALID_CREDENTIALS`(401);**两种情况返回完全一致**(防账号枚举)。
 - 账号 `DISABLED` → `AUTH_ACCOUNT_DISABLED`(403)。
+- 账号 `PENDING_DELETE`(注销宽限期内)→ `AUTH_ACCOUNT_PENDING_DELETE`(403;v1.1)——防「登录即复活」,撤销走 `cancelToken`,不依赖会话。
 - 新设备且已达上限 → `AUTH_DEVICE_LIMIT`(403)。
 - 成功:签发会话(绑定 deviceId 时自动绑定)。
 
@@ -109,6 +112,7 @@
 ### POST /bind — `{ email, password }`(Bearer)
 
 - 当前账号须为 `GUEST`,已是 `EMAIL` → `COMMON_INVALID_ARGUMENT`(400)。
+- 账号 `PENDING_DELETE` → `AUTH_ACCOUNT_PENDING_DELETE`(403;v1.1)。
 - email 已被其他账号注册 → `AUTH_EMAIL_TAKEN`(409)。
 - 成功:账号转 `EMAIL`、写入凭证;**已绑定设备与在途会话保留**,token 不换发。
 
@@ -139,15 +143,53 @@
 
 解绑并吊销该设备全部会话(含当前会话,若当前会话正使用该设备);设备不存在 → `COMMON_NOT_FOUND`(404)。
 
+### POST /account/delete(Bearer,v1.1)
+
+申请注销当前账号。请求体为空或 `{}`(无字段)。
+
+| 情形 | 结果 |
+| --- | --- |
+| EMAIL 账号、宽限期 > 0 | 进入 `PENDING_DELETE`;**受理即吊销全部会话**;返回 `cancelToken` |
+| EMAIL 账号、宽限期 = 0(管理面配置) | 立即匿名化,`status=DELETED` |
+| GUEST 账号 | 立即匿名化删除(无恢复价值,不挂宽限期) |
+| 已是 `PENDING_DELETE` 再受理 | 幂等:200 并**重新签发** `cancelToken`,旧 token 立即失效 |
+
+成功 `data`(进入宽限期):
+
+```json
+{ "status": "PENDING_DELETE", "cancelToken": "…", "pendingDelete": true }
+```
+
+成功 `data`(立即删除;`deletedAt` 仅此形态存在):
+
+```json
+{ "status": "DELETED", "deletedAt": "2026-10-12T00:00:00.000Z" }
+```
+
+- `cancelToken`:一次性,TTL = 宽限期;服务端只存哈希。
+- **执行语义 = 匿名化,非物理删行**:清 PII(email、凭证、设备绑定行),`accounts.id` 保留供外键与审计;宽限期满后 `PENDING_DELETE` 终态化为 `DELETED`(触发时机为服务端实现细节,契约不约束)。
+- 宽限期缺省 **14 天**,管理面可配 0–30 天;仅 EMAIL 可挂宽限。
+- 玩家侧无法查询注销状态(会话已全部吊销);唯一可交互路径是 cancel。
+
+### POST /account/delete/cancel(匿名,v1.1)
+
+宽限期内撤销注销。请求体 `{ "cancelToken": "…" }`。
+
+- token 缺失 / 不匹配 / 已使用 / 已过期 → `AUTH_DELETE_TOKEN_INVALID`(401)。
+- 成功 `data: {}`:账号回 `ACTIVE`;**已吊销的会话不恢复**,需重新登录。
+- 撤销后可再次申请注销,重新走受理流程(新 `cancelToken`)。
+
 ## 错误码(域表)
 
-引用 [errors.md](./errors.md) 已冻结码:`COMMON_INVALID_ARGUMENT` / `COMMON_UNAUTHENTICATED` / `COMMON_NOT_FOUND` / `RATE_LIMITED` / `SCOPE_MISMATCH` / `AUTH_INVALID_CREDENTIALS` / `AUTH_TOKEN_EXPIRED` / `AUTH_TOKEN_REVOKED` / `AUTH_REFRESH_REUSED` / `AUTH_ACCOUNT_DISABLED` / `AUTH_DEVICE_LIMIT`。
+引用 [errors.md](./errors.md) 已冻结码:`COMMON_INVALID_ARGUMENT` / `COMMON_UNAUTHENTICATED` / `COMMON_NOT_FOUND` / `RATE_LIMITED` / `SCOPE_MISMATCH` / `AUTH_INVALID_CREDENTIALS` / `AUTH_TOKEN_EXPIRED` / `AUTH_TOKEN_REVOKED` / `AUTH_REFRESH_REUSED` / `AUTH_ACCOUNT_DISABLED` / `AUTH_DEVICE_LIMIT` / `AUTH_ACCOUNT_PENDING_DELETE` / `AUTH_DELETE_TOKEN_INVALID`。
 
 本契约冻结新增:
 
 | code | HTTP | retryable | 说明 |
 | --- | --- | --- | --- |
 | `AUTH_EMAIL_TAKEN` | 409 | false | 邮箱已被注册 |
+| `AUTH_ACCOUNT_PENDING_DELETE` | 403 | false | 账号注销宽限期内,登录/绑定被拒(v1.1 新增) |
+| `AUTH_DELETE_TOKEN_INVALID` | 401 | false | 注销撤销 token 缺失/失效/过期(v1.1 新增) |
 
 ## 基础限流
 
@@ -209,26 +251,9 @@ CREATE TABLE devices (
 
 ---
 
-## v1.1 提案(Draft,未冻结 · 2026-10-11)
+## v1.1 冻结记录(2026-10-12)
 
-> 来源:[features.md](../research/features.md) F03 账号注销与数据删除(商店政策硬门槛)。**本节为提案草案:未评审冻结前任何端不得据此实现**;冻结升版、错误码入 [errors.md](./errors.md)、六端 contractgen 同步随评审通过后一批落地。
-
-### 端点(拟新增)
-
-| 端点 | 认证 | 说明 |
-| --- | --- | --- |
-| `POST /v1/identity/account/delete` | Bearer | 申请注销。EMAIL 账号进入 `PENDING_DELETE` 宽限期;GUEST 立即删除。幂等受理 |
-| `POST /v1/identity/account/delete/cancel` | 匿名 | 宽限期内撤销,凭 `cancelToken`(受理响应返回,一次性,TTL = 宽限期) |
-
-### 语义(拟定义)
-
-- **受理即吊销全部会话**——符合「注销 = 一切登录态失效」的玩家预期,不拖到宽限期结束才失效。
-- **宽限期**:缺省 14 天,管理面可配 0–30 天(`0` = 立即删除);仅 EMAIL 账号可挂宽限(GUEST 无恢复价值,直接删)。
-- **PENDING 态不可登录**:`login` / `bind` 对该邮箱返回 `AUTH_ACCOUNT_PENDING_DELETE`(403)——防止盗号者「登录即复活」账号;撤销走 `cancelToken`,不依赖会话。
-- **执行语义 = 匿名化,非物理删行**:清 PII(email、凭证、设备行),`accounts.id` 保留供外键与审计;`status` 增枚举值 `PENDING_DELETE` / `DELETED`。
-- **拟新增 2 个错误码**:`AUTH_ACCOUNT_PENDING_DELETE`(403,login/bind 期间)、`AUTH_DELETE_TOKEN_INVALID`(401,cancel 时 token 缺失/失效/过期)。
-
-### 扩展与演进
+F03 账号注销与数据删除([features.md](../research/features.md) F03,商店政策硬门槛)按 2026-10-11 提案冻结:端点 `POST /account/delete` + `POST /account/delete/cancel`(上文「端点契约」)、受理即吊销全部会话、宽限期缺省 14 天(0–30 可配)、匿名化执行语义、错误码 `AUTH_ACCOUNT_PENDING_DELETE` / `AUTH_DELETE_TOKEN_INVALID` 入 [errors.md](./errors.md) v5。原提案「扩展与演进」表随冻结生效:
 
 | 可能的扩展 | 兼容处理方式 |
 | --- | --- |

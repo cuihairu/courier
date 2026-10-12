@@ -1,6 +1,6 @@
 # Courier SDK Contract(M0 立宪)
 
-> **状态**:基元五件 **Frozen v1**(2026-10-08,M0 跨端评审冻结;错误码表现已 **v4**——v2 追加 M2 域码,v3 追加 REALNAME 时段/额度码,v4 追加 M5 PAYMENT 域码;**v1.1** 2026-10-10 追加取消与并发纪律两节);auth 域契约 Frozen v1(M1);announcement / support 域契约 Frozen v1(M2);messages 域契约 **Frozen v1.1**(M2,v1.1 追加传输分框硬要求);realname 域契约 **Frozen v1**(M2 后段);config / app / branding / player 域契约 **Frozen v1**(M3,2026-10-09);diagnostics 域契约 **Frozen v1**(M3,可选包默认全关);assistant 域契约 **Frozen v1**(M4,2026-10-09);payment 域契约 **Frozen v1**(M5,2026-10-09;v1.1 追加 payment.paid/delivered 推送事件,2026-10-09)。冻结后进入变更流程管理。
+> **状态**:基元五件 **Frozen v1**(2026-10-08,M0 跨端评审冻结;错误码表现已 **v5**——v2 追加 M2 域码,v3 追加 REALNAME 时段/额度码,v4 追加 M5 PAYMENT 域码,v5 追加 AUTH 注销码(2026-10-12);**v1.1** 2026-10-10 追加取消与并发纪律两节);auth 域契约 **Frozen v1.1**(M1;v1.1 2026-10-12 追加账号注销与数据删除 F03);announcement / support 域契约 **Frozen v1.1**(M2;v1.1 2026-10-12 追加公告定向过滤 F35 与工单上下文 F43);messages 域契约 **Frozen v1.1**(M2,v1.1 追加传输分框硬要求);realname 域契约 **Frozen v1**(M2 后段);config / app / branding / player 域契约 **Frozen v1**(M3,2026-10-09);diagnostics 域契约 **Frozen v1**(M3,可选包默认全关);assistant 域契约 **Frozen v1**(M4,2026-10-09);payment 域契约 **Frozen v1**(M5,2026-10-09;v1.1 追加 payment.paid/delivered 推送事件,2026-10-09)。冻结后进入变更流程管理。
 > **原则**:**SDK Contract > Everything**——契约是 Courier 的宪法。Gateway、Provider、Core、Adapter、生态后端(herald / croupier / chirp / warden / 自建 accounts)都只是契约的**实现者**;新增引擎 = 新增 Adapter,而不是重新设计 SDK。
 
 ## 为什么立宪
@@ -40,7 +40,7 @@ Gateway、Provider、herald、Chirp、Croupier、Oddsmaker 全部只是「契约
 | 层 | 内容 | 冻结点 |
 | --- | --- | --- |
 | 基元契约 | [primitives](./primitives.md) / [errors](./errors.md) / [scope](./scope.md) / [versioning](./versioning.md) / [events](./events.md) | **M0 已冻结 v1** |
-| 域契约 | [auth](./auth.md)(**Frozen v1 · M1**);[announcement](./announcement.md) / [support](./support.md) / [messages](./messages.md)(**Frozen v1 · M2**);[realname](./realname.md)(**Frozen v1 · M2 后段**);[config](./config.md) / [app](./app.md) / [branding](./branding.md) / [player](./player.md)(**Frozen v1 · M3**);[diagnostics](./diagnostics.md)(**Frozen v1 · M3 · 可选包默认全关**);[assistant](./assistant.md)(**Frozen v1 · M4**);[payment](./payment.md)(**Frozen v1.1 · M5**) | 全部域契约已冻结;后续只加不改,破坏性变更升版本 |
+| 域契约 | [auth](./auth.md)(**Frozen v1.1 · M1**);[announcement](./announcement.md) / [support](./support.md)(**Frozen v1.1 · M2**)/ [messages](./messages.md)(**Frozen v1 · M2**);[realname](./realname.md)(**Frozen v1 · M2 后段**);[config](./config.md) / [app](./app.md) / [branding](./branding.md) / [player](./player.md)(**Frozen v1 · M3**);[diagnostics](./diagnostics.md)(**Frozen v1 · M3 · 可选包默认全关**);[assistant](./assistant.md)(**Frozen v1 · M4**);[payment](./payment.md)(**Frozen v1.1 · M5**) | 全部域契约已冻结;后续只加不改,破坏性变更升版本 |
 | 域契约(后续) | [oauth](./oauth.md)(第三方身份提供方,**Draft 提案中**,批次 49) | 新域经变更流程提案后冻结;冻结前不实现 |
 
 ## 变更流程
@@ -69,9 +69,9 @@ Gateway、Provider、herald、Chirp、Croupier、Oddsmaker 全部只是「契约
 ## 索引
 
 - [primitives.md](./primitives.md) — Request / Response / Pagination / Timestamp / ID / TraceID
-- [auth.md](./auth.md) — 认证与会话(Frozen v1 · M1)
-- [announcement.md](./announcement.md) — 公告(玩家侧只读投影;Frozen v1 · M2)
-- [support.md](./support.md) — 客服工单与 FAQ(Frozen v1 · M2)
+- [auth.md](./auth.md) — 认证与会话(Frozen v1.1 · M1)
+- [announcement.md](./announcement.md) — 公告(玩家侧只读投影;Frozen v1.1 · M2)
+- [support.md](./support.md) — 客服工单与 FAQ(Frozen v1.1 · M2)
 - [messages.md](./messages.md) — 推送通道(SSE,会话复用;Frozen v1 · M2)
 - [errors.md](./errors.md) — 错误体、错误码注册表、HTTP 映射、降级信号
 - [scope.md](./scope.md) — game_id + env 隔离

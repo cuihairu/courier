@@ -595,6 +595,29 @@
 - [ ] 七份 Draft(47 三 + 48 两 + 49 一 + 50 一)同批过读(≥ Unity + 一非 C# 端)→ 冻结升版 + errors.md v5(AUTH 2 + SUPPORT 4 + OAUTH 3)+ contractgen 六端同步 + SDK 实现 + e2e(宽限期 / 撤销 / 过滤命中 / 上下文回显 / 申诉闭环 / exchange 换会话 / 附件直传)
 - **此后契约面无待立项项**:剩余 F36(实现)、F31/F33(预留/部署面)不产生新契约
 
+## 批次 51 — v1.1 提案落地第 1 批:F03 + F35 + F43 冻结到实现(用户授权拍板,2026-10-12)
+
+> 授权口径:用户授权 agent 拍板决策,需决策处自行决定、后续反馈;从此**不再只写文档不落码**。第 1 批选批次 47 证据链最完整的三份提案(F03 账号注销 / F35 公告定向过滤 / F43 工单上下文),按「契约 → 网关实现 → SDK → e2e」四批提交;第 2 批(不用等)OAuth(oauth.md)先做、F44 附件次之。红线不变:英文短 commit、无 AI 痕迹、pull --rebase 后 push、禁 force push、禁 tag/release。
+
+### 冻结决策(agent 拍板)
+
+- [x] **三份提案按现稿冻结**——契约面按提案落地,不裁剪:delete/cancel + 宽限期 + 受理即吊销会话 + `OnAccountDeleted` Provider 钩子;announcement `filters` 开集 map + 四查询维度;support `context` 开集 map 服务端零解释透传
+- [x] **F03 补齐两个提案未写明、实现必须定死的语义**:`status` 增枚举 `PENDING_DELETE` / `DELETED`;`delete` 重复受理**重签 cancelToken、旧 token 立即失效**(防宽限期内 token 泄露);`delete` 响应 `status` / `cancelToken`(仅 PENDING)/ `pendingDelete` / `deletedAt`(仅 DELETED);游客注销后同设备再进 = **新游客账号**(DELETED 不可恢复)
+- [x] **errors.md 升 v5:仅 AUTH 2 新码**(`AUTH_ACCOUNT_PENDING_DELETE` 403 / `AUTH_DELETE_TOKEN_INVALID` 401)——按本批提案实际计数(批次 49/50 记录的「v5 = 九码」口径失效,余下 SUPPORT 4 / OAUTH 3 随各自批次升 v6/v7);SUPPORT 与上下文零新码
+- [x] [index.md](./contract/index.md) 登记:auth / announcement / support 三域 Frozen v1.1,错误码表 v5
+
+### 落地四批(分批提交)
+
+- [x] **契约**:[auth.md](./contract/auth.md) v1.1 冻结(端点 ×2 + status 枚举 + 错误码节);[announcement.md](./contract/announcement.md) F35 冻结(F76 多语留 Draft);[support.md](./contract/support.md) F43 冻结(F45 / F44 留 Draft);[errors.md](./contract/errors.md) v5 + [fixtures/errors.json](./contract/fixtures/errors.json) version 5;contractgen 六端错误码同步并校验零漂移
+- [ ] **网关实现**:aggregation codeTable + auth sentinel + session 状态判定 + account 与 accountalt 双实现 delete/cancel(一致性同口径)+ herald `filters` + croupier `context` + OnAccountDeleted 钩子注册 + main.go 接线
+- [ ] **SDK 六端**:delete / cancel 方法 + 公告过滤参数 + 提单 context(Unity / Cocos / 小程序 / Laybox / UE / Godot)
+- [ ] **e2e 四条场景**:宽限期受理与会话吊销 / 宽限期撤销恢复 / 公告过滤命中未命中 / 工单上下文回显
+
+### 门禁
+
+- [ ] `go test ./...`(gateway)+ `go test ./tools/...`(contractgen)+ 六端 node/ue/dotnet 测试全绿才 commit 提交
+- [ ] `docs/research/implementation-status.md` 三行状态与证据 commit 随每批同步更新(F03 / F35 / F43)
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。

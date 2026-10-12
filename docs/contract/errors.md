@@ -1,6 +1,6 @@
 # 错误契约
 
-> 状态:Frozen v1(2026-10-08,M0 跨端评审冻结;错误码表 **v4**——v2 追加 M2 域码,v3 追加 REALNAME 时段/额度码,v4 追加 M5 PAYMENT 域码)。跨 Unity / UE / Cocos / Godot 的错误一致性是 Universal SDK 的核心价值:同一 `code` 在各端映射为同一枚举、同一重试语义。
+> 状态:Frozen v1(2026-10-08,M0 跨端评审冻结;错误码表 **v5**——v2 追加 M2 域码,v3 追加 REALNAME 时段/额度码,v4 追加 M5 PAYMENT 域码,v5 追加 AUTH 注销码,2026-10-12)。跨 Unity / UE / Cocos / Godot 的错误一致性是 Universal SDK 的核心价值:同一 `code` 在各端映射为同一枚举、同一重试语义。
 
 ## 错误体
 
@@ -60,6 +60,8 @@
 | AUTH_ACCOUNT_DISABLED | 403 | false | 账号禁用 |
 | AUTH_DEVICE_LIMIT | 403 | false | 设备数超限 |
 | AUTH_EMAIL_TAKEN | 409 | false | 邮箱已被注册(M1 auth.md 冻结新增) |
+| AUTH_ACCOUNT_PENDING_DELETE | 403 | false | 账号注销宽限期内,登录/绑定被拒(M1 auth.md v1.1 冻结新增) |
+| AUTH_DELETE_TOKEN_INVALID | 401 | false | 注销撤销 token 缺失/失效/过期(M1 auth.md v1.1 冻结新增) |
 | SESSION_CONFLICT | 409 | false | 会话冲突(异地踢出等) |
 | ANNOUNCEMENT_NOT_FOUND | 404 | false | 公告不存在或不在可见期(M2 announcement.md 冻结新增) |
 | SUPPORT_TICKET_NOT_FOUND | 404 | false | 工单不存在或不属于当前玩家(M2 support.md 冻结新增) |
