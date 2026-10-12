@@ -13,7 +13,7 @@ export interface AccountDto {
   readonly id: string;
   readonly type: string; // EMAIL / GUEST
   readonly email?: string;
-  readonly status: string; // ACTIVE / DISABLED
+  readonly status: string; // ACTIVE / DISABLED / PENDING_DELETE / DELETED(v1.1)
   readonly createdAt: string;
 }
 
@@ -45,6 +45,15 @@ export interface DeviceDto {
 export interface DeviceListDto {
   readonly items: readonly DeviceDto[];
   readonly nextCursor?: string;
+}
+
+/** POST /v1/identity/account/delete 响应(v1.1):PENDING_DELETE 带一次性 cancelToken;
+ *  DELETED(立即删)带 deletedAt。 */
+export interface DeleteAccountResult {
+  readonly status: string; // PENDING_DELETE / DELETED
+  readonly cancelToken?: string;
+  readonly pendingDelete?: boolean;
+  readonly deletedAt?: string;
 }
 
 /** 注册/登录请求(契约 auth.md F1/F2)。 */

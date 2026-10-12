@@ -17,13 +17,25 @@ namespace Courier.Service
         }
 
         /// <summary>可见公告列表(分页;limit 默认 20 最大 100,游标回传 nextCursor)。</summary>
-        public async Task<PageDto<AnnouncementDto>> ListAsync(int limit, string cursor,
+        public Task<PageDto<AnnouncementDto>> ListAsync(int limit, string cursor,
             CancellationToken ct)
+        {
+            return ListAsync(limit, cursor, null, ct);
+        }
+
+        /// <summary>可见公告列表(v1.1 定向):query 缺省维度不过滤;详情被过滤出局
+        /// → typed ANNOUNCEMENT_NOT_FOUND。</summary>
+        public async Task<PageDto<AnnouncementDto>> ListAsync(int limit, string cursor,
+            AnnouncementQuery query, CancellationToken ct)
         {
             var path = "?limit=" + limit;
             if (!string.IsNullOrEmpty(cursor))
             {
                 path += "&cursor=" + cursor;
+            }
+            if (query != null)
+            {
+                path += query.ToQueryString();
             }
             var json = await _api.SendAsync("GET", Prefix + path, null, true, ct)
                 .ConfigureAwait(false);

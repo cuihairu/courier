@@ -45,6 +45,12 @@ namespace Courier.Identity
         public string RefreshToken { get; set; }
     }
 
+    /// <summary>POST /v1/identity/account/delete/cancel(宽限期撤销,匿名;一次性 token)。</summary>
+    public sealed class CancelDeleteRequest
+    {
+        public string CancelToken { get; set; }
+    }
+
     // --- 响应 ---
 
     public sealed class AccountDto
@@ -52,7 +58,7 @@ namespace Courier.Identity
         public string Id { get; set; }
         public string Type { get; set; }        // EMAIL / GUEST
         public string Email { get; set; }       // GUEST 时缺省
-        public string Status { get; set; }      // ACTIVE / DISABLED
+        public string Status { get; set; }      // ACTIVE / DISABLED / PENDING_DELETE / DELETED(v1.1)
         public string CreatedAt { get; set; }   // RFC3339 ms UTC
     }
 
@@ -88,5 +94,15 @@ namespace Courier.Identity
     {
         public List<DeviceDto> Items { get; set; }
         public string NextCursor { get; set; }
+    }
+
+    /// <summary>POST /v1/identity/account/delete 响应(v1.1):PENDING_DELETE 带一次性
+    /// CancelToken;DELETED(立即删:GUEST 或宽限期配置为 0)带 DeletedAt。</summary>
+    public sealed class DeleteAccountDto
+    {
+        public string Status { get; set; }       // PENDING_DELETE / DELETED
+        public string CancelToken { get; set; }  // 宽限期撤销凭证,一次性,撤销端点匿名
+        public bool PendingDelete { get; set; }
+        public string DeletedAt { get; set; }    // RFC3339 ms UTC,立即删才有
     }
 }

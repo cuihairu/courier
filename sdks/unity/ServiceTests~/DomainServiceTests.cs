@@ -191,5 +191,60 @@ namespace Courier.ServiceTests
             Assert.Equal("RATE_LIMITED", ex.Error.WireCode);
             Assert.Equal(30, ex.Error.RetryAfterSeconds);
         }
+
+        // --- v1.1:公告定向过滤 + 工单上下文 ---
+
+        [Fact]
+        public async Task Announcement_List_V11Query()
+        {
+            var (svc, transport) = NewServices();
+            transport.EnqueueJson(200, Fixtures.Success("{\"items\":[],\"nextCursor\":\"\"}"));
+
+            await svc.Announcements.ListAsync(20, "cur-1",
+                new AnnouncementQuery { Platform = "ios", Region = "CN" }, CancellationToken.None);
+
+            var req = transport.Requests.Last();
+            Assert.Equal(
+                "https://api.example.com/v1/announcements?limit=20&cursor=cur-1&platform=ios&region=CN",
+                req.Url);
+        }
+
+        [Fact]
+        public async Task Announcement_List_V11QueryEmpty_SendsNothing()
+        {
+            var (svc, transport) = NewServices();
+            transport.EnqueueJson(200, Fixtures.Success("{\"items\":[],\"nextCursor\":\"\"}"));
+
+            await svc.Announcements.ListAsync(20, null, new AnnouncementQuery(), CancellationToken.None);
+
+            var req = transport.Requests.Last();
+            Assert.Equal("https://api.example.com/v1/announcements?limit=20", req.Url);
+        }
+
+        [Fact]
+        public async Task Ticket_Create_V11Context()
+        {
+            var (svc, transport) = NewServices();
+            transport.EnqueueJson(200, Fixtures.Success(
+                "{\"id\":\"tkt_1\",\"title\":\"t\",\"status\":\"OPEN\",\"createdAt\":\"t\",\"updatedAt\":\"t\"," +
+                "\"context\":{\"orderId\":\"o-1\",\"vip\":true,\"level\":42}}"));
+
+            var ticket = await svc.Support.CreateTicketAsync(new CreateTicketRequest
+            {
+                Title = "t",
+                Body = "b",
+                Context = new System.Collections.Generic.Dictionary<string, object>
+                {
+                    ["orderId"] = "o-1",
+                    ["vip"] = true,
+                    ["level"] = 42,
+                },
+            }, CancellationToken.None);
+
+            var req = transport.Requests.Last();
+            Assert.Contains("\"context\":{\"orderId\":\"o-1\",\"vip\":true,\"level\":42}", req.JsonBody);
+            Assert.Equal("o-1", ticket.Context["orderId"]);
+            Assert.Equal(42L, ticket.Context["level"]);
+        }
     }
 }

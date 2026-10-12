@@ -75,6 +75,15 @@ struct DeviceListDto {
     std::string next_cursor;
 };
 
+/// POST /v1/identity/account/delete 响应(v1.1):PENDING_DELETE 带一次性 cancel_token;
+/// DELETED(立即删:GUEST 或宽限期配置为 0)带 deleted_at。
+struct DeleteAccountDto {
+    std::string status;  // PENDING_DELETE / DELETED
+    std::optional<std::string> cancel_token;
+    bool pending_delete = false;
+    std::optional<std::string> deleted_at;
+};
+
 /// 注册/登录请求(契约 auth.md F1/F2)。
 struct CredentialsRequest {
     std::string email;
@@ -150,6 +159,22 @@ inline DeviceListDto decode_device_list(const json::Value& v) {
     return d;
 }
 
+inline DeleteAccountDto decode_delete_account(const json::Value& v) {
+    DeleteAccountDto d;
+    d.status = json::get_str(v, "status");
+    std::string s;
+    if (json::get_opt_str(v, "cancelToken", s)) {
+        d.cancel_token = s;
+    }
+    if (const json::Value* p = v.find("pendingDelete"); p && p->is_bool()) {
+        d.pending_delete = p->as_bool();
+    }
+    if (json::get_opt_str(v, "deletedAt", s)) {
+        d.deleted_at = s;
+    }
+    return d;
+}
+
 // ---- 编码(DTO → wire JSON;可选字段缺省不下发) ----
 
 inline json::Value encode_credentials(const CredentialsRequest& r) {
@@ -172,6 +197,12 @@ inline json::Value encode_bind(const BindRequest& r) {
     json::Value v = json::Value::object();
     v.set("email", json::Value::str(r.email));
     v.set("password", json::Value::str(r.password));
+    return v;
+}
+
+inline json::Value encode_cancel_delete(const std::string& cancel_token) {
+    json::Value v = json::Value::object();
+    v.set("cancelToken", json::Value::str(cancel_token));
     return v;
 }
 

@@ -184,7 +184,7 @@ int main() {
 
         SupportService svc(&h.client->api());
         const ServiceOutcome<TicketDto> ticket =
-            svc.create_ticket(CreateTicketRequest{"充值没到账", "订单未发货", std::string("PAYMENT")});
+            svc.create_ticket(CreateTicketRequest{"充值没到账", "订单未发货", std::string("PAYMENT"), {}});
 
         CHECK(ticket.ok, "create ticket ok");
         const TransportRequest& req = h.transport.requests[1];
@@ -199,7 +199,7 @@ int main() {
         h.transport.enqueue(200, data_envelope(
             "{\"id\":\"tkt_2\",\"title\":\"t\",\"status\":\"OPEN\",\"createdAt\":\"t\",\"updatedAt\":\"t\"}"));
         const ServiceOutcome<TicketDto> t2 =
-            svc.create_ticket(CreateTicketRequest{"t", "b", std::nullopt});
+            svc.create_ticket(CreateTicketRequest{"t", "b", std::nullopt, {}});
         CHECK(t2.ok, "create ticket without category ok");
         CHECK(h.transport.requests[2].json_body == "{\"title\":\"t\",\"body\":\"b\"}",
               "category omitted when empty");
@@ -263,6 +263,76 @@ int main() {
         CHECK(empty.ok, "faq empty keyword ok");
         CHECK(h.transport.requests[2].url == "https://api.example.com/v1/support/faq?limit=20",
               "faq empty keyword no param");
+    }
+
+    // ---- v1.1:公告定向过滤 + 工单上下文 ----
+    {
+        // 定向参数进查询串;缺省维度不带参数
+        Harness h;
+        h.sign_in();
+        h.transport.enqueue(200, data_envelope("{\"items\":[],\"nextCursor\":\"\"}"));
+
+        AnnouncementQuery q;
+        q.platform = "ios";
+        q.region = "CN";
+        AnnouncementService svc(&h.client->api());
+        const ServiceOutcome<Page<AnnouncementDto>> page = svc.list(20, "cur-1", q);
+
+        CHECK(page.ok, "v1.1 announcement list ok");
+        CHECK(h.transport.requests[1].url ==
+                  "https://api.example.com/v1/announcements?limit=20&cursor=cur-1&platform=ios&region=CN",
+              "announcement list v1.1 filter query");
+
+        h.transport.enqueue(200, data_envelope("{\"items\":[],\"nextCursor\":\"\"}"));
+        const ServiceOutcome<Page<AnnouncementDto>> plain = svc.list(20);
+        CHECK(plain.ok, "v1.1 list default ok");
+        CHECK(h.transport.requests[2].url == "https://api.example.com/v1/announcements?limit=20",
+              "announcement list default no filter params");
+    }
+    {
+        // 响应 filters 解码为 维度 → 值集合
+        Harness h;
+        h.sign_in();
+        h.transport.enqueue(200, data_envelope(
+            "{\"items\":[{\"id\":\"ann_2\",\"title\":\"t\",\"body\":\"b\",\"severity\":\"INFO\","
+            "\"publishedAt\":\"t\",\"filters\":{\"platform\":[\"ios\",\"android\"],\"region\":[\"CN\"]}}],"
+            "\"nextCursor\":\"\"}"));
+
+        AnnouncementService svc(&h.client->api());
+        const ServiceOutcome<Page<AnnouncementDto>> page = svc.list(20);
+
+        CHECK(page.ok, "filters parse ok");
+        CHECK(page.data.items.size() == 1, "filters item count");
+        CHECK(page.data.items[0].filters.has_value(), "filters present");
+        CHECK(page.data.items[0].filters->at("platform").size() == 2, "filters platform size");
+        CHECK(page.data.items[0].filters->at("region").at(0) == "CN", "filters region value");
+    }
+    {
+        // 工单 context 编码下发 + 回显零解释透传
+        Harness h;
+        h.sign_in();
+        h.transport.enqueue(200, data_envelope(
+            "{\"id\":\"tkt_3\",\"title\":\"t\",\"status\":\"OPEN\",\"createdAt\":\"t\",\"updatedAt\":\"t\","
+            "\"context\":{\"orderId\":\"o-1\",\"vip\":true,\"level\":42}}"));
+
+        CreateTicketRequest req;
+        req.title = "t";
+        req.body = "b";
+        req.context["orderId"] = json::Value::str("o-1");
+        req.context["vip"] = json::Value::boolean(true);
+        req.context["level"] = json::Value::integer(42);
+        SupportService svc(&h.client->api());
+        const ServiceOutcome<TicketDto> ticket = svc.create_ticket(req);
+
+        CHECK(ticket.ok, "v1.1 create ticket context ok");
+        // map 序按键字典序(level < orderId < vip);零解释 = 原样下发。
+        CHECK(h.transport.requests[1].json_body.find(
+                  "\"context\":{\"level\":42,\"orderId\":\"o-1\",\"vip\":true}") != std::string::npos,
+              "context encoded in body");
+        CHECK(ticket.data.context.has_value(), "context echoed");
+        CHECK(ticket.data.context->find("orderId")->as_string() == "o-1", "context orderId echoed");
+        CHECK(ticket.data.context->find("vip")->as_bool(), "context vip echoed");
+        CHECK(ticket.data.context->find("level")->as_int() == 42, "context level echoed");
     }
 
     if (gFailed == 0) {

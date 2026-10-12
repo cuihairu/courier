@@ -24,8 +24,8 @@ static int gFailed = 0;
 int main() {
     using namespace courier;
 
-    // 冻结码数量(docs/contract/fixtures/errors.json v4 = 33)。
-    CHECK(static_cast<int>(ErrorCode::kCount) == 33, "kCount == 33");
+    // 冻结码数量(docs/contract/fixtures/errors.json v5 = 35)。
+    CHECK(static_cast<int>(ErrorCode::kCount) == 35, "kCount == 35");
 
     // 抽查冻结映射(wire / HTTP / retryable)。
     CHECK(std::strcmp(error_spec(ErrorCode::CommonInternal).wire, "COMMON_INTERNAL") == 0,
@@ -41,6 +41,12 @@ int main() {
           "COMMON_CAPABILITY_DISABLED 501");
     CHECK(error_spec(ErrorCode::AuthEmailTaken).http == 409,
           "AUTH_EMAIL_TAKEN 409");
+    CHECK(error_spec(ErrorCode::AuthAccountPendingDelete).http == 403 &&
+              !error_spec(ErrorCode::AuthAccountPendingDelete).retryable,
+          "AUTH_ACCOUNT_PENDING_DELETE 403");
+    CHECK(error_spec(ErrorCode::AuthDeleteTokenInvalid).http == 401 &&
+              !error_spec(ErrorCode::AuthDeleteTokenInvalid).retryable,
+          "AUTH_DELETE_TOKEN_INVALID 401");
     CHECK(error_spec(ErrorCode::AppVersionUnsupported).http == 426,
           "APP_VERSION_UNSUPPORTED 426");
     CHECK(error_spec(ErrorCode::RealnameCurfewBlocked).http == 403 &&

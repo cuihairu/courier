@@ -371,3 +371,43 @@ test("会话 DTO 全字段 wire 对齐(auth.md)", async () => {
   assert.equal(s.account?.type, "GUEST");
   assert.ok(!("email" in (s.account as object))); // GUEST 时 email 缺省
 });
+
+// --- 注销与撤销(v1.1,auth.md POST /account/delete + /account/delete/cancel)---
+
+test("deleteAccount:Bearer POST account/delete,PENDING 响应带一次性 cancelToken", async () => {
+  const transport = new FakeTransport();
+  const { client } = newClient(transport);
+  transport.enqueue(200, successRaw(sessionJson));
+  await client.identity.guest({ deviceId: "device-1" });
+  transport.enqueue(200, success({
+    status: "PENDING_DELETE",
+    cancelToken: "deltok_" + "a".repeat(48),
+    pendingDelete: true,
+  }));
+
+  const r = await client.identity.deleteAccount();
+
+  const req = transport.requests[1];
+  assert.equal(req.method, "POST");
+  assert.equal(req.url, "https://api.example.com/v1/identity/account/delete");
+  assert.equal(req.headers["Authorization"], "Bearer access-1");
+  assert.equal(r.status, "PENDING_DELETE");
+  assert.equal(r.pendingDelete, true);
+  assert.ok(r.cancelToken);
+});
+
+test("cancelDelete:匿名 POST account/delete/cancel 携带 cancelToken", async () => {
+  const transport = new FakeTransport();
+  const { client } = newClient(transport);
+  transport.enqueue(200, successRaw(sessionJson));
+  await client.identity.guest({ deviceId: "device-1" });
+  transport.enqueue(200, success({}));
+
+  await client.identity.cancelDelete("deltok_x");
+
+  const req = transport.requests[1];
+  assert.equal(req.method, "POST");
+  assert.equal(req.url, "https://api.example.com/v1/identity/account/delete/cancel");
+  assert.ok(!("Authorization" in req.headers)); // 匿名端点
+  assert.deepEqual(JSON.parse(req.jsonBody ?? "{}"), { cancelToken: "deltok_x" });
+});

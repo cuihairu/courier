@@ -204,3 +204,48 @@ test("FAQ 检索:关键词 URL 编码;空关键词不带参数", async () => {
   await svc.support.faqAsync(undefined, 20);
   assert.equal(transport.requests[2].url, "https://api.example.com/v1/support/faq?limit=20");
 });
+
+// ---- v1.1:公告定向过滤 + 工单上下文 ----
+
+test("公告列表:v1.1 定向参数进查询串;缺省维度不带参数", async () => {
+  const transport = new FakeTransport();
+  const svc = await newServices(transport);
+  transport.enqueue(200, JSON.stringify({ data: { items: [], nextCursor: "" } }));
+
+  await svc.announcements.listAsync(20, "cur-1", { platform: "ios", region: "CN" });
+
+  const req = transport.requests[1];
+  assert.equal(req.url,
+    "https://api.example.com/v1/announcements?limit=20&cursor=cur-1&platform=ios&region=CN");
+});
+
+test("公告列表:v1.1 定向参数缺省 = 维度不过滤(无查询参数)", async () => {
+  const transport = new FakeTransport();
+  const svc = await newServices(transport);
+  transport.enqueue(200, JSON.stringify({ data: { items: [], nextCursor: "" } }));
+
+  await svc.announcements.listAsync(20);
+
+  const req = transport.requests[1];
+  assert.equal(req.url, "https://api.example.com/v1/announcements?limit=20");
+});
+
+test("提单:v1.1 context 开集 map 原样透传(键值类型 string/number/boolean)", async () => {
+  const transport = new FakeTransport();
+  const svc = await newServices(transport);
+  transport.enqueue(200, JSON.stringify({
+    data: {
+      id: "tkt_3", title: "t", status: "OPEN", createdAt: "t", updatedAt: "t",
+      context: { orderId: "o-1", vip: true, level: 42 },
+    },
+  }));
+
+  const ticket = await svc.support.createTicketAsync({
+    title: "t", body: "b", context: { orderId: "o-1", vip: true, level: 42 },
+  });
+
+  const req = transport.requests[1];
+  assert.deepEqual(JSON.parse(req.jsonBody ?? "{}").context,
+    { orderId: "o-1", vip: true, level: 42 });
+  assert.deepEqual(ticket.context, { orderId: "o-1", vip: true, level: 42 });
+});

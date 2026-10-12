@@ -13,7 +13,9 @@ func _init(a: CourierApiClient) -> void:
 
 
 ## 提单(category 可空 = OTHER);限流超限 typed RATE_LIMITED。
-## request 形状 {title, body[, category]};category 缺省键不下发。
+## request 形状 {title, body[, category][, context]};category 缺省键不下发;
+## context 为 v1.1 开集 map(键 1–32 位 [a-zA-Z0-9_.],≤10 键,值 string/number/boolean
+## ≤256 字符,整体 ≤1KiB),服务端零解释透传回 ticket.context。
 func create_ticket(request: Dictionary) -> Dictionary:
 	return await api.request("POST", PREFIX + "tickets", request, true)
 

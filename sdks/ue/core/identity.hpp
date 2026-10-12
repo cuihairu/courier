@@ -45,6 +45,20 @@ public:
         return send("refresh", body);
     }
 
+    /// 注销账号(v1.1):受理即吊销全部会话。EMAIL 走宽限期(data 为 DeleteAccountDto,
+    /// decode_delete_account 解析;PENDING_DELETE + 一次性 cancel_token),GUEST 立即删;
+    /// 宽限期内登录被拒(AUTH_ACCOUNT_PENDING_DELETE)。
+    RequestOutcome delete_account() {
+        return api_->request("POST", prefix() + "account/delete", nullptr, true);
+    }
+
+    /// 宽限期内撤销注销(v1.1,匿名):token 一次性;已吊销会话不恢复,需重登;
+    /// 无效/过期 → AUTH_DELETE_TOKEN_INVALID。
+    RequestOutcome cancel_delete(const std::string& cancel_token) {
+        json::Value body = encode_cancel_delete(cancel_token);
+        return api_->request("POST", prefix() + "account/delete/cancel", &body, false);
+    }
+
 private:
     static std::string prefix() { return "/v1/identity/"; }
 

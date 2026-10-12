@@ -71,6 +71,9 @@ public:
     const std::string& as_string() const { return str_; }
     const std::vector<Value>& items() const { return arr_; }
 
+    /// 对象成员顺序视图(非对象 → 空视图);供映射型字段(如公告 filters)遍历。
+    const std::vector<std::pair<std::string, Value>>& members() const { return obj_; }
+
     /// 对象键查找;缺失/非对象 → nullptr。
     const Value* find(const std::string& key) const {
         if (type_ != Type::kObject) {

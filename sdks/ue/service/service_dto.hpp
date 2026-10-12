@@ -1,9 +1,10 @@
-// L2 Service 服务域 DTO(契约 announcement.md / support.md Frozen v1)。
+// L2 Service 服务域 DTO(契约 announcement.md / support.md Frozen v1.1)。
 // wire camelCase 与字段语义与网关响应逐一对齐;可选 = 契约缺省字段。
 // 分页复用契约信封层 Page<T>(../../contract/envelope.hpp)。
 #ifndef COURIER_SERVICE_SERVICE_DTO_HPP
 #define COURIER_SERVICE_SERVICE_DTO_HPP
 
+#include <map>
 #include <optional>
 #include <string>
 #include <vector>
@@ -31,6 +32,15 @@ struct AnnouncementDto {
     std::optional<std::string> startAt;  // 缺省 = 发布即可见
     std::optional<std::string> endAt;    // 缺省 = 不过期
     std::string publishedAt;
+    std::optional<std::map<std::string, std::vector<std::string>>> filters;  // 定向过滤(v1.1;缺省 = 全量可见)
+};
+
+/// 列表定向参数(v1.1):缺省维度不过滤;值须与发布 filters 维度值精确匹配。
+struct AnnouncementQuery {
+    std::optional<std::string> platform;
+    std::optional<std::string> appVersion;
+    std::optional<std::string> region;
+    std::optional<std::string> language;
 };
 
 /// 工单(状态 OPEN/REPLIED/CLOSED)。
@@ -41,6 +51,7 @@ struct TicketDto {
     std::optional<std::string> category;
     std::string createdAt;
     std::string updatedAt;
+    std::optional<json::Value> context;  // 服务端零解释透传(v1.1;原样对象)
 };
 
 /// 工单消息(senderType: PLAYER/AGENT/SYSTEM,createdAt 升序)。
@@ -64,11 +75,14 @@ struct FaqDto {
     std::optional<std::vector<std::string>> keywords;
 };
 
-/// 提单请求(POST /support/tickets;category 缺省 OTHER)。
+/// 提单请求(POST /support/tickets;category 缺省 OTHER)。context 为 v1.1 开集 map:
+/// 键 1–32 位 [a-zA-Z0-9_.],≤10 键,值 string/number/boolean ≤256 字符,整体 ≤1KiB;
+/// 服务端零解释透传回 ticket.context。
 struct CreateTicketRequest {
     std::string title;
     std::string body;
     std::optional<std::string> category;
+    std::map<std::string, json::Value> context;
 };
 
 // ---- 解码(wire JSON → DTO;字段缺失安全) ----
@@ -83,6 +97,22 @@ inline AnnouncementDto decode_announcement(const json::Value& v) {
     if (json::get_opt_str(v, "startAt", s)) d.startAt = s;
     if (json::get_opt_str(v, "endAt", s)) d.endAt = s;
     d.publishedAt = json::get_str(v, "publishedAt");
+    if (const json::Value* f = v.find("filters"); f && f->is_object()) {
+        std::map<std::string, std::vector<std::string>> m;
+        for (const auto& [key, val] : f->members()) {
+            if (!val.is_array()) {
+                continue;
+            }
+            std::vector<std::string> dims;
+            for (const json::Value& item : val.items()) {
+                if (item.is_string()) {
+                    dims.push_back(item.as_string());
+                }
+            }
+            m.emplace(key, std::move(dims));
+        }
+        d.filters = std::move(m);
+    }
     return d;
 }
 
@@ -95,6 +125,9 @@ inline TicketDto decode_ticket(const json::Value& v) {
     if (json::get_opt_str(v, "category", s)) d.category = s;
     d.createdAt = json::get_str(v, "createdAt");
     d.updatedAt = json::get_str(v, "updatedAt");
+    if (const json::Value* c = v.find("context"); c && c->is_object()) {
+        d.context = *c;  // 零解释透传(契约 support.md v1.1)
+    }
     return d;
 }
 
@@ -155,6 +188,13 @@ inline json::Value encode_create_ticket(const CreateTicketRequest& r) {
     v.set("body", json::Value::str(r.body));
     if (r.category.has_value()) {
         v.set("category", json::Value::str(*r.category));
+    }
+    if (!r.context.empty()) {
+        json::Value ctx = json::Value::object();
+        for (const auto& [key, val] : r.context) {
+            ctx.set(key, val);
+        }
+        v.set("context", std::move(ctx));
     }
     return v;
 }

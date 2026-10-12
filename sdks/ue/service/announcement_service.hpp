@@ -15,10 +15,21 @@ public:
 
     /// 可见公告列表(分页;limit 默认 20 最大 100,游标回传 nextCursor)。
     ServiceOutcome<Page<AnnouncementDto>> list(int limit, const std::string& cursor = "") {
+        return list(limit, cursor, AnnouncementQuery{});
+    }
+
+    /// 可见公告列表(v1.1 定向):query 缺省维度不过滤;详情被过滤出局
+    /// → typed ANNOUNCEMENT_NOT_FOUND。
+    ServiceOutcome<Page<AnnouncementDto>> list(int limit, const std::string& cursor,
+                                               const AnnouncementQuery& query) {
         std::string path = "/v1/announcements?limit=" + std::to_string(limit);
         if (!cursor.empty()) {
             path += "&cursor=" + url_encode(cursor);
         }
+        append_dim(path, "platform", query.platform);
+        append_dim(path, "appVersion", query.appVersion);
+        append_dim(path, "region", query.region);
+        append_dim(path, "language", query.language);
         RequestOutcome out = api_->request("GET", path, nullptr, true);
         ServiceOutcome<Page<AnnouncementDto>> result;
         if (out.ok) {
@@ -45,6 +56,13 @@ public:
     }
 
 private:
+    static void append_dim(std::string& path, const char* key,
+                           const std::optional<std::string>& value) {
+        if (value.has_value() && !value->empty()) {
+            path += std::string("&") + key + "=" + url_encode(*value);
+        }
+    }
+
     ApiClient* api_;
 };
 

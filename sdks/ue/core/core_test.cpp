@@ -343,6 +343,54 @@ int main() {
               "session DTO full wire keys");
     }
 
+    // ---- v1.1 注销与撤销(POST account/delete + /account/delete/cancel) ----
+    {
+        Harness h;
+        h.sign_in();
+        h.transport.enqueue(200, data_envelope(
+            "{\"status\":\"PENDING_DELETE\",\"cancelToken\":\"deltok_a\",\"pendingDelete\":true}"));
+
+        const RequestOutcome out = h.client->identity().delete_account();
+        CHECK(out.ok, "delete_account ok");
+        const DeleteAccountDto d = decode_delete_account(out.data);
+        CHECK(d.status == "PENDING_DELETE", "delete status pending");
+        CHECK(d.cancel_token.has_value() && *d.cancel_token == "deltok_a", "cancel token parsed");
+        CHECK(d.pending_delete, "pendingDelete parsed");
+        CHECK(!d.deleted_at.has_value(), "deletedAt absent on pending");
+
+        const TransportRequest& req = h.transport.requests[1];
+        CHECK(req.method == "POST", "delete method POST");
+        CHECK(req.url == "https://api.example.com/v1/identity/account/delete", "delete url");
+        CHECK(req.headers.at("Authorization") == "Bearer access-1", "delete Bearer");
+    }
+    {
+        Harness h;
+        h.sign_in();
+        h.transport.enqueue(200, data_envelope(
+            "{\"status\":\"DELETED\",\"deletedAt\":\"2026-10-12T00:00:00.000Z\"}"));
+
+        const RequestOutcome out = h.client->identity().delete_account();
+        CHECK(out.ok, "delete immediate ok");
+        const DeleteAccountDto d = decode_delete_account(out.data);
+        CHECK(d.status == "DELETED", "delete status deleted");
+        CHECK(!d.cancel_token.has_value(), "no cancel token on immediate");
+        CHECK(d.deleted_at.has_value() && *d.deleted_at == "2026-10-12T00:00:00.000Z",
+              "deletedAt parsed");
+    }
+    {
+        Harness h;
+        h.sign_in();
+        h.transport.enqueue(200, data_envelope("{}"));
+
+        const RequestOutcome out = h.client->identity().cancel_delete("deltok_a");
+        CHECK(out.ok, "cancel_delete ok");
+        const TransportRequest& req = h.transport.requests[1];
+        CHECK(req.method == "POST", "cancel method POST");
+        CHECK(req.url == "https://api.example.com/v1/identity/account/delete/cancel", "cancel url");
+        CHECK(req.headers.find("Authorization") == req.headers.end(), "cancel anonymous");
+        CHECK(req.json_body == "{\"cancelToken\":\"deltok_a\"}", "cancel body");
+    }
+
     if (gFailed > 0) {
         std::printf("ue core tests: %d failed\n", gFailed);
         return 1;

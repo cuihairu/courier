@@ -64,6 +64,22 @@ namespace Courier.Identity
             return SendVoid("DELETE", "devices/" + deviceId, null, true, ct);
         }
 
+        /// <summary>POST /v1/identity/account/delete(v1.1):受理即吊销全部会话。
+        /// EMAIL 走宽限期(响应 PENDING_DELETE + 一次性 CancelToken),GUEST 立即删;
+        /// 宽限期内登录被拒(AUTH_ACCOUNT_PENDING_DELETE)。</summary>
+        public Task<DeleteAccountDto> DeleteAccountAsync(CancellationToken ct)
+        {
+            return Send<DeleteAccountDto>("POST", "account/delete", null, true, ct);
+        }
+
+        /// <summary>POST /v1/identity/account/delete/cancel(v1.1,匿名):宽限期内撤销,
+        /// 一次性 CancelToken;已吊销会话不恢复,需重登;token 无效/过期 → AUTH_DELETE_TOKEN_INVALID。</summary>
+        public Task CancelDeleteAsync(string cancelToken, CancellationToken ct)
+        {
+            return SendVoid("POST", "account/delete/cancel",
+                new CancelDeleteRequest { CancelToken = cancelToken }, false, ct);
+        }
+
         async Task<T> Send<T>(string method, string action, object body, bool withAuth, CancellationToken ct)
         {
             var data = await _api.SendAsync(method, Prefix + action, body, withAuth, ct).ConfigureAwait(false);

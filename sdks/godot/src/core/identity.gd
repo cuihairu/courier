@@ -40,3 +40,17 @@ func guest(device_id: String, platform: String = "") -> Dictionary:
 
 func bind(email: String, password: String) -> Dictionary:
 	return await _send("POST", "bind", {"email": email, "password": password}, true)
+
+
+## 注销账号(v1.1):受理即吊销全部会话。EMAIL 走宽限期(data.status = PENDING_DELETE,
+## 带一次性 cancelToken),GUEST 立即删(data.status = DELETED,带 deletedAt);
+## 宽限期内登录被拒(AUTH_ACCOUNT_PENDING_DELETE)。
+func delete_account() -> Dictionary:
+	return await api.request("POST", PREFIX + "account/delete", null, true)
+
+
+## 宽限期内撤销注销(v1.1,匿名):cancelToken 一次性;已吊销会话不恢复,需重登;
+## 无效/过期 → AUTH_DELETE_TOKEN_INVALID。
+func cancel_delete(cancel_token: String) -> Dictionary:
+	return await api.request("POST", PREFIX + "account/delete/cancel",
+			{"cancelToken": cancel_token}, false)

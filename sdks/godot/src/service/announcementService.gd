@@ -14,10 +14,16 @@ func _init(a: CourierApiClient) -> void:
 
 
 ## 可见公告列表(分页;limit 默认 20 最大 100,游标回传 nextCursor)。
-func list(limit: int, cursor: String = "") -> Dictionary:
+## query 为 v1.1 定向参数:{platform, appVersion, region, language},缺省键不过滤;
+## 详情被过滤出局 → typed ANNOUNCEMENT_NOT_FOUND。
+func list(limit: int, cursor: String = "", query: Dictionary = {}) -> Dictionary:
 	var path := PREFIX + "?limit=" + str(limit)
 	if cursor != "":
 		path += "&cursor=" + cursor.uri_encode()
+	for key in ["platform", "appVersion", "region", "language"]:
+		var value: String = str(query.get(key, ""))
+		if value != "":
+			path += "&%s=%s" % [key, value.uri_encode()]
 	return await api.request("GET", path, null, true)
 
 
