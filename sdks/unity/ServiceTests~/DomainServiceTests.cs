@@ -147,6 +147,57 @@ namespace Courier.ServiceTests
         }
 
         [Fact]
+        public async Task Support_AttachmentUpload_WireShape_And_DetailAdditive()
+        {
+            var (svc, transport) = NewServices();
+            transport.EnqueueJson(200, Fixtures.Success(
+                "{\"attachmentId\":\"att_01J\",\"uploadUrl\":\"https://storage.local/support/uploads/a1\"," +
+                "\"method\":\"PUT\",\"headers\":{\"X-Storage-Signature\":\"sig-1\"}," +
+                "\"expiresAt\":\"2026-10-08T00:10:00.000Z\"}"));
+
+            var up = await svc.Support.RequestAttachmentUploadAsync("tkt_01J",
+                new AttachmentUploadRequest
+                {
+                    FileName = "crash.log", ContentType = "text/plain",
+                    SizeBytes = 1200, Kind = "LOG",
+                }, CancellationToken.None);
+
+            var req = transport.Requests.Last();
+            Assert.Equal("POST", req.Method);
+            Assert.Equal("https://api.example.com/v1/support/tickets/tkt_01J/attachments", req.Url);
+            Assert.Equal("{\"fileName\":\"crash.log\",\"contentType\":\"text/plain\"," +
+                "\"sizeBytes\":1200,\"kind\":\"LOG\"}", req.JsonBody);
+            Assert.Equal("att_01J", up.AttachmentId);
+            Assert.Equal("PUT", up.Method);
+            Assert.Equal("sig-1", up.Headers["X-Storage-Signature"]);
+
+            transport.EnqueueJson(200, Fixtures.Success(
+                "{\"ticket\":{\"id\":\"tkt_01J\",\"title\":\"闪退\",\"status\":\"OPEN\"," +
+                "\"createdAt\":\"2026-10-08T00:00:00.000Z\",\"updatedAt\":\"2026-10-08T00:00:00.000Z\"}," +
+                "\"messages\":[],\"attachments\":[{" +
+                "\"id\":\"att_01J\",\"fileName\":\"crash.log\",\"contentType\":\"text/plain\"," +
+                "\"sizeBytes\":1200,\"kind\":\"LOG\",\"createdAt\":\"2026-10-08T00:00:00.000Z\"," +
+                "\"downloadUrl\":\"https://storage.local/d1\"}]}"));
+
+            var detail = await svc.Support.GetTicketAsync("tkt_01J", CancellationToken.None);
+            Assert.Equal(1, detail.Attachments.Count);
+            Assert.Equal("LOG", detail.Attachments[0].Kind);
+            Assert.Equal(1200, detail.Attachments[0].SizeBytes);
+
+            transport.EnqueueJson(413,
+                Fixtures.Failure("SUPPORT_ATTACHMENT_TOO_LARGE", "too large", false));
+            var ex = await Assert.ThrowsAsync<CourierException>(
+                () => svc.Support.RequestAttachmentUploadAsync("tkt_01J",
+                    new AttachmentUploadRequest
+                    {
+                        FileName = "big.bin", ContentType = "application/zip", SizeBytes = 10485761,
+                    }, CancellationToken.None));
+            Assert.Equal("SUPPORT_ATTACHMENT_TOO_LARGE", ex.Error.WireCode);
+            Assert.False(ex.Error.Retryable);
+            Assert.Equal(4, transport.Requests.Count); // 首包为初始化;413 不重试
+        }
+
+        [Fact]
         public async Task Support_Append_Closed_TypedError()
         {
             var (svc, transport) = NewServices();

@@ -56,6 +56,18 @@ namespace Courier.Service
             return Json.Deserialize<TicketMessageDto>(json);
         }
 
+        /// <summary>申请附件直传(v1.1):返回短时效预签名 URL,客户端 PUT 直传存储;
+        /// 超限 409 SUPPORT_ATTACHMENT_LIMIT、超限体积 413 SUPPORT_ATTACHMENT_TOO_LARGE、
+        /// 存储未配置 501 COMMON_CAPABILITY_DISABLED。</summary>
+        public async Task<AttachmentUploadResult> RequestAttachmentUploadAsync(string ticketId,
+            AttachmentUploadRequest request, CancellationToken ct)
+        {
+            var json = await _api.SendAsync("POST",
+                Prefix + "tickets/" + ticketId + "/attachments", request, true, ct)
+                .ConfigureAwait(false);
+            return Json.Deserialize<AttachmentUploadResult>(json);
+        }
+
         /// <summary>FAQ 检索(关键词命中为空是常态,不是错误)。</summary>
         public async Task<PageDto<FaqDto>> FaqAsync(string keyword, int limit,
             CancellationToken ct)

@@ -239,6 +239,70 @@ int main() {
         CHECK(h.transport.requests[2].json_body == "{\"body\":\"再问一句\"}", "append message body");
     }
     {
+        // 附件直传(v1.1):申请响应 wire 形状 + 详情 attachments 加法字段 + 413 typed
+        Harness h;
+        h.sign_in();
+        h.transport.enqueue(200, data_envelope(
+            "{\"attachmentId\":\"att_1\",\"uploadUrl\":\"https://storage.local/support/uploads/acc_1/att_1\","
+            "\"method\":\"PUT\",\"headers\":{\"X-Storage-Signature\":\"sig-acc_1/att_1\"},"
+            "\"expiresAt\":\"2026-10-12T00:10:00.000Z\"}"));
+
+        SupportService svc(&h.client->api());
+        const ServiceOutcome<AttachmentUploadResult> up = svc.request_attachment_upload(
+            "tkt_1", AttachmentUploadRequest{"crash.log", "text/plain", 1200, std::nullopt});
+
+        CHECK(up.ok, "attachment upload ok");
+        const TransportRequest& req = h.transport.requests[1];
+        CHECK(req.method == "POST", "attachment upload method");
+        CHECK(req.url == "https://api.example.com/v1/support/tickets/tkt_1/attachments",
+              "attachment upload url");
+        CHECK(req.json_body ==
+                  "{\"fileName\":\"crash.log\",\"contentType\":\"text/plain\",\"sizeBytes\":1200}",
+              "attachment upload body without kind");
+        CHECK(up.data.attachmentId == "att_1", "attachment id");
+        CHECK(up.data.method == "PUT", "upload method PUT");
+        CHECK(up.data.headers.at("X-Storage-Signature") == "sig-acc_1/att_1", "upload headers");
+        CHECK(up.data.expiresAt == "2026-10-12T00:10:00.000Z", "expiresAt");
+
+        // kind 非缺省:键下发
+        h.transport.enqueue(200, data_envelope(
+            "{\"attachmentId\":\"att_2\",\"uploadUrl\":\"u\",\"method\":\"PUT\",\"headers\":{},"
+            "\"expiresAt\":\"t\"}"));
+        const ServiceOutcome<AttachmentUploadResult> up2 = svc.request_attachment_upload(
+            "tkt_1", AttachmentUploadRequest{"a.png", "image/png", 100, std::string("IMAGE")});
+        CHECK(up2.ok, "attachment upload with kind ok");
+        CHECK(h.transport.requests[2].json_body ==
+                  "{\"fileName\":\"a.png\",\"contentType\":\"image/png\",\"sizeBytes\":100,\"kind\":\"IMAGE\"}",
+              "attachment upload body with kind");
+
+        // 详情 attachments[] 加法字段
+        h.transport.enqueue(200, data_envelope(
+            "{\"ticket\":{\"id\":\"tkt_1\",\"title\":\"问题\",\"status\":\"OPEN\",\"createdAt\":\"t\","
+            "\"updatedAt\":\"t\"},\"messages\":[],\"attachments\":[{\"id\":\"att_1\","
+            "\"fileName\":\"crash.log\",\"contentType\":\"text/plain\",\"sizeBytes\":1200,"
+            "\"kind\":\"LOG\",\"createdAt\":\"2026-10-12T00:00:00.000Z\","
+            "\"downloadUrl\":\"https://storage.local/d\"}]}"));
+        const ServiceOutcome<TicketDetailDto> detail = svc.get_ticket("tkt_1");
+        CHECK(detail.ok, "detail with attachments ok");
+        CHECK(detail.data.attachments.size() == 1, "attachments count");
+        CHECK(detail.data.attachments[0].id == "att_1", "attachment id");
+        CHECK(detail.data.attachments[0].sizeBytes == 1200, "attachment sizeBytes");
+        CHECK(detail.data.attachments[0].kind == "LOG", "attachment kind");
+        CHECK(detail.data.attachments[0].downloadUrl.has_value() &&
+                  *detail.data.attachments[0].downloadUrl == "https://storage.local/d",
+              "attachment downloadUrl");
+
+        // 超限 → 413 不重试
+        h.transport.enqueue(413, error_envelope("SUPPORT_ATTACHMENT_TOO_LARGE", "超限"));
+        const ServiceOutcome<AttachmentUploadResult> big = svc.request_attachment_upload(
+            "tkt_1", AttachmentUploadRequest{"big.zip", "application/zip", 10485761, std::nullopt});
+        CHECK(!big.ok, "attachment too large fails");
+        CHECK(big.error.wire == "SUPPORT_ATTACHMENT_TOO_LARGE", "typed wire code TOO_LARGE");
+        CHECK(big.error.http == 413, "typed http status TOO_LARGE");
+        CHECK(!big.error.retryable, "not retryable TOO_LARGE");
+        CHECK(h.transport.requests.size() == 5, "no retry on 413");
+    }
+    {
         // FAQ 检索:关键词 URL 编码;空关键词不带参数
         Harness h;
         h.sign_in();

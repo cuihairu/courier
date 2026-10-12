@@ -74,11 +74,24 @@ namespace Courier.Service
         public string CreatedAt { get; set; }
     }
 
-    /// <summary>工单详情(ticket + messages)。</summary>
+    /// <summary>工单附件(契约 support.md v1.1 详情 attachments[] 项;不返回服务端存储路径)。</summary>
+    public sealed class TicketAttachmentDto
+    {
+        public string Id { get; set; }
+        public string FileName { get; set; }
+        public string ContentType { get; set; }
+        public long SizeBytes { get; set; }
+        public string Kind { get; set; }        // IMAGE / LOG / OTHER,可空
+        public string CreatedAt { get; set; }
+        public string DownloadUrl { get; set; } // 预签名短时效;对象未直传完成前由存储返回 404
+    }
+
+    /// <summary>工单详情(ticket + messages + 附件,附件 createdAt 升序)。</summary>
     public sealed class TicketDetailDto
     {
         public TicketDto Ticket { get; set; }
         public List<TicketMessageDto> Messages { get; set; }
+        public List<TicketAttachmentDto> Attachments { get; set; } // v1.1 加法扩展
     }
 
     /// <summary>FAQ 知识条目。</summary>
@@ -88,6 +101,29 @@ namespace Courier.Service
         public string Question { get; set; }
         public string Answer { get; set; }
         public List<string> Keywords { get; set; }
+    }
+
+    /// <summary>提单请求(POST /support/tickets;category 缺省 OTHER)。Context 为 v1.1
+    /// 开集 map:键 1–32 位 [a-zA-Z0-9_.],≤10 键,值 string/number/boolean ≤256 字符,
+    /// 整体 ≤1KiB;服务端零解释透传回 ticket.context。</summary>
+    /// <summary>申请附件直传请求(v1.1;fileName 1–255 字符,contentType 须在 allowlist 内,
+    /// sizeBytes ≤ 10 MiB)。</summary>
+    public sealed class AttachmentUploadRequest
+    {
+        public string FileName { get; set; }
+        public string ContentType { get; set; }
+        public long SizeBytes { get; set; }
+        public string Kind { get; set; } // IMAGE / LOG / OTHER,可空
+    }
+
+    /// <summary>申请附件直传响应(v1.1):客户端拿 uploadUrl 直传存储,不经网关。</summary>
+    public sealed class AttachmentUploadResult
+    {
+        public string AttachmentId { get; set; }
+        public string UploadUrl { get; set; }
+        public string Method { get; set; } // PUT
+        public Dictionary<string, string> Headers { get; set; }
+        public string ExpiresAt { get; set; }
     }
 
     /// <summary>提单请求(POST /support/tickets;category 缺省 OTHER)。Context 为 v1.1

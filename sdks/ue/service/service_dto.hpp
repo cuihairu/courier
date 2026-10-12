@@ -61,10 +61,22 @@ struct TicketMessageDto {
     std::string createdAt;
 };
 
-/// 工单详情(ticket + messages)。
+/// 工单附件(v1.1;createdAt 升序;downloadUrl 为预签名短时效,对象未直传完成前由存储返回 404)。
+struct TicketAttachmentDto {
+    std::string id;
+    std::string fileName;
+    std::string contentType;
+    int64_t sizeBytes = 0;
+    std::optional<std::string> kind;  // IMAGE/LOG/OTHER
+    std::string createdAt;
+    std::optional<std::string> downloadUrl;
+};
+
+/// 工单详情(ticket + messages + 附件;attachments 为 v1.1 加法扩展)。
 struct TicketDetailDto {
     TicketDto ticket;
     std::vector<TicketMessageDto> messages;
+    std::vector<TicketAttachmentDto> attachments;
 };
 
 /// FAQ 知识条目。
@@ -83,6 +95,23 @@ struct CreateTicketRequest {
     std::string body;
     std::optional<std::string> category;
     std::map<std::string, json::Value> context;
+};
+
+/// 附件直传申请(POST /support/tickets/{id}/attachments;kind 缺省 OTHER)。
+struct AttachmentUploadRequest {
+    std::string fileName;
+    std::string contentType;
+    int64_t sizeBytes = 0;
+    std::optional<std::string> kind;
+};
+
+/// 附件直传申请响应(v1.1):客户端拿 uploadUrl 直传存储(HTTP PUT),不经网关。
+struct AttachmentUploadResult {
+    std::string attachmentId;
+    std::string uploadUrl;
+    std::string method;  // PUT
+    std::map<std::string, std::string> headers;
+    std::string expiresAt;
 };
 
 // ---- 解码(wire JSON → DTO;字段缺失安全) ----
@@ -139,6 +168,21 @@ inline TicketMessageDto decode_ticket_message(const json::Value& v) {
     return d;
 }
 
+inline TicketAttachmentDto decode_ticket_attachment(const json::Value& v) {
+    TicketAttachmentDto d;
+    d.id = json::get_str(v, "id");
+    d.fileName = json::get_str(v, "fileName");
+    d.contentType = json::get_str(v, "contentType");
+    if (const json::Value* s = v.find("sizeBytes"); s && s->is_number()) {
+        d.sizeBytes = s->as_int();
+    }
+    std::string s;
+    if (json::get_opt_str(v, "kind", s)) d.kind = s;
+    d.createdAt = json::get_str(v, "createdAt");
+    if (json::get_opt_str(v, "downloadUrl", s)) d.downloadUrl = s;
+    return d;
+}
+
 inline TicketDetailDto decode_ticket_detail(const json::Value& v) {
     TicketDetailDto d;
     if (const json::Value* t = v.find("ticket"); t && t->is_object()) {
@@ -149,6 +193,27 @@ inline TicketDetailDto decode_ticket_detail(const json::Value& v) {
             d.messages.push_back(decode_ticket_message(m));
         }
     }
+    if (const json::Value* atts = v.find("attachments"); atts && atts->is_array()) {
+        for (const json::Value& a : atts->items()) {
+            d.attachments.push_back(decode_ticket_attachment(a));
+        }
+    }
+    return d;
+}
+
+inline AttachmentUploadResult decode_attachment_upload(const json::Value& v) {
+    AttachmentUploadResult d;
+    d.attachmentId = json::get_str(v, "attachmentId");
+    d.uploadUrl = json::get_str(v, "uploadUrl");
+    d.method = json::get_str(v, "method");
+    if (const json::Value* hs = v.find("headers"); hs && hs->is_object()) {
+        for (const auto& [key, val] : hs->members()) {
+            if (val.is_string()) {
+                d.headers.emplace(key, val.as_string());
+            }
+        }
+    }
+    d.expiresAt = json::get_str(v, "expiresAt");
     return d;
 }
 
@@ -195,6 +260,17 @@ inline json::Value encode_create_ticket(const CreateTicketRequest& r) {
             ctx.set(key, val);
         }
         v.set("context", std::move(ctx));
+    }
+    return v;
+}
+
+inline json::Value encode_attachment_upload(const AttachmentUploadRequest& r) {
+    json::Value v = json::Value::object();
+    v.set("fileName", json::Value::str(r.fileName));
+    v.set("contentType", json::Value::str(r.contentType));
+    v.set("sizeBytes", json::Value::integer(r.sizeBytes));
+    if (r.kind.has_value()) {
+        v.set("kind", json::Value::str(*r.kind));
     }
     return v;
 }

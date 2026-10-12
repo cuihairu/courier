@@ -40,10 +40,22 @@ export interface TicketMessageDto {
   readonly createdAt: string;
 }
 
-/** 工单详情(ticket + messages)。 */
+/** 工单附件(契约 support.md v1.1 详情 attachments[] 项;不返回服务端存储路径)。 */
+export interface TicketAttachmentDto {
+  readonly id: string;
+  readonly fileName: string;
+  readonly contentType: string;
+  readonly sizeBytes: number;
+  readonly kind?: "IMAGE" | "LOG" | "OTHER";
+  readonly createdAt: string;
+  readonly downloadUrl?: string; // 预签名短时效;对象未直传完成前由存储返回 404
+}
+
+/** 工单详情(ticket + messages + 附件,附件 createdAt 升序)。 */
 export interface TicketDetailDto {
   readonly ticket: TicketDto;
   readonly messages: readonly TicketMessageDto[];
+  readonly attachments?: readonly TicketAttachmentDto[]; // v1.1 加法扩展
 }
 
 /** FAQ 知识条目。 */
@@ -60,4 +72,22 @@ export interface CreateTicketRequest {
   readonly body: string;
   readonly category?: string;
   readonly context?: Readonly<Record<string, string | number | boolean>>; // v1.1:键 1–32 位 [a-zA-Z0-9_.],≤10 键,值 ≤256 字符,整体 ≤1KiB
+}
+
+/** 申请附件直传请求(v1.1;fileName 1–255 字符,contentType 须在 allowlist 内,
+ *  sizeBytes ≤ 10 MiB)。 */
+export interface AttachmentUploadRequest {
+  readonly fileName: string;
+  readonly contentType: string;
+  readonly sizeBytes: number;
+  readonly kind?: "IMAGE" | "LOG" | "OTHER";
+}
+
+/** 申请附件直传响应(v1.1):客户端拿 uploadUrl 直传存储,不经网关。 */
+export interface AttachmentUploadResult {
+  readonly attachmentId: string;
+  readonly uploadUrl: string;
+  readonly method: string; // PUT
+  readonly headers: Readonly<Record<string, string>>;
+  readonly expiresAt: string;
 }

@@ -187,6 +187,60 @@ test("工单详情:ticket + messages 解析;追加消息 CLOSED → typed 409 �
   assert.deepEqual(JSON.parse(transport.requests[2].jsonBody ?? "{}"), { body: "再问一句" });
 });
 
+test("申请附件直传:wire 形状 + 详情 attachments 加法字段", async () => {
+  const transport = new FakeTransport();
+  const svc = await newServices(transport);
+
+  transport.enqueue(200, JSON.stringify({
+    data: {
+      attachmentId: "att_1",
+      uploadUrl: "https://storage.local/support/uploads/a1",
+      method: "PUT",
+      headers: { "X-Storage-Signature": "sig-1" },
+      expiresAt: "2026-10-09T12:10:00.000Z",
+    },
+  }));
+  const r = await svc.support.requestAttachmentUploadAsync("tkt_1", {
+    fileName: "crash.log", contentType: "text/plain", sizeBytes: 1200, kind: "LOG",
+  });
+  assert.equal(transport.requests[1].url,
+    "https://api.example.com/v1/support/tickets/tkt_1/attachments");
+  assert.equal(transport.requests[1].method, "POST");
+  assert.deepEqual(JSON.parse(transport.requests[1].jsonBody ?? "{}"),
+    { fileName: "crash.log", contentType: "text/plain", sizeBytes: 1200, kind: "LOG" });
+  assert.equal(r.attachmentId, "att_1");
+  assert.equal(r.method, "PUT");
+  assert.equal(r.headers["X-Storage-Signature"], "sig-1");
+
+  transport.enqueue(200, JSON.stringify({
+    data: {
+      ticket: {
+        id: "tkt_1", title: "问题", status: "OPEN",
+        createdAt: "2026-10-09T12:00:00.000Z", updatedAt: "2026-10-09T12:00:00.000Z",
+      },
+      messages: [],
+      attachments: [{
+        id: "att_1", fileName: "crash.log", contentType: "text/plain",
+        sizeBytes: 1200, kind: "LOG", createdAt: "2026-10-09T12:00:00.000Z",
+        downloadUrl: "https://storage.local/d1",
+      }],
+    },
+  }));
+  const detail = await svc.support.getTicketAsync("tkt_1");
+  assert.equal(detail.attachments?.length, 1);
+  assert.equal(detail.attachments?.[0]?.kind, "LOG");
+
+  transport.enqueue(413, JSON.stringify({
+    error: { code: "SUPPORT_ATTACHMENT_TOO_LARGE", message: "too large", retryable: false },
+  }));
+  const e = await svc.support.requestAttachmentUploadAsync("tkt_1", {
+    fileName: "big.bin", contentType: "application/zip", sizeBytes: 10485761,
+  }).catch((x) => x);
+  assert.equal(e.code, "SupportAttachmentTooLarge");
+  assert.equal(e.http, 413);
+  assert.equal(transport.requests.length, 4); // 不可重试:单次调用
+});
+
 test("FAQ 检索:关键词 URL 编码;空关键词不带参数", async () => {
   const transport = new FakeTransport();
   const svc = await newServices(transport);

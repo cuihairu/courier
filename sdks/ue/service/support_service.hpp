@@ -58,6 +58,24 @@ public:
         return result;
     }
 
+    /// 申请附件直传(v1.1):登记即时,返回短时效预签名 URL(PUT 直传存储,不经网关)。
+    /// 超限 typed SUPPORT_ATTACHMENT_TOO_LARGE(413)/ SUPPORT_ATTACHMENT_LIMIT(409);
+    /// 存储未配置 → typed COMMON_CAPABILITY_DISABLED(501)。
+    ServiceOutcome<AttachmentUploadResult> request_attachment_upload(
+        const std::string& ticket_id, const AttachmentUploadRequest& request) {
+        const json::Value body = encode_attachment_upload(request);
+        RequestOutcome out = api_->request(
+            "POST", "/v1/support/tickets/" + url_encode(ticket_id) + "/attachments", &body, true);
+        ServiceOutcome<AttachmentUploadResult> result;
+        if (out.ok) {
+            result.ok = true;
+            result.data = decode_attachment_upload(out.data);
+        } else {
+            result.error = out.error;
+        }
+        return result;
+    }
+
     /// 追加玩家消息;工单 CLOSED → typed SUPPORT_TICKET_CLOSED(409,不重试)。
     ServiceOutcome<TicketMessageDto> append_message(const std::string& ticket_id,
                                                     const std::string& body) {

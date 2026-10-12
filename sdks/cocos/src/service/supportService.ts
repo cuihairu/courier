@@ -3,6 +3,8 @@
 import type { ApiClient } from "../core/apiClient.ts";
 import type { Page } from "../contract/envelope.ts";
 import type {
+  AttachmentUploadRequest,
+  AttachmentUploadResult,
   CreateTicketRequest,
   FaqDto,
   TicketDetailDto,
@@ -43,6 +45,15 @@ export class SupportService {
   async appendMessageAsync(ticketId: string, body: string): Promise<TicketMessageDto> {
     return await this.api.request<TicketMessageDto>("POST",
       prefix + "tickets/" + encodeURIComponent(ticketId) + "/messages", { body }, true);
+  }
+
+  /** 申请附件直传(v1.1):返回短时效预签名 URL,客户端 PUT 直传存储;
+   *  超限 409 SUPPORT_ATTACHMENT_LIMIT、超限体积 413 SUPPORT_ATTACHMENT_TOO_LARGE、
+   *  存储未配置 501 COMMON_CAPABILITY_DISABLED。 */
+  async requestAttachmentUploadAsync(ticketId: string, request: AttachmentUploadRequest):
+    Promise<AttachmentUploadResult> {
+    return await this.api.request<AttachmentUploadResult>("POST",
+      prefix + "tickets/" + encodeURIComponent(ticketId) + "/attachments", request, true);
   }
 
   /** FAQ 检索(关键词命中为空是常态,不是错误)。 */
