@@ -560,9 +560,9 @@
 
 > 来源:批次 48 剩余缺口里唯一值得立项的契约面。auth.md:10 明示「第三方 OAuth / 手机号」留后续域契约扩展,本批落位新域文件;同口径:Draft 未冻结,评审(≥ Unity + 一非 C# 端)前不实现。
 
-- [ ] **F01 第三方 OAuth 登录** → [oauth.md](./contract/oauth.md) 新域草案:`exchange` / `bind` / 解绑 / 绑定列表四端点;**复用 auth 域账号/会话/token 全套模型,只加 `account_identities` 映射表**;`provider` 开集字符串(管理面注册,契约不枚举);红线:不存第三方凭证原文、`subject` 客户端不得自报、验证全服务端在线;拟新增 3 错误码(`OAUTH_` 前缀预留)
-- [ ] [index.md](./contract/index.md) 域契约(后续)行 + 索引登记 oauth.md;[auth.md](./contract/auth.md) F03 提案扩展表交叉引用新域
-- [ ] 评审通过与批次 47/48 五提案同批冻结 → errors.md v5(AUTH 两码 + SUPPORT 两码 + OAUTH 三码)+ contractgen 六端同步 + SDK 实现 + e2e(exchange 换会话 / bind 冲突 / 解绑幂等)
+- [x] **F01 第三方 OAuth 登录** → [oauth.md](./contract/oauth.md) 新域草案:`exchange` / `bind` / 解绑 / 绑定列表四端点;**复用 auth 域账号/会话/token 全套模型,只加 `account_identities` 映射表**;`provider` 开集字符串(管理面注册,契约不枚举);红线:不存第三方凭证原文、`subject` 客户端不得自报、验证全服务端在线;拟新增 3 错误码(`OAUTH_` 前缀预留)(批次 52 随冻结落地)
+- [x] [index.md](./contract/index.md) 域契约(后续)行 + 索引登记 oauth.md;[auth.md](./contract/auth.md) F03 提案扩展表交叉引用新域
+- [x] 评审通过与批次 47/48 五提案同批冻结(实际执行:批次 51 冻结三提案升 v5,批次 52 冻结 OAuth 升 v6——「v5 九码」旧口径作废,SUPPORT 附件两码随 F44 批次升 v7)+ contractgen 六端同步 + SDK 实现 + e2e(exchange 换会话 / bind 冲突 / 解绑幂等)
 - **剩余缺口**:F44 附件(需对象存储面,Provider 口径)、F36 跑马灯 UI 呈现(实现非契约)、F31/F33 维持——**契约面提案全部立项完毕,进入评审与冻结阶段**
 
 ## 批次 50 — F44 附件提案 + 全契约扩展预留收口 + 七提案机械核对(2026-10-12)
@@ -609,14 +609,37 @@
 ### 落地四批(分批提交)
 
 - [x] **契约**:[auth.md](./contract/auth.md) v1.1 冻结(端点 ×2 + status 枚举 + 错误码节);[announcement.md](./contract/announcement.md) F35 冻结(F76 多语留 Draft);[support.md](./contract/support.md) F43 冻结(F45 / F44 留 Draft);[errors.md](./contract/errors.md) v5 + [fixtures/errors.json](./contract/fixtures/errors.json) version 5;contractgen 六端错误码同步并校验零漂移
-- [ ] **网关实现**:aggregation codeTable + auth sentinel + session 状态判定 + account 与 accountalt 双实现 delete/cancel(一致性同口径)+ herald `filters` + croupier `context` + OnAccountDeleted 钩子注册 + main.go 接线
+- [x] **网关实现**:aggregation codeTable + auth sentinel + session 状态判定 + account 与 accountalt 双实现 delete/cancel(一致性同口径)+ herald `filters` + croupier `context` + OnAccountDeleted 钩子注册 + main.go 接线(`f20e9ab`)
 - [x] **SDK 六端**:delete / cancel 方法 + 公告过滤参数 + 提单 context(Unity / Cocos / 小程序 / Laybox / UE / Godot)(`53eaa7c`;顺修 UE contract_test kCount 33→35、TS contract.test version 4→5 两处批次 1 漏更的漂移 tripwire)
 - [x] **e2e 四条场景**:宽限期受理与会话吊销 / 宽限期撤销恢复(runIdentityContract 增 4 个 v1.1 子场景,双实现同断言 + GUEST 立即删 + 惰性终态化)/ 公告过滤命中未命中 / 工单上下文回显(TestAnnouncementTargetedFilters_V11、TestTicketContextEcho_V11)
 
 ### 门禁
 
 - [x] `go test ./...`(gateway)+ `go test ./tools/...`(contractgen/tsync/packcheck)+ 六端 node/ue/dotnet 测试全绿才 commit(node 128×3 / unity 51+80+8+11 / ue 7 套件全绿)
-- [ ] `docs/research/implementation-status.md` 三行状态与证据 commit 随每批同步更新(F03 / F35 / F43)
+- [x] `docs/research/implementation-status.md` 三行状态与证据 commit 随每批同步更新(F03 / F35 / F43)(`f2de30e`)
+
+## 批次 52 — v1.1 提案落地第 2 批:F01 OAuth 冻结到实现(用户授权拍板,2026-10-12)
+
+> 授权口径同批次 51:agent 拍板决策,需决策处自行决定、后续反馈;四批提交(契约 / 网关 / SDK / e2e),门禁全绿才 commit。红线不变:英文短 commit、无 AI 痕迹、pull --rebase 后 push、禁 force push、禁 tag/release。
+
+### 冻结决策(agent 拍板)
+
+- [x] **oauth.md 按现稿冻结**(Draft v0.1 → Frozen v1,批次 52):`exchange` / `bind` / `DELETE bindings/{provider}` / `GET bindings` 四端点;`provider` 开集字符串(管理面注册,契约不枚举);红线:不存第三方凭证原文、`subject` 客户端不得自报、验证全服务端在线;`accounts.type` 加 `OAUTH` 枚举值(加法,随冻结落 auth.md)
+- [x] **补齐提案未写明、实现必须定死的语义**:① exchange 幂等——同 `(provider, subject)` 重复 exchange 登录同账号,每次签发新会话(不复用旧会话);② bind 同 provider 重复绑定 → `COMMON_INVALID_ARGUMENT`(提案明示),bind 到已绑其他账号的 subject → `OAUTH_IDENTITY_TAKEN`;③ OAUTH 账号注销口径——无凭证行、无恢复渠道,**恒立即匿名化(对齐 GUEST)**;已 bind 邮箱转正为 EMAIL 的按 EMAIL 宽限期口径;④ provider 标识格式 `^[a-z0-9-]{1,32}$`,不符 = `OAUTH_PROVIDER_UNKNOWN`(与未注册同码);⑤ bind 响应 `{ provider, createdAt }`(与列表项同形),DELETE 幂等 200 `data: {}`;⑥ 验证实现走 Provider 注册表(接口 `Verify`),默认实现 courier-account 为确定性校验器(测试/联调,管理面可换),契约不描述校验细节
+- [x] **errors.md 升 v6:仅 OAUTH 3 新码**(`OAUTH_PROVIDER_UNKNOWN` 400 / `OAUTH_IDENTITY_INVALID` 401 / `OAUTH_IDENTITY_TAKEN` 409,均不可重试);域前缀 `OAUTH` 注册;fixtures version 6;contractgen 六端同步零漂移
+- [x] [index.md](./contract/index.md) 登记 oauth.md Frozen v1(域契约行 + 索引行)
+
+### 落地四批(分批提交)
+
+- [x] **契约**:oauth.md Frozen v1 + auth.md `type` 加 `OAUTH` + errors.md v6 + fixtures v6 + contractgen 六端(本批)
+- [ ] **网关实现**:oauth Provider 注册表 + 验证接口 + account/accountalt 双实现 exchange/bind/unbind/bindings(一致性同口径)+ 能力域开关 + main.go 接线
+- [ ] **SDK 六端**:exchange / bind / unbind / bindings 方法(Unity / Cocos / 小程序 / Laybox / UE / Godot)
+- [ ] **e2e 场景**:exchange 换会话(新 OAUTH 账号)/ 重复 exchange 登录同账号 / bind 冲突 `OAUTH_IDENTITY_TAKEN` / 重复 bind `COMMON_INVALID_ARGUMENT` / 解绑幂等 / bindings 列表 / 凭证无效 `OAUTH_IDENTITY_INVALID` / provider 未注册 `OAUTH_PROVIDER_UNKNOWN`
+
+### 门禁
+
+- [ ] `go test ./...`(gateway)+ `go test ./tools/...` + 六端 node/ue/dotnet 测试全绿才 commit
+- [ ] `docs/research/implementation-status.md` F01 行状态与证据 commit 随每批同步更新
 
 ## 明确不做
 

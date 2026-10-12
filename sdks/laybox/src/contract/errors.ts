@@ -37,6 +37,9 @@ export const ErrorCode = {
   PaymentRiskRejected: "PAYMENT_RISK_REJECTED",
   PaymentInvalidSignature: "PAYMENT_INVALID_SIGNATURE",
   PaymentOrderState: "PAYMENT_ORDER_STATE",
+  OauthProviderUnknown: "OAUTH_PROVIDER_UNKNOWN",
+  OauthIdentityInvalid: "OAUTH_IDENTITY_INVALID",
+  OauthIdentityTaken: "OAUTH_IDENTITY_TAKEN",
 } as const;
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
 
@@ -83,6 +86,9 @@ export const ErrorSpecs: Readonly<Record<ErrorCode, ErrorSpec>> = {
   PaymentRiskRejected: { wire: "PAYMENT_RISK_REJECTED", http: 403, retryable: false },
   PaymentInvalidSignature: { wire: "PAYMENT_INVALID_SIGNATURE", http: 403, retryable: false },
   PaymentOrderState: { wire: "PAYMENT_ORDER_STATE", http: 409, retryable: false },
+  OauthProviderUnknown: { wire: "OAUTH_PROVIDER_UNKNOWN", http: 400, retryable: false },
+  OauthIdentityInvalid: { wire: "OAUTH_IDENTITY_INVALID", http: 401, retryable: false },
+  OauthIdentityTaken: { wire: "OAUTH_IDENTITY_TAKEN", http: 409, retryable: false },
 };
 
 /** wire code → 枚举;未知返回 undefined(调用方落兜底分支)。 */
@@ -94,5 +100,5 @@ export function errorCodeOf(wire: string): ErrorCode | undefined {
 }
 
 /** 域前缀注册表(新域先注册前缀再定义码)。 */
-export const ERROR_PREFIXES = ["COMMON", "AUTH", "SESSION", "SCOPE", "RATE", "ANNOUNCEMENT", "SUPPORT", "ASSISTANT", "PAYMENT", "REALNAME", "CONFIG", "APP", "DIAG"] as const;
+export const ERROR_PREFIXES = ["COMMON", "AUTH", "SESSION", "SCOPE", "RATE", "ANNOUNCEMENT", "SUPPORT", "ASSISTANT", "PAYMENT", "REALNAME", "CONFIG", "APP", "DIAG", "OAUTH"] as const;
 export type ErrorPrefix = (typeof ERROR_PREFIXES)[number];

@@ -45,6 +45,9 @@ enum class ErrorCode {
     PaymentRiskRejected = 32,
     PaymentInvalidSignature = 33,
     PaymentOrderState = 34,
+    OauthProviderUnknown = 35,
+    OauthIdentityInvalid = 36,
+    OauthIdentityTaken = 37,
     kCount  // 哨兵,非契约码
 };
 
@@ -92,6 +95,9 @@ inline const ErrorSpec& error_spec(ErrorCode code) {
         {"PAYMENT_RISK_REJECTED", 403, false},
         {"PAYMENT_INVALID_SIGNATURE", 403, false},
         {"PAYMENT_ORDER_STATE", 409, false},
+        {"OAUTH_PROVIDER_UNKNOWN", 400, false},
+        {"OAUTH_IDENTITY_INVALID", 401, false},
+        {"OAUTH_IDENTITY_TAKEN", 409, false},
     };
     return kSpecs[static_cast<std::size_t>(code)];
 }
@@ -107,7 +113,7 @@ inline bool parse_error_code(const char* wire, ErrorCode& out) {
 
 /// 域前缀注册表(新域先注册前缀再定义码)。
 inline const char* const* error_prefixes(std::size_t& count) {
-    static const char* const kPrefixes[] = { "COMMON", "AUTH", "SESSION", "SCOPE", "RATE", "ANNOUNCEMENT", "SUPPORT", "ASSISTANT", "PAYMENT", "REALNAME", "CONFIG", "APP", "DIAG" };
+    static const char* const kPrefixes[] = { "COMMON", "AUTH", "SESSION", "SCOPE", "RATE", "ANNOUNCEMENT", "SUPPORT", "ASSISTANT", "PAYMENT", "REALNAME", "CONFIG", "APP", "DIAG", "OAUTH" };
     count = sizeof(kPrefixes) / sizeof(kPrefixes[0]);
     return kPrefixes;
 }

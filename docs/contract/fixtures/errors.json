@@ -1,5 +1,5 @@
 {
-  "version": 5,
+  "version": 6,
   "source": "docs/contract/errors.md 错误码表 v1(基元冻结集)",
   "prefixes": [
     "COMMON",
@@ -14,7 +14,8 @@
     "REALNAME",
     "CONFIG",
     "APP",
-    "DIAG"
+    "DIAG",
+    "OAUTH"
   ],
   "codes": [
     {
@@ -189,6 +190,21 @@
     },
     {
       "code": "PAYMENT_ORDER_STATE",
+      "http": 409,
+      "retryable": false
+    },
+    {
+      "code": "OAUTH_PROVIDER_UNKNOWN",
+      "http": 400,
+      "retryable": false
+    },
+    {
+      "code": "OAUTH_IDENTITY_INVALID",
+      "http": 401,
+      "retryable": false
+    },
+    {
+      "code": "OAUTH_IDENTITY_TAKEN",
       "http": 409,
       "retryable": false
     }

@@ -41,6 +41,9 @@ namespace Courier.Contract
         PaymentRiskRejected = 32,
         PaymentInvalidSignature = 33,
         PaymentOrderState = 34,
+        OauthProviderUnknown = 35,
+        OauthIdentityInvalid = 36,
+        OauthIdentityTaken = 37,
     }
 
     /// <summary>错误码 → wire / HTTP / retryable 冻结映射(下标与枚举值对齐)。</summary>
@@ -91,10 +94,13 @@ namespace Courier.Contract
             new Spec("PAYMENT_RISK_REJECTED", 403, false),
             new Spec("PAYMENT_INVALID_SIGNATURE", 403, false),
             new Spec("PAYMENT_ORDER_STATE", 409, false),
+            new Spec("OAUTH_PROVIDER_UNKNOWN", 400, false),
+            new Spec("OAUTH_IDENTITY_INVALID", 401, false),
+            new Spec("OAUTH_IDENTITY_TAKEN", 409, false),
         };
 
         /// <summary>域前缀注册表(新域先注册前缀再定义码)。</summary>
-        public static readonly string[] Prefixes = { "COMMON", "AUTH", "SESSION", "SCOPE", "RATE", "ANNOUNCEMENT", "SUPPORT", "ASSISTANT", "PAYMENT", "REALNAME", "CONFIG", "APP", "DIAG" };
+        public static readonly string[] Prefixes = { "COMMON", "AUTH", "SESSION", "SCOPE", "RATE", "ANNOUNCEMENT", "SUPPORT", "ASSISTANT", "PAYMENT", "REALNAME", "CONFIG", "APP", "DIAG", "OAUTH" };
 
         /// <summary>全部冻结码(供契约测试对账)。</summary>
         public static System.Collections.Generic.IReadOnlyList<Spec> All

@@ -38,8 +38,8 @@
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `id` | id | 服务端生成,UUIDv7,前缀 `acc_` |
-| `type` | 枚举 | `EMAIL` / `GUEST` |
-| `email` | email? | `EMAIL` 账号必填、全局唯一;`GUEST` 为空 |
+| `type` | 枚举 | `EMAIL` / `GUEST` / `OAUTH`(`OAUTH` 为 v1.1 加法,随 [oauth.md](./oauth.md) v1 冻结;纯第三方登录创建的账号,无凭证行,行为对齐 `GUEST` 的最小凭证形态) |
+| `email` | email? | `EMAIL` 账号必填、全局唯一;`GUEST` / `OAUTH` 为空 |
 | `status` | 枚举 | `ACTIVE` / `DISABLED` / `PENDING_DELETE` / `DELETED`(后两值 v1.1);`DISABLED` 登录与已签发会话均拒(`AUTH_ACCOUNT_DISABLED`);`PENDING_DELETE` 登录/绑定拒(`AUTH_ACCOUNT_PENDING_DELETE`);`DELETED` 行已匿名化,不可再认证 |
 | `createdAt` / `updatedAt` | timestamp | RFC 3339 毫秒 UTC |
 
@@ -52,7 +52,7 @@
 | `algo` / `iterations` | 算法标识与迭代数(如 `PBKDF2-SHA256` / `210000`) |
 | `updatedAt` | 密码变更时间 |
 
-`GUEST` 账号无凭证行;`bind` 成功后写入。
+`GUEST` 账号无凭证行;`bind` 成功后写入。`OAUTH` 账号同样无凭证行(身份映射在 [oauth.md](./oauth.md) `account_identities`,不在本表)。
 
 ### sessions(会话,scope 维度)
 
@@ -207,8 +207,8 @@
 ```sql
 CREATE TABLE accounts (
   id          TEXT PRIMARY KEY,            -- acc_<uuidv7>
-  type        TEXT NOT NULL,               -- EMAIL | GUEST
-  email       TEXT UNIQUE,                 -- EMAIL 必填全局唯一;GUEST 为 NULL
+  type        TEXT NOT NULL,               -- EMAIL | GUEST | OAUTH(v1.1)
+  email       TEXT UNIQUE,                 -- EMAIL 必填全局唯一;GUEST/OAUTH 为 NULL
   status      TEXT NOT NULL DEFAULT 'ACTIVE',
   created_at  TEXT NOT NULL,               -- RFC3339 ms UTC
   updated_at  TEXT NOT NULL
@@ -259,6 +259,6 @@ F03 账号注销与数据删除([features.md](../research/features.md) F03,商�
 | --- | --- |
 | 宽限期时长 / 是否立即删 | 管理面配置,玩家契约不动 |
 | 下游数据级联范围(各游戏后端数据不同) | Provider 钩子 `OnAccountDeleted(accountId)` **注册制**——网关不认识任何下游存储,每个 Provider 自行订阅清理;新 Provider 接入 = 注册钩子,契约不动 |
-| 第三方 OAuth 账号(本契约 v1 不覆盖) | delete 端点与 `type` 无关;OAuth 域契约([oauth.md](./oauth.md) Draft)冻结时 `type` 加 `OAUTH` 枚举值即覆盖,delete/cancel 直接复用 |
+| 第三方 OAuth 账号(本契约 v1 不覆盖) | delete 端点与 `type` 无关;OAuth 域契约([oauth.md](./oauth.md) v1 已冻结)`type` 已加 `OAUTH` 枚举值,delete/cancel 直接复用 |
 | 监管要求物理删行 | 行为升版(wire 不变)走 v2 提案;v1 匿名化保留审计与外键完整性 |
 | 注销原因 / 申诉留档 | 管理面字段,不进玩家契约(PII 风险,玩家侧无需回传) |
