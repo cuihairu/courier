@@ -12,6 +12,7 @@ import (
 
 	"github.com/cuihairu/courier/gateway/middleware"
 	"github.com/cuihairu/courier/gateway/providers/hooks"
+	"github.com/cuihairu/courier/gateway/providers/oauth"
 	"github.com/cuihairu/courier/gateway/scope"
 )
 
@@ -636,4 +637,259 @@ func TestDeleteFinalizeAfterGrace(t *testing.T) {
 		t.Fatal("终态化应触发 account.deleted 钩子")
 	}
 	h.mustRegister(t, "late@b.co", "password8", "") // PII 已清,同邮箱可重注册
+}
+
+// --- v1.1 oauth.md(第三方身份;校验器经 oauth 注册表装配,测试用确定性实现) ---
+
+func exchangeBody(provider, token, tokenType, device string) string {
+	b := `{"provider":"` + provider + `","token":"` + token + `"`
+	if tokenType != "" {
+		b += `,"tokenType":"` + tokenType + `"`
+	}
+	if device != "" {
+		b += `,"deviceId":"` + device + `","platform":"ios"`
+	}
+	return b + `}`
+}
+
+func withDefaultVerifier(t *testing.T) {
+	t.Helper()
+	oauth.SetDefault(oauth.DeterministicVerifier{})
+	t.Cleanup(func() { oauth.SetDefault(nil) })
+}
+
+func TestOAuthExchangeNewAccountAndRelogin(t *testing.T) {
+	withDefaultVerifier(t)
+	h := newHarness(t, nil)
+
+	r := h.post(t, "/v1/identity/oauth/exchange", exchangeBody("google", "ok.sub-1", "", "dev-1"))
+	if r.status != http.StatusOK {
+		t.Fatalf("exchange status = %d code=%s", r.status, r.code)
+	}
+	s := r.dataSession(t)
+	if s.Account.Type != "OAUTH" || s.Account.Status != "ACTIVE" {
+		t.Fatalf("账号类型/状态不符: %+v", s.Account)
+	}
+	if s.Account.Email != nil {
+		t.Fatalf("OAUTH 账号不应有 email: %v", *s.Account.Email)
+	}
+	if !tokenRe.MatchString(s.AccessToken) || s.DeviceID != "dev-1" {
+		t.Fatalf("会话形状不符: access=%q deviceId=%q", s.AccessToken, s.DeviceID)
+	}
+	accID := s.Account.ID
+
+	// 重复 exchange 同 (provider, subject):登录同账号,签发新会话。
+	h.clock.Advance(time.Minute)
+	r2 := h.post(t, "/v1/identity/oauth/exchange", exchangeBody("google", "ok.sub-1", "", "dev-1"))
+	if r2.status != http.StatusOK {
+		t.Fatalf("re-exchange status = %d", r2.status)
+	}
+	s2 := r2.dataSession(t)
+	if s2.Account.ID != accID {
+		t.Fatalf("同 subject 应登录同账号: %s ≠ %s", s2.Account.ID, accID)
+	}
+	if s2.AccessToken == s.AccessToken {
+		t.Fatal("每次 exchange 应签发新会话")
+	}
+
+	// tokenType 缺省 = ID_TOKEN;显式枚举合法。
+	for _, tt := range []string{"", "ID_TOKEN", "ACCESS_TOKEN", "CODE"} {
+		r3 := h.post(t, "/v1/identity/oauth/exchange", exchangeBody("google", "ok.sub-1", tt, ""))
+		if r3.status != http.StatusOK {
+			t.Fatalf("tokenType %q: status = %d code=%s", tt, r3.status, r3.code)
+		}
+	}
+	// tokenType 非法枚举 → 400。
+	r4 := h.post(t, "/v1/identity/oauth/exchange", exchangeBody("google", "ok.sub-1", "JWT", ""))
+	if r4.status != http.StatusBadRequest || r4.code != "COMMON_INVALID_ARGUMENT" {
+		t.Fatalf("tokenType 非法: status=%d code=%s", r4.status, r4.code)
+	}
+}
+
+func TestOAuthIdentityInvalidAndProviderUnknown(t *testing.T) {
+	withDefaultVerifier(t)
+	h := newHarness(t, nil)
+
+	// 伪造凭证 → OAUTH_IDENTITY_INVALID(401,防枚举不区分无效/过期)。
+	r := h.post(t, "/v1/identity/oauth/exchange", exchangeBody("google", "forged-token", "", ""))
+	if r.status != http.StatusUnauthorized || r.code != "OAUTH_IDENTITY_INVALID" || r.retryable {
+		t.Fatalf("伪造凭证: status=%d code=%s retryable=%v", r.status, r.code, r.retryable)
+	}
+	// 缺 token → 400。
+	r = h.post(t, "/v1/identity/oauth/exchange", exchangeBody("google", "", "", ""))
+	if r.status != http.StatusBadRequest || r.code != "COMMON_INVALID_ARGUMENT" {
+		t.Fatalf("缺 token: status=%d code=%s", r.status, r.code)
+	}
+	// provider 格式不符(大写/下划线/超长)→ OAUTH_PROVIDER_UNKNOWN(未注册同码)。
+	for _, bad := range []string{"Google", "bad_provider", ""} {
+		r = h.post(t, "/v1/identity/oauth/exchange", exchangeBody(bad, "ok.x", "", ""))
+		if r.status != http.StatusBadRequest || r.code != "OAUTH_PROVIDER_UNKNOWN" {
+			t.Fatalf("provider %q: status=%d code=%s", bad, r.status, r.code)
+		}
+	}
+}
+
+func TestOAuthProviderRegistry(t *testing.T) {
+	// 未按名注册且无缺省校验器 → fail-closed OAUTH_PROVIDER_UNKNOWN。
+	h := newHarness(t, nil)
+	r := h.post(t, "/v1/identity/oauth/exchange", exchangeBody("google", "ok.sub-1", "", ""))
+	if r.status != http.StatusBadRequest || r.code != "OAUTH_PROVIDER_UNKNOWN" {
+		t.Fatalf("未注册 fail-closed: status=%d code=%s", r.status, r.code)
+	}
+	// 按名注册优先于缺省:按名注册的恒拒实现生效。
+	withDefaultVerifier(t)
+	oauth.Register("apple", rejectingVerifier{})
+	t.Cleanup(func() { oauth.Register("apple", nil) })
+	r = h.post(t, "/v1/identity/oauth/exchange", exchangeBody("apple", "ok.sub-1", "", ""))
+	if r.status != http.StatusUnauthorized || r.code != "OAUTH_IDENTITY_INVALID" {
+		t.Fatalf("按名注册优先: status=%d code=%s", r.status, r.code)
+	}
+	// 管理面显式注销(注册 nil)= 回落缺省校验器。
+	oauth.Register("apple", nil)
+	r = h.post(t, "/v1/identity/oauth/exchange", exchangeBody("apple", "ok.sub-2", "", ""))
+	if r.status != http.StatusOK {
+		t.Fatalf("注销后应回落缺省: status=%d code=%s", r.status, r.code)
+	}
+}
+
+// rejectingVerifier 恒拒校验器(测试按名注册优先级)。
+type rejectingVerifier struct{}
+
+func (rejectingVerifier) Verify(provider, token, tokenType string) (string, error) {
+	return "", oauth.ErrInvalidIdentity
+}
+
+func TestOAuthBindListUnbind(t *testing.T) {
+	withDefaultVerifier(t)
+	h := newHarness(t, nil)
+	acc := h.mustRegister(t, "a@b.co", "password8", "")
+	bearer := acc.AccessToken
+
+	// bind:返回 {provider, createdAt} 形状。
+	r := h.postAuth(t, "/v1/identity/oauth/bind", `{"provider":"google","token":"ok.sub-9"}`, bearer)
+	if r.status != http.StatusOK {
+		t.Fatalf("bind status = %d code=%s", r.status, r.code)
+	}
+	var bind struct {
+		Provider  string `json:"provider"`
+		CreatedAt string `json:"createdAt"`
+	}
+	if err := json.Unmarshal(r.data, &bind); err != nil || bind.Provider != "google" || bind.CreatedAt == "" {
+		t.Fatalf("bind 响应形状: raw=%s err=%v", r.data, err)
+	}
+
+	// 重复绑定同 provider → COMMON_INVALID_ARGUMENT。
+	r = h.postAuth(t, "/v1/identity/oauth/bind", `{"provider":"google","token":"ok.sub-9"}`, bearer)
+	if r.status != http.StatusBadRequest || r.code != "COMMON_INVALID_ARGUMENT" {
+		t.Fatalf("重复绑定: status=%d code=%s", r.status, r.code)
+	}
+	// 凭证无效 → OAUTH_IDENTITY_INVALID。
+	r = h.postAuth(t, "/v1/identity/oauth/bind", `{"provider":"google","token":"junk"}`, bearer)
+	if r.status != http.StatusUnauthorized || r.code != "OAUTH_IDENTITY_INVALID" {
+		t.Fatalf("bind 伪造凭证: status=%d code=%s", r.status, r.code)
+	}
+
+	// 再绑第二个 provider;列表按 createdAt 升序且不返回 subject。
+	h.clock.Advance(time.Minute)
+	if r := h.postAuth(t, "/v1/identity/oauth/bind", `{"provider":"apple","token":"ok.sub-10"}`, bearer); r.status != http.StatusOK {
+		t.Fatalf("bind apple status = %d", r.status)
+	}
+	r = h.getAuth(t, "/v1/identity/oauth/bindings", bearer)
+	if r.status != http.StatusOK {
+		t.Fatalf("bindings status = %d", r.status)
+	}
+	var list struct {
+		Items []map[string]any `json:"items"`
+	}
+	if err := json.Unmarshal(r.data, &list); err != nil {
+		t.Fatalf("解析 bindings: %v", err)
+	}
+	if len(list.Items) != 2 {
+		t.Fatalf("应有 2 条绑定: %s", r.data)
+	}
+	if list.Items[0]["provider"] != "google" || list.Items[1]["provider"] != "apple" {
+		t.Fatalf("列表应按 createdAt 升序: %s", r.data)
+	}
+	for _, item := range list.Items {
+		if _, leak := item["subject"]; leak {
+			t.Fatal("列表不得返回 subject")
+		}
+	}
+
+	// 解绑幂等;解绑后同 subject 再 exchange = 新 OAUTH 账号。
+	for i := 0; i < 2; i++ {
+		r = h.do(t, http.MethodDelete, "/v1/identity/oauth/bindings/google", "", bearer, "")
+		if r.status != http.StatusOK {
+			t.Fatalf("unbind[%d] status = %d", i, r.status)
+		}
+	}
+	r = h.getAuth(t, "/v1/identity/oauth/bindings", bearer)
+	if err := json.Unmarshal(r.data, &list); err != nil || len(list.Items) != 1 {
+		t.Fatalf("解绑后应剩 1 条: %s", r.data)
+	}
+	r = h.post(t, "/v1/identity/oauth/exchange", exchangeBody("google", "ok.sub-9", "", ""))
+	if r.status != http.StatusOK {
+		t.Fatalf("解绑后 exchange status = %d", r.status)
+	}
+	s := r.dataSession(t)
+	if s.Account.ID == acc.Account.ID || s.Account.Type != "OAUTH" {
+		t.Fatalf("解绑后同 subject 应为新 OAUTH 账号: %+v", s.Account)
+	}
+}
+
+func TestOAuthExchangeSubjectTakenAndDeviceLimit(t *testing.T) {
+	withDefaultVerifier(t)
+	h := newHarness(t, nil)
+	acc := h.mustRegister(t, "a@b.co", "password8", "")
+
+	// subject 已属其他账号 → OAUTH_IDENTITY_TAKEN(409)。
+	h.post(t, "/v1/identity/oauth/exchange", exchangeBody("google", "ok.sub-t", "", ""))
+	r := h.postAuth(t, "/v1/identity/oauth/bind", `{"provider":"google","token":"ok.sub-t"}`, acc.AccessToken)
+	if r.status != http.StatusConflict || r.code != "OAUTH_IDENTITY_TAKEN" || r.retryable {
+		t.Fatalf("subject 被占: status=%d code=%s retryable=%v", r.status, r.code, r.retryable)
+	}
+
+	// 设备超限(按账号计):登录路径换新设备 → AUTH_DEVICE_LIMIT。
+	h2 := newHarness(t, func(o *Options) { o.MaxDevices = 1 })
+	if r := h2.post(t, "/v1/identity/oauth/exchange", exchangeBody("google", "ok.s1", "", "dev-1")); r.status != http.StatusOK {
+		t.Fatalf("首次 exchange status = %d", r.status)
+	}
+	r = h2.post(t, "/v1/identity/oauth/exchange", exchangeBody("google", "ok.s1", "", "dev-2"))
+	if r.status != http.StatusForbidden || r.code != "AUTH_DEVICE_LIMIT" {
+		t.Fatalf("设备超限: status=%d code=%s", r.status, r.code)
+	}
+	// 原设备仍可登录。
+	r = h2.post(t, "/v1/identity/oauth/exchange", exchangeBody("google", "ok.s1", "", "dev-1"))
+	if r.status != http.StatusOK {
+		t.Fatalf("原设备 re-exchange status = %d", r.status)
+	}
+}
+
+func TestOAuthCapabilityDisabled(t *testing.T) {
+	withDefaultVerifier(t)
+	h := newHarness(t, func(o *Options) { o.OAuthDisabled = true })
+	r := h.post(t, "/v1/identity/oauth/exchange", exchangeBody("google", "ok.s1", "", ""))
+	if r.status != http.StatusNotImplemented || r.code != "COMMON_CAPABILITY_DISABLED" || r.retryable {
+		t.Fatalf("域关闭: status=%d code=%s retryable=%v", r.status, r.code, r.retryable)
+	}
+	acc := h.mustRegister(t, "a@b.co", "password8", "")
+	r = h.postAuth(t, "/v1/identity/oauth/bind", `{"provider":"google","token":"ok.s1"}`, acc.AccessToken)
+	if r.status != http.StatusNotImplemented || r.code != "COMMON_CAPABILITY_DISABLED" {
+		t.Fatalf("bind 域关闭: status=%d code=%s", r.status, r.code)
+	}
+}
+
+// TestOAuthPendingStoreDefense PENDING 账号绑定拒绝(防御竞态:受理即吊销会话,
+// HTTP 层正常不可达,存储层仍拒)。
+func TestOAuthPendingStoreDefense(t *testing.T) {
+	withDefaultVerifier(t)
+	// grace 须显式给值:0 = 立即删(EMAIL 也立即),不会进入 PENDING。
+	h := newHarness(t, func(o *Options) { o.DeleteGrace = 24 * time.Hour })
+	acc := h.mustRegister(t, "a@b.co", "password8", "")
+	if _, _, _, err := h.p.store.RequestDelete(acc.Account.ID, h.p.store.Options().DeleteGrace); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	if _, err := h.p.store.BindOAuth(acc.Account.ID, "google", "sub-x"); err != oauth.ErrPendingDelete {
+		t.Fatalf("PENDING bind 应拒: %v", err)
+	}
 }

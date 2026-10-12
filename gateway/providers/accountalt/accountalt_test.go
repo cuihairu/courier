@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/cuihairu/courier/gateway/providers/oauth"
 )
 
 func newTestProvider(t *testing.T, mutate func(*Options)) *Provider {
@@ -216,4 +218,126 @@ func TestDeleteImmediateAndFinalizeStore(t *testing.T) {
 			t.Fatalf("同邮箱重注册应成功: %v", err)
 		}
 	})
+}
+
+// --- v1.1 oauth.md(存储面;wire 行为一致性由 e2e 对两实现跑同一场景) ---
+
+func TestOAuthStoreExchangeBindUnbind(t *testing.T) {
+	p := newTestProvider(t, nil)
+	s := p.store
+
+	// 注册 OAUTH 账号 + 设备绑定。
+	acc, err := s.CreateOAuth("google", "sub-1", "dev-1", "ios")
+	if err != nil {
+		t.Fatalf("CreateOAuth: %v", err)
+	}
+	if acc.Type != "OAUTH" || acc.Status != "ACTIVE" || acc.Email != "" {
+		t.Fatalf("OAUTH 账号形状: %+v", acc)
+	}
+	// 幂等命中:同 (provider, subject) 找回同账号。
+	if got, ok := s.FindOAuth("google", "sub-1"); !ok || got.ID != acc.ID {
+		t.Fatalf("FindOAuth: %+v ok=%v", got, ok)
+	}
+	// 会话签发投影(access 过期按 TTL 计算)。
+	sess, err := s.CreateOAuthSession(acc.ID, "game_a", "prod", "dev-1")
+	if err != nil {
+		t.Fatalf("CreateOAuthSession: %v", err)
+	}
+	if sess.Account.ID != acc.ID || sess.AccessToken == "" || sess.RefreshToken == "" {
+		t.Fatalf("会话投影形状: %+v", sess)
+	}
+	if !sess.AccessExpiresAt.After(time.Now()) {
+		t.Fatalf("access 过期应按 TTL 前推: %v", sess.AccessExpiresAt)
+	}
+
+	// 绑定到已有账号(GUEST/EMAIL 一键登录),重复绑定同 provider → ErrProviderBound。
+	email, err := s.CreateEmailAccount("a@b.co", "password8")
+	if err != nil {
+		t.Fatalf("CreateEmailAccount: %v", err)
+	}
+	row, err := s.BindOAuth(email.id, "apple", "sub-2")
+	if err != nil {
+		t.Fatalf("BindOAuth: %v", err)
+	}
+	if row.Provider != "apple" || row.AccountID != email.id {
+		t.Fatalf("绑定行形状: %+v", row)
+	}
+	if _, err := s.BindOAuth(email.id, "apple", "sub-2"); err != oauth.ErrProviderBound {
+		t.Fatalf("重复绑定应拒: %v", err)
+	}
+	// subject 已属其他账号 → ErrIdentityTaken。
+	if _, err := s.BindOAuth(email.id, "google", "sub-1"); err != oauth.ErrIdentityTaken {
+		t.Fatalf("subject 被占应拒: %v", err)
+	}
+
+	// 列表升序;解绑幂等;解绑后同 subject 再注册 = 新账号。
+	time.Sleep(time.Millisecond)
+	if _, err := s.BindOAuth(email.id, "google", "sub-3"); err != nil {
+		t.Fatalf("bind google: %v", err)
+	}
+	rows := s.ListBindings(email.id)
+	if len(rows) != 2 || rows[0].Provider != "apple" || rows[1].Provider != "google" {
+		t.Fatalf("列表应按 createdAt 升序: %+v", rows)
+	}
+	if !s.UnbindOAuth(email.id, "apple") || s.UnbindOAuth(email.id, "apple") {
+		t.Fatal("解绑应幂等:首次 true,再删 false")
+	}
+	// 解绑原 OAUTH 账号的 google 后,同 subject 再注册 = 新账号。
+	if !s.UnbindOAuth(acc.ID, "google") {
+		t.Fatal("解绑 google 应成功")
+	}
+	acc2, err := s.CreateOAuth("google", "sub-1", "", "")
+	if err != nil {
+		t.Fatalf("重注册: %v", err)
+	}
+	if acc2.ID == acc.ID {
+		t.Fatal("解绑后同 subject 应为新账号")
+	}
+}
+
+func TestOAuthStorePendingAndAnonymizeCascade(t *testing.T) {
+	p := newTestProvider(t, func(o *Options) { o.DeleteGrace = 24 * time.Hour })
+	s := p.store
+
+	// PENDING 账号绑定拒绝(防御竞态)。
+	email, err := s.CreateEmailAccount("a@b.co", "password8")
+	if err != nil {
+		t.Fatalf("CreateEmailAccount: %v", err)
+	}
+	if _, _, _, err := s.RequestDelete(email.id, s.opts.DeleteGrace); err != nil {
+		t.Fatalf("RequestDelete: %v", err)
+	}
+	if _, err := s.BindOAuth(email.id, "google", "sub-x"); err != oauth.ErrPendingDelete {
+		t.Fatalf("PENDING bind 应拒: %v", err)
+	}
+
+	// OAUTH 账号注销 = 立即匿名化(无凭证行,对齐 GUEST);映射行随匿名化清理,
+	// 同 subject 再 exchange = 新账号。
+	acc, err := s.CreateOAuth("google", "sub-1", "", "")
+	if err != nil {
+		t.Fatalf("CreateOAuth: %v", err)
+	}
+	pending, _, deletedAt, err := s.RequestDelete(acc.ID, s.opts.DeleteGrace)
+	if err != nil || pending || deletedAt == nil {
+		t.Fatalf("OAUTH 注销应立即删: pending=%v deletedAt=%v err=%v", pending, deletedAt, err)
+	}
+	if _, ok := s.FindOAuth("google", "sub-1"); ok {
+		t.Fatal("匿名化应清理映射行")
+	}
+	acc2, err := s.CreateOAuth("google", "sub-1", "", "")
+	if err != nil || acc2.ID == acc.ID {
+		t.Fatalf("同 subject 再注册应为新账号: %+v err=%v", acc2, err)
+	}
+}
+
+func TestOAuthStoreDeviceLimit(t *testing.T) {
+	p := newTestProvider(t, func(o *Options) { o.MaxDevices = 1 })
+	s := p.store
+	acc, err := s.CreateOAuth("google", "sub-1", "dev-1", "")
+	if err != nil {
+		t.Fatalf("CreateOAuth: %v", err)
+	}
+	if err := s.EnsureBindDevice(acc.ID, "dev-2", ""); err != ErrDeviceLimit {
+		t.Fatalf("设备超限应拒: %v", err)
+	}
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/cuihairu/courier/gateway/middleware"
 	"github.com/cuihairu/courier/gateway/providers"
 	"github.com/cuihairu/courier/gateway/providers/hooks"
+	"github.com/cuihairu/courier/gateway/providers/oauth"
 	"github.com/cuihairu/courier/gateway/scope"
 	"github.com/cuihairu/courier/gateway/session"
 )
@@ -28,13 +29,29 @@ const DefaultName = "courier-account"
 const prefixIdentity = "/v1/identity/"
 
 // AccountProvider 自建账号:邮箱+密码、游客(设备)、access/refresh 轮换、
-// 吊销、设备绑定、敏感端点基础限流。
+// 吊销、设备绑定、第三方身份(oauth 域,v1.1)、敏感端点基础限流。
 type AccountProvider struct {
 	name     string
 	store    *Store
 	verifier auth.Verifier
 	reqAuth  func(http.Handler) http.Handler
 	limiter  *middleware.RateLimiter
+	oa       *oauth.Handlers
+}
+
+// oauthStore 适配 oauth.Store:EnsureBindDevice 返回值形状收敛为 error,
+// 设备超限统一翻译为 oauth 域哨兵(Handlers 统一映射)。
+type oauthStore struct{ *Store }
+
+func (a oauthStore) EnsureBindDevice(accountID, deviceID, platform string) error {
+	_, err := a.Store.EnsureBindDevice(accountID, deviceID, platform)
+	if err != nil {
+		if errors.Is(err, ErrDeviceLimit) {
+			return oauth.ErrDeviceLimit
+		}
+		return err
+	}
+	return nil
 }
 
 // New 构造自建账号 Provider。
@@ -48,6 +65,10 @@ func New(opts Options) *AccountProvider {
 		verifier: v,
 		reqAuth:  auth.RequireAuth(v),
 		limiter:  middleware.NewRateLimiter(opts.RatePerMinute, opts.RateBurst),
+		oa: &oauth.Handlers{
+			Store:    oauthStore{store},
+			Disabled: func() bool { return opts.OAuthDisabled },
+		},
 	}
 }
 
@@ -91,10 +112,25 @@ func (p *AccountProvider) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		p.reqAuth(http.HandlerFunc(p.handleSession)).ServeHTTP(w, r)
 	case "devices":
 		p.reqAuth(http.HandlerFunc(p.handleListDevices)).ServeHTTP(w, r)
+	case "oauth/exchange":
+		// v1.1 oauth.md:第三方凭证换会话(匿名,敏感端点限流)。
+		p.sensitive(http.HandlerFunc(p.oa.Exchange)).ServeHTTP(w, r)
+	case "oauth/bind":
+		// v1.1 oauth.md:绑定第三方身份(Bearer,敏感端点限流)。
+		p.sensitive(p.reqAuth(http.HandlerFunc(p.oa.Bind))).ServeHTTP(w, r)
+	case "oauth/bindings":
+		p.reqAuth(http.HandlerFunc(p.oa.ListBindings)).ServeHTTP(w, r)
 	default:
 		if devID, ok := strings.CutPrefix(path, "devices/"); ok && devID != "" {
 			p.reqAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				p.handleUnbindDevice(w, r, devID)
+			})).ServeHTTP(w, r)
+			return
+		}
+		if prov, ok := strings.CutPrefix(path, "oauth/bindings/"); ok && prov != "" {
+			// v1.1 oauth.md:解绑(Bearer,幂等)。
+			p.reqAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				p.oa.Unbind(w, r, prov)
 			})).ServeHTTP(w, r)
 			return
 		}

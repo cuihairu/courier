@@ -37,11 +37,15 @@ func main() {
 	// M1:自建 AccountProvider;M2:herald(公告)/ croupier(客服)/ chirp(推送)。
 	// 接入方可经配置换掉或关闭任何一个。
 	reg := providers.NewRegistry()
-	acc := account.New(account.Options{DeleteGrace: account.DefaultDeleteGrace})
+	// oauth 域开关(v1.1 oauth.md「可换可关」):COURIER_OAUTH_DISABLED=1 关闭
+	// (501 COMMON_CAPABILITY_DISABLED);第三方凭证校验器经 providers/oauth
+	// 注册表由接入方装配(管理面注册制,未注册 = OAUTH_PROVIDER_UNKNOWN fail-closed)。
+	oauthDisabled := os.Getenv("COURIER_OAUTH_DISABLED") == "1"
+	acc := account.New(account.Options{DeleteGrace: account.DefaultDeleteGrace, OAuthDisabled: oauthDisabled})
 	// identity 第二实现(批次 18):签名自验证令牌架构;路由表
 	// {"identity":{"primary":"courier-account-alt"}} 即整体切换(一致性 e2e
 	// 见 e2e/identity_conformance_test.go:两实现同一 wire 场景全绿)。
-	accAlt := accountalt.New(accountalt.Options{DeleteGrace: accountalt.DefaultDeleteGrace})
+	accAlt := accountalt.New(accountalt.Options{DeleteGrace: accountalt.DefaultDeleteGrace, OAuthDisabled: oauthDisabled})
 	// 会话校验器:经可重定向包装供 M2+ 域共享(通道/工单都为已认证玩家服务);
 	// 身份源切换时随之重指(下方读配置后),否则换身份源后 M2 域验不了新令牌。
 	sessVerifier := auth.NewSwitchable(acc.Verifier())

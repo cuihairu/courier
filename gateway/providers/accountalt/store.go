@@ -13,6 +13,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/cuihairu/courier/gateway/providers/oauth"
 )
 
 // 存储层错误(错误码由上层映射,契约 docs/contract/auth.md)。
@@ -34,6 +36,7 @@ type Options struct {
 	RatePerMinute int           // 敏感端点每 IP 限流,默认 10
 	RateBurst     int           // 默认 10
 	DeleteGrace   time.Duration // 注销宽限期(v1.1),负值=未配置走默认 14d,0=立即删;上限 30d
+	OAuthDisabled bool          // oauth 域关闭(v1.1,oauth.md「可换可关」);true → oauth 端点 501
 	Clock         func() time.Time
 	SigningKey    SigningKey // 覆盖签名密钥(测试/多实例共享;非法即 panic 快速失败)
 }
@@ -71,7 +74,7 @@ func (o *Options) fillDefaults() {
 
 type altAccount struct {
 	id          string
-	typ         string    // EMAIL | GUEST
+	typ         string    // EMAIL | GUEST | OAUTH(v1.1 oauth.md)
 	email       string    // 绑定后非空
 	status      string    // ACTIVE | DISABLED | PENDING_DELETE | DELETED
 	deleteAfter time.Time // PENDING_DELETE 宽限期满时刻(v1.1)
@@ -108,15 +111,16 @@ type altDevice struct {
 }
 
 type Store struct {
-	mu       sync.RWMutex
-	opts     *Options
-	codec    *codec
-	accounts map[string]*altAccount
-	byEmail  map[string]string
-	byGuest  map[string]string // deviceID → 游客账号 ID
-	sessions map[string]*altSession
-	devices  map[string]map[string]*altDevice // accountID → deviceID → 行
-	pending  map[string]pendingDeleteRow      // tokenHash → 宽限行(v1.1;token 只存哈希)
+	mu         sync.RWMutex
+	opts       *Options
+	codec      *codec
+	accounts   map[string]*altAccount
+	byEmail    map[string]string
+	byGuest    map[string]string // deviceID → 游客账号 ID
+	sessions   map[string]*altSession
+	devices    map[string]map[string]*altDevice // accountID → deviceID → 行
+	pending    map[string]pendingDeleteRow      // tokenHash → 宽限行(v1.1;token 只存哈希)
+	identities *oauth.Identities                // account_identities(v1.1,oauth.md)
 }
 
 // pendingDeleteRow 注销宽限行(v1.1):一次性撤销 token。
@@ -130,16 +134,18 @@ func NewStore(opts *Options) *Store {
 	if err != nil {
 		panic(fmt.Sprintf("accountalt: %v", err))
 	}
-	return &Store{
-		opts:     opts,
-		codec:    c,
-		accounts: make(map[string]*altAccount),
-		byEmail:  make(map[string]string),
-		byGuest:  make(map[string]string),
-		sessions: make(map[string]*altSession),
-		devices:  make(map[string]map[string]*altDevice),
-		pending:  make(map[string]pendingDeleteRow),
+	s := &Store{
+		opts:       opts,
+		codec:      c,
+		accounts:   make(map[string]*altAccount),
+		byEmail:    make(map[string]string),
+		byGuest:    make(map[string]string),
+		sessions:   make(map[string]*altSession),
+		devices:    make(map[string]map[string]*altDevice),
+		pending:    make(map[string]pendingDeleteRow),
+		identities: oauth.NewIdentities(opts.Clock),
 	}
+	return s
 }
 
 func (s *Store) now() time.Time { return s.opts.Clock() }
@@ -248,6 +254,11 @@ func (s *Store) VerifyEmailPassword(email, password string) (altAccount, bool) {
 func (s *Store) EnsureBindDevice(accountID, deviceID, platform string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.bindDeviceLocked(accountID, deviceID, platform)
+}
+
+// bindDeviceLocked 幂等绑定锁内体(创建 OAUTH 账号时在持有写锁下复用)。须持锁。
+func (s *Store) bindDeviceLocked(accountID, deviceID, platform string) error {
 	set, ok := s.devices[accountID]
 	if !ok {
 		set = make(map[string]*altDevice)
@@ -468,6 +479,7 @@ func (s *Store) anonymizeLocked(acc *altAccount, t time.Time) bool {
 			delete(s.pending, h)
 		}
 	}
+	s.identities.RemoveAccount(acc.id) // v1.1 oauth:映射行随匿名化清理(oauth.md 扩展预留)
 	return true
 }
 
@@ -491,4 +503,111 @@ func (s *Store) FinalizeIfExpired(accountID string) bool {
 		return false
 	}
 	return s.anonymizeLocked(cur, s.now())
+}
+
+// --- 第三方身份(v1.1,oauth.md;oauth.Store 适配,oauth.Handlers 共享端点处理) ---
+
+func toOAuthAccount(a altAccount) oauth.Account {
+	return oauth.Account{ID: a.id, Type: a.typ, Status: a.status, Email: a.email, CreatedAt: a.createdAt}
+}
+
+// FindOAuth 按 (provider, subject) 查已绑定账号;已匿名化账号的映射行随匿名化
+// 清理,天然查不到(同 subject 再 exchange = 新 OAUTH 账号,同游客口径)。
+func (s *Store) FindOAuth(provider, subject string) (oauth.Account, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	row, ok := s.identities.Find(provider, subject)
+	if !ok {
+		return oauth.Account{}, false
+	}
+	acc, ok := s.accounts[row.AccountID]
+	if !ok {
+		return oauth.Account{}, false
+	}
+	return toOAuthAccount(*acc), true
+}
+
+// CreateOAuth 注册 type=OAUTH 账号并写入映射(契约 oauth.md:未命中即创建;
+// 无凭证行,行为对齐 GUEST 最小凭证形态);可选绑定设备,超限整单回滚。
+func (s *Store) CreateOAuth(provider, subject, deviceID, platform string) (oauth.Account, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	acc := &altAccount{
+		id: newID("acctalt", 12), typ: "OAUTH", status: "ACTIVE", createdAt: s.now(),
+	}
+	s.accounts[acc.id] = acc
+	if err := s.identities.Bind(acc.id, provider, subject); err != nil {
+		delete(s.accounts, acc.id)
+		return oauth.Account{}, err
+	}
+	if deviceID != "" {
+		if err := s.bindDeviceLocked(acc.id, deviceID, platform); err != nil {
+			s.identities.Unbind(acc.id, provider)
+			delete(s.accounts, acc.id)
+			return oauth.Account{}, oauth.ErrDeviceLimit
+		}
+	}
+	return toOAuthAccount(*acc), nil
+}
+
+// CreateOAuthSession oauth 域会话签发(复用 CreateSession,投影 oauth.Session;
+// access 过期时刻在 claim,投影按同一 TTL 计算)。
+func (s *Store) CreateOAuthSession(accountID, gameID, env, deviceID string) (oauth.Session, error) {
+	sessID, access, refresh, err := s.CreateSession(accountID, gameID, env, deviceID)
+	if err != nil {
+		if errors.Is(err, ErrDisabled) {
+			return oauth.Session{}, oauth.ErrDisabled
+		}
+		return oauth.Session{}, err
+	}
+	acc, ok := s.GetAccount(accountID)
+	if !ok {
+		return oauth.Session{}, ErrNotFound
+	}
+	sess, ok := s.Session(sessID)
+	if !ok {
+		return oauth.Session{}, ErrNotFound
+	}
+	return oauth.Session{
+		Account:          toOAuthAccount(acc),
+		AccessToken:      access,
+		AccessExpiresAt:  sess.createdAt.Add(s.opts.AccessTTL),
+		RefreshToken:     refresh,
+		RefreshExpiresAt: sess.refreshExpires,
+		DeviceID:         deviceID,
+	}, nil
+}
+
+// BindOAuth 绑定第三方身份到账号(契约 oauth.md POST bind):同 provider 重复
+// 绑定 → oauth.ErrProviderBound(COMMON_INVALID_ARGUMENT);subject 已属其他
+// 账号 → oauth.ErrIdentityTaken(OAUTH_IDENTITY_TAKEN);宽限期账号拒绝(防御竞态)。
+func (s *Store) BindOAuth(accountID, provider, subject string) (oauth.IdentityRow, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	acc, ok := s.accounts[accountID]
+	if !ok {
+		return oauth.IdentityRow{}, ErrNotFound
+	}
+	if acc.status == StatusPendingDel {
+		return oauth.IdentityRow{}, oauth.ErrPendingDelete
+	}
+	if err := s.identities.Bind(accountID, provider, subject); err != nil {
+		return oauth.IdentityRow{}, err
+	}
+	row, _ := s.identities.Find(provider, subject)
+	return row, nil
+}
+
+// UnbindOAuth 解绑并删除映射行(幂等);解绑不影响账号本身(oauth.md)。
+func (s *Store) UnbindOAuth(accountID, provider string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.identities.Unbind(accountID, provider)
+}
+
+// ListBindings 已绑定列表,createdAt 升序(不返回 subject)。
+func (s *Store) ListBindings(accountID string) []oauth.IdentityRow {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.identities.ByAccount(accountID)
 }

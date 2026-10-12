@@ -37,6 +37,10 @@ const (
 	CodeSupportTicketNotFound = "SUPPORT_TICKET_NOT_FOUND"
 	CodeSupportTicketClosed   = "SUPPORT_TICKET_CLOSED"
 
+	CodeOauthProviderUnknown = "OAUTH_PROVIDER_UNKNOWN" // v6,oauth.md v1
+	CodeOauthIdentityInvalid = "OAUTH_IDENTITY_INVALID" // v6,oauth.md v1
+	CodeOauthIdentityTaken   = "OAUTH_IDENTITY_TAKEN"   // v6,oauth.md v1
+
 	CodeRealNameRequired = "REALNAME_REQUIRED"
 	CodeRealNameRejected = "REALNAME_REJECTED"
 	CodeRealNamePending  = "REALNAME_PENDING_REVIEW"
@@ -86,6 +90,10 @@ var codeTable = map[string]codeSpec{
 	CodeAnnouncementNotFound:  {http.StatusNotFound, false},
 	CodeSupportTicketNotFound: {http.StatusNotFound, false},
 	CodeSupportTicketClosed:   {http.StatusConflict, false},
+
+	CodeOauthProviderUnknown: {http.StatusBadRequest, false},
+	CodeOauthIdentityInvalid: {http.StatusUnauthorized, false},
+	CodeOauthIdentityTaken:   {http.StatusConflict, false},
 
 	CodeRealNameRequired: {http.StatusForbidden, false},
 	CodeRealNameRejected: {http.StatusForbidden, false},
