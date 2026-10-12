@@ -50,6 +50,8 @@ enum class ErrorCode {
     OauthIdentityTaken = 37,
     SupportAttachmentTooLarge = 38,
     SupportAttachmentLimit = 39,
+    SupportPenaltyNotFound = 40,
+    SupportAppealExists = 41,
     kCount  // 哨兵,非契约码
 };
 
@@ -102,6 +104,8 @@ inline const ErrorSpec& error_spec(ErrorCode code) {
         {"OAUTH_IDENTITY_TAKEN", 409, false},
         {"SUPPORT_ATTACHMENT_TOO_LARGE", 413, false},
         {"SUPPORT_ATTACHMENT_LIMIT", 409, false},
+        {"SUPPORT_PENALTY_NOT_FOUND", 404, false},
+        {"SUPPORT_APPEAL_EXISTS", 409, false},
     };
     return kSpecs[static_cast<std::size_t>(code)];
 }

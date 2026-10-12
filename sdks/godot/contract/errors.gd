@@ -48,6 +48,8 @@ const SPECS: Dictionary = {
 	"OAUTH_IDENTITY_TAKEN": {"http": 409, "retryable": false},
 	"SUPPORT_ATTACHMENT_TOO_LARGE": {"http": 413, "retryable": false},
 	"SUPPORT_ATTACHMENT_LIMIT": {"http": 409, "retryable": false},
+	"SUPPORT_PENALTY_NOT_FOUND": {"http": 404, "retryable": false},
+	"SUPPORT_APPEAL_EXISTS": {"http": 409, "retryable": false},
 }
 
 const NAME_TO_WIRE: Dictionary = {
@@ -91,6 +93,8 @@ const NAME_TO_WIRE: Dictionary = {
 	"OauthIdentityTaken": "OAUTH_IDENTITY_TAKEN",
 	"SupportAttachmentTooLarge": "SUPPORT_ATTACHMENT_TOO_LARGE",
 	"SupportAttachmentLimit": "SUPPORT_ATTACHMENT_LIMIT",
+	"SupportPenaltyNotFound": "SUPPORT_PENALTY_NOT_FOUND",
+	"SupportAppealExists": "SUPPORT_APPEAL_EXISTS",
 }
 
 ## wire code → 枚举名;未知返回 ""(调用方落兜底分支)。

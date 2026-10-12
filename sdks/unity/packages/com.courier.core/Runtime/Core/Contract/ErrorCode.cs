@@ -46,6 +46,8 @@ namespace Courier.Contract
         OauthIdentityTaken = 37,
         SupportAttachmentTooLarge = 38,
         SupportAttachmentLimit = 39,
+        SupportPenaltyNotFound = 40,
+        SupportAppealExists = 41,
     }
 
     /// <summary>错误码 → wire / HTTP / retryable 冻结映射(下标与枚举值对齐)。</summary>
@@ -101,6 +103,8 @@ namespace Courier.Contract
             new Spec("OAUTH_IDENTITY_TAKEN", 409, false),
             new Spec("SUPPORT_ATTACHMENT_TOO_LARGE", 413, false),
             new Spec("SUPPORT_ATTACHMENT_LIMIT", 409, false),
+            new Spec("SUPPORT_PENALTY_NOT_FOUND", 404, false),
+            new Spec("SUPPORT_APPEAL_EXISTS", 409, false),
         };
 
         /// <summary>域前缀注册表(新域先注册前缀再定义码)。</summary>

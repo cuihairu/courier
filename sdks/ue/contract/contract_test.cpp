@@ -24,8 +24,8 @@ static int gFailed = 0;
 int main() {
     using namespace courier;
 
-    // 冻结码数量(docs/contract/fixtures/errors.json v7 = 40)。
-    CHECK(static_cast<int>(ErrorCode::kCount) == 40, "kCount == 40");
+    // 冻结码数量(docs/contract/fixtures/errors.json v8 = 42)。
+    CHECK(static_cast<int>(ErrorCode::kCount) == 42, "kCount == 42");
 
     // 抽查冻结映射(wire / HTTP / retryable)。
     CHECK(std::strcmp(error_spec(ErrorCode::CommonInternal).wire, "COMMON_INTERNAL") == 0,
@@ -62,6 +62,12 @@ int main() {
     CHECK(error_spec(ErrorCode::SupportAttachmentLimit).http == 409 &&
               !error_spec(ErrorCode::SupportAttachmentLimit).retryable,
           "SUPPORT_ATTACHMENT_LIMIT 409");
+    CHECK(error_spec(ErrorCode::SupportPenaltyNotFound).http == 404 &&
+              !error_spec(ErrorCode::SupportPenaltyNotFound).retryable,
+          "SUPPORT_PENALTY_NOT_FOUND 404");
+    CHECK(error_spec(ErrorCode::SupportAppealExists).http == 409 &&
+              !error_spec(ErrorCode::SupportAppealExists).retryable,
+          "SUPPORT_APPEAL_EXISTS 409");
     CHECK(error_spec(ErrorCode::AppVersionUnsupported).http == 426,
           "APP_VERSION_UNSUPPORTED 426");
     CHECK(error_spec(ErrorCode::RealnameCurfewBlocked).http == 403 &&

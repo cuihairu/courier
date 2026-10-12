@@ -1,5 +1,5 @@
 {
-  "version": 7,
+  "version": 8,
   "source": "docs/contract/errors.md 错误码表 v1(基元冻结集)",
   "prefixes": [
     "COMMON",
@@ -215,6 +215,16 @@
     },
     {
       "code": "SUPPORT_ATTACHMENT_LIMIT",
+      "http": 409,
+      "retryable": false
+    },
+    {
+      "code": "SUPPORT_PENALTY_NOT_FOUND",
+      "http": 404,
+      "retryable": false
+    },
+    {
+      "code": "SUPPORT_APPEAL_EXISTS",
       "http": 409,
       "retryable": false
     }

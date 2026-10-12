@@ -42,6 +42,8 @@ export const ErrorCode = {
   OauthIdentityTaken: "OAUTH_IDENTITY_TAKEN",
   SupportAttachmentTooLarge: "SUPPORT_ATTACHMENT_TOO_LARGE",
   SupportAttachmentLimit: "SUPPORT_ATTACHMENT_LIMIT",
+  SupportPenaltyNotFound: "SUPPORT_PENALTY_NOT_FOUND",
+  SupportAppealExists: "SUPPORT_APPEAL_EXISTS",
 } as const;
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
 
@@ -93,6 +95,8 @@ export const ErrorSpecs: Readonly<Record<ErrorCode, ErrorSpec>> = {
   OauthIdentityTaken: { wire: "OAUTH_IDENTITY_TAKEN", http: 409, retryable: false },
   SupportAttachmentTooLarge: { wire: "SUPPORT_ATTACHMENT_TOO_LARGE", http: 413, retryable: false },
   SupportAttachmentLimit: { wire: "SUPPORT_ATTACHMENT_LIMIT", http: 409, retryable: false },
+  SupportPenaltyNotFound: { wire: "SUPPORT_PENALTY_NOT_FOUND", http: 404, retryable: false },
+  SupportAppealExists: { wire: "SUPPORT_APPEAL_EXISTS", http: 409, retryable: false },
 };
 
 /** wire code → 枚举;未知返回 undefined(调用方落兜底分支)。 */

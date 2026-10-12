@@ -1,6 +1,6 @@
 # 客服契约(Support)
 
-> 状态:**Frozen v1.1** · 里程碑 M2(v1 冻结 2026-10-08;v1.1 2026-10-12 追加工单上下文 F43 与工单附件 F44,分两批冻结)。
+> 状态:**Frozen v1.1** · 里程碑 M2(v1 冻结 2026-10-08;v1.1 追加三批:2026-10-12 工单上下文 F43 与工单附件 F44,2026-10-13 举报与处罚申诉 F45)。
 > 域前缀 `SUPPORT` 已注册([errors.md](./errors.md));本文档是 M2 服务端(默认供应商 **croupier**)与各端 SDK 的一致性依据,冻结后只加不改,破坏性变更升版本(见 [versioning.md](./versioning.md))。
 
 ## 能力与范围
@@ -123,9 +123,9 @@ F43 工单上下文附带([features.md](../research/features.md) F43)按 2026-10
 
 ---
 
-## 举报与处罚申诉提案(F45,Draft,未冻结 · 2026-10-11)
+## 举报与处罚申诉(F45,Frozen · 批次 56,2026-10-13)
 
-> 来源:[features.md](../research/features.md) F45。**处罚的判定与执行全在管理面**(croupier / GM / 接入方风控);本契约只是玩家侧只读投影 + 申诉入口——与公告/配置同模式,网关不执行风控。
+> 来源:[features.md](../research/features.md) F45。**处罚的判定与执行全在管理面**(croupier / GM / 接入方风控);本契约只是玩家侧只读投影 + 申诉入口——与公告/配置同模式,网关不执行风控。**状态:Frozen**(2026-10-13,批次 56 冻结;原 Draft 提案 2026-10-11 批次 48,按原文冻结不改语义)。
 
 ### 端点
 
@@ -136,7 +136,7 @@ F43 工单上下文附带([features.md](../research/features.md) F43)按 2026-10
 | `GET /v1/support/penalties/{penaltyId}` | Bearer | 处罚详情(含申诉状态) |
 | `POST /v1/support/penalties/{penaltyId}/appeal` | Bearer | 提交申诉(每处罚至多一个进行中申诉) |
 
-### 数据模型(拟新增)
+### 数据模型
 
 **report(举报)**:`id`(`rpt_` 前缀)、`targetType`(`PLAYER` / `MESSAGE` / `TICKET`,开集可扩)、`targetId`、`reason`(`CHEATING` / `ABUSE` / `SPAM` / `INAPPROPRIATE` / `OTHER`,管理面可扩)、`detail?`(≤1000 字符)。受理即返回 `id`,**举报进展不向举报人反馈**(防骚扰设计)。
 
@@ -146,7 +146,7 @@ F43 工单上下文附带([features.md](../research/features.md) F43)按 2026-10
 
 - 申诉判定走管理面,结果以拉取为准(`appeal.state`);已有进行中申诉再提交 → 409 `SUPPORT_APPEAL_EXISTS`。
 - 非本人 / 不存在处罚 → 404 `SUPPORT_PENALTY_NOT_FOUND`(不泄露存在性)。
-- **拟新增 2 个错误码**:`SUPPORT_PENALTY_NOT_FOUND`(404,retryable=false)、`SUPPORT_APPEAL_EXISTS`(409,retryable=false)。
+- **新增 2 个错误码**:`SUPPORT_PENALTY_NOT_FOUND`(404,retryable=false)、`SUPPORT_APPEAL_EXISTS`(409,retryable=false)。
 - v1 **不改变 auth 登录语义**:处罚是否拦截登录由接入方策略与管理面决定(见扩展节)。
 
 ### 扩展与演进
@@ -155,9 +155,11 @@ F43 工单上下文附带([features.md](../research/features.md) F43)按 2026-10
 | --- | --- |
 | 新处罚类型 / 新举报理由 | 管理面扩集合;type 开集客户端容忍未知,reason 集合登记于本节即可 |
 | 处罚拦截登录 | v1.2 可选语义提案(如 `AUTH_ACCOUNT_SUSPENDED` 联动);v1 不动 auth |
-| 举报证据附件 | 与 F44 附件共用独立端点(`targetType` 维度泛化留 F45 冻结后提案),不塞 report |
+| 举报证据附件 | 与 F44 附件共用独立端点(`targetType` 维度泛化留 v1.2 提案),不塞 report |
 | 跨游戏 / 公司级处罚 | penalty 增可选 `gameId?`(缺省 = 签发 scope)走加字段扩展,v1 仅当前 scope |
 | 举报流转进度 | 不向举报人反馈(防骚扰),管理面内部流转;产品若需要可另提匿名化进度端点提案 |
+
+冻结生效:原提案「扩展与演进」表随冻结生效(新处罚类型 / 新举报理由走管理面扩集合,`type` 开集客户端容忍未知,不升版本);新增错误码入 errors.md v8;v1 **不动 auth 登录语义**(处罚拦截登录留 v1.2 提案)。
 
 ---
 
@@ -197,7 +199,7 @@ F43 工单上下文附带([features.md](../research/features.md) F43)按 2026-10
 
 | 可能的扩展 | 兼容处理方式 |
 | --- | --- |
-| 举报证据附件(F45 提案已预留承诺) | 端点组泛化提案(`targetType` 维度,F45 冻结后一并),共用同一存储面与限额语义 |
+| 举报证据附件(F45 已冻结) | 端点组泛化提案(`targetType` 维度,v1.2 一并),共用同一存储面与限额语义 |
 | 存储供应商更换(S3 / OSS / 本地盘) | 预签名 URL 抽象已把存储挡在 Provider 后;契约只认「短时效直传 URL」形状,换存储 = 换 Provider 配置,契约不动 |
 | 新附件类型(视频 / 大文件) | 管理面 allowlist 与限额配置扩;超大文件走 Provider 直传面,不进玩家契约(字段最小化) |
 | 缩略图 / 预览 | Provider/管理面能力;玩家侧只认 `downloadUrl`,契约不加预览语义 |
