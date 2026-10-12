@@ -654,14 +654,14 @@
 
 ### 落地四批(分批提交)
 
-- [ ] **网关实现**:croupier 附件端点 + `Signer` 接口与 fail-closed 缺省 + 限额/allowlist/归属/状态校验 + 详情 `attachments[]` 加法 + main.go 接线
-- [ ] **SDK 六端**:申请直传方法 + 详情 DTO `attachments[]`(Unity / Cocos / 小程序 / Laybox / UE / Godot)
-- [ ] **e2e 场景**:申请直传返回 uploadUrl+headers+expiresAt / 详情 attachments[] 回显 / 第 4 个附件 409 / 超限单文件 413 / 关闭工单 409 / 他人工单 404 / contentType 越界 400 / 未配置 signer 501
+- [x] **网关实现**:croupier 附件端点 + `Signer` 接口与 fail-closed 缺省 + 限额/allowlist/归属/状态校验 + 详情 `attachments[]` 加法 + main.go 接线(`035125d`)
+- [x] **SDK 六端**:申请直传方法 + 详情 DTO `attachments[]`(Unity / Cocos / 小程序 / Laybox / UE / Godot)(`6dbfca0`)
+- [x] **e2e 场景**:申请直传返回 uploadUrl+headers+expiresAt / 详情 attachments[] 回显 / 第 4 个附件 409 / 超限单文件 413 / 关闭工单 409 / 他人工单 404 / contentType 越界 400 / 未配置 signer 501(`804e93d`)
 
 ### 门禁
 
-- [ ] `go test ./...`(gateway)+ `go test ./tools/...` + 六端 node/ue/dotnet 测试全绿才 commit
-- [ ] `docs/research/implementation-status.md` F44 行状态与证据 commit 随每批同步更新
+- [x] `go test ./...`(gateway)+ `go test ./tools/...` + 六端 node/ue/dotnet 测试全绿才 commit(node 131×3 / unity 8+55+11+81 / ue 7 套件 / gateway go vet+test / tools 全绿)
+- [x] `docs/research/implementation-status.md` F44 行状态与证据 commit 随每批同步更新
 
 ## 明确不做
 
