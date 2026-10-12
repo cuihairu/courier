@@ -54,7 +54,7 @@
 | `payments` | `teller` | 无支付 |
 | `realname` | 无默认(需自接) | 实名/防沉迷面隐藏 |
 
-替换/降级语义见 [routing 包文档](../gateway/routing/routing.go) 与 [layers.md](./layers.md):primary + `fallbacks[]`,健康检查逐请求评估;禁用或全链不健康分别回 501 / 503 `COMMON_UNAVAILABLE`。
+替换/降级语义见 routing 包（`gateway/routing`）与 [layers.md](./layers.md):primary + `fallbacks[]`,健康检查逐请求评估;禁用或全链不健康分别回 501 / 503 `COMMON_UNAVAILABLE`。
 
 ## 口径注
 
