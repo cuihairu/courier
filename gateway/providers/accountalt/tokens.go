@@ -87,13 +87,13 @@ func (c *codec) issueRefresh(sessID string, gen int, exp time.Time) string {
 }
 
 type accessClaims struct {
-	sessionID  string
-	accountID  string
-	deviceID   string
-	gameID     string
-	env        string
-	expiresAt  time.Time
-	nonce      string // 当前 access 唯一记号;轮换后旧令牌作废(nonce 失配即失效)
+	sessionID string
+	accountID string
+	deviceID  string
+	gameID    string
+	env       string
+	expiresAt time.Time
+	nonce     string // 当前 access 唯一记号;轮换后旧令牌作废(nonce 失配即失效)
 }
 
 type refreshClaims struct {

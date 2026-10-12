@@ -73,7 +73,7 @@ func newPenaltyHarness(t *testing.T, store croupier.PenaltyStore) *penaltyHarnes
 	acc := account.New(account.Options{Iterations: 1000})
 	reqAuth := auth.RequireAuth(acc.Verifier())
 	cp := croupier.New(croupier.Options{
-		RequireAuth: reqAuth,
+		RequireAuth:  reqAuth,
 		PenaltyStore: store,
 	})
 	if err := reg.Register(acc); err != nil {
@@ -210,7 +210,9 @@ func TestReportAndAppeal_V11(t *testing.T) {
 		t.Fatalf("page1 status=%d", st)
 	}
 	var p1 struct {
-		Items      []struct{ ID string `json:"id"` } `json:"items"`
+		Items []struct {
+			ID string `json:"id"`
+		} `json:"items"`
 		NextCursor string `json:"nextCursor"`
 	}
 	if err := json.Unmarshal(mustEnv(t, body).Data, &p1); err != nil {

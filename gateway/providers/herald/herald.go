@@ -53,6 +53,10 @@ type Announcement struct {
 	// Filters 定向过滤维度(v1.1):维度 → 值集合 开集 map;nil = 无过滤全量可见。
 	// 服务端匹配依据 + 只读回显,SDK 不解释内容(契约 announcement.md)。
 	Filters map[string][]string
+	// Language 语种声明(F76,RFC 5646 标签;空 = 不限定语种全量可见);
+	// GroupKey 管理面关联同内容多语条目(客户端不解释)。均元数据,不参与匹配。
+	Language string
+	GroupKey string
 }
 
 // announcementDTO wire 形状(契约数据模型,camelCase;缺省边界输出 null)。
@@ -65,6 +69,8 @@ type announcementDTO struct {
 	EndAt       *string             `json:"endAt"`
 	PublishedAt string              `json:"publishedAt"`
 	Filters     map[string][]string `json:"filters,omitempty"`
+	Language    string              `json:"language,omitempty"` // F76,语种声明元数据
+	GroupKey    string              `json:"groupKey,omitempty"` // F76,多语条目关联(客户端不解释)
 }
 
 type pageDTO struct {
@@ -122,7 +128,9 @@ func (p *AnnouncementProvider) HealthCheck(_ context.Context) error { return nil
 
 // Publish 管理面发布(运营侧):校验、分配 ann_ ID、入列、广播。
 // filters 为定向过滤维度(v1.1,开集 map,nil = 无过滤);条件 DSL 不进玩家契约。
-func (p *AnnouncementProvider) Publish(title, body, severity string, startAt, endAt *time.Time, filters map[string][]string) (Announcement, error) {
+// language/groupKey 为多语声明字段(F76,可空;language 建议 RFC 5646,不参与匹配)。
+func (p *AnnouncementProvider) Publish(title, body, severity string, startAt, endAt *time.Time,
+	filters map[string][]string, language, groupKey string) (Announcement, error) {
 	if title == "" || len([]rune(title)) > 120 {
 		return Announcement{}, errInvalid("title 1-120 字符")
 	}
@@ -148,6 +156,8 @@ func (p *AnnouncementProvider) Publish(title, body, severity string, startAt, en
 		EndAt:       endAt,
 		PublishedAt: p.clock(),
 		Filters:     filters,
+		Language:    language,
+		GroupKey:    groupKey,
 	}
 	p.items = append(p.items, a)
 	p.nextID++
@@ -313,6 +323,8 @@ func (p *AnnouncementProvider) dto(a Announcement) announcementDTO {
 		EndAt:       formatMilliPtr(a.EndAt),
 		PublishedAt: formatMilli(a.PublishedAt),
 		Filters:     a.Filters,
+		Language:    a.Language,
+		GroupKey:    a.GroupKey,
 	}
 }
 

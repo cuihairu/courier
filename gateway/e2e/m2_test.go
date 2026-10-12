@@ -183,7 +183,7 @@ func TestAnnouncementPublished_PushesWithin5s_ThenPullHistory(t *testing.T) {
 
 	// 运营侧发布(管理面入口)。chirp handleStream 在 WriteHeader 前同步注册
 	// 订阅者,openStream 返回 200 即订阅已建立,无需额外等待。
-	a, err := h.announce.Publish("版本 1.2 已发布", "新增公会战玩法", "INFO", nil, nil, nil)
+	a, err := h.announce.Publish("版本 1.2 已发布", "新增公会战玩法", "INFO", nil, nil, nil, "", "")
 	if err != nil {
 		t.Fatalf("publish: %v", err)
 	}
@@ -333,7 +333,7 @@ func TestAnnouncementDetailAndSupportFAQ_ContractEndpoints(t *testing.T) {
 	token := h.login(t)
 
 	// 公告详情:命中返回 DTO,缺失/过期同码不泄露存在性(announcement.md)。
-	a, err := h.announce.Publish("维护通知", "周三 03:00-05:00 停服", "WARNING", nil, nil, nil)
+	a, err := h.announce.Publish("维护通知", "周三 03:00-05:00 停服", "WARNING", nil, nil, nil, "", "")
 	if err != nil {
 		t.Fatalf("publish: %v", err)
 	}
@@ -421,16 +421,16 @@ func TestAnnouncementTargetedFilters_V11(t *testing.T) {
 	token := h.login(t)
 
 	targeted, err := h.announce.Publish("iOS 专属活动", "仅 iOS 中国区可见", "INFO", nil, nil,
-		map[string][]string{"platform": {"ios"}, "region": {"CN"}})
+		map[string][]string{"platform": {"ios"}, "region": {"CN"}}, "", "")
 	if err != nil {
 		t.Fatalf("publish targeted: %v", err)
 	}
-	open, err := h.announce.Publish("全量公告", "所有人均可见", "INFO", nil, nil, nil)
+	open, err := h.announce.Publish("全量公告", "所有人均可见", "INFO", nil, nil, nil, "", "")
 	if err != nil {
 		t.Fatalf("publish open: %v", err)
 	}
 	emptyDim, err := h.announce.Publish("空维度公告", "platform 空集合 = 不过滤", "INFO", nil, nil,
-		map[string][]string{"platform": {}})
+		map[string][]string{"platform": {}}, "", "")
 	if err != nil {
 		t.Fatalf("publish emptyDim: %v", err)
 	}
@@ -485,6 +485,94 @@ func TestAnnouncementTargetedFilters_V11(t *testing.T) {
 	status, body = h.scopeGet(t, "/v1/announcements/"+targeted.ID+"?platform=ios&region=CN", token)
 	if status != http.StatusOK {
 		t.Fatalf("命中详情: status = %d, body = %s", status, body)
+	}
+}
+
+// v1.1 多语内容(announcement.md「多语内容」F76):一条公告 = 单语内容,多语 = 管理面分条;
+// 可见性仍由 filters 的 language 维度决定(零新机制),行内 language/groupKey 是语种声明
+// 元数据,只读回显、不参与匹配;缺省字段 omitempty 不出现。
+func TestAnnouncementLanguages_V11(t *testing.T) {
+	h := newHarness(t, true)
+	token := h.login(t)
+
+	zh, err := h.announce.Publish("维护公告", "今晚 03:00 停机", "WARNING", nil, nil,
+		map[string][]string{"language": {"zh-CN"}}, "zh-CN", "maint")
+	if err != nil {
+		t.Fatalf("publish zh: %v", err)
+	}
+	en, err := h.announce.Publish("Maintenance", "Downtime at 03:00 UTC+8", "WARNING", nil, nil,
+		map[string][]string{"language": {"en"}}, "en", "maint")
+	if err != nil {
+		t.Fatalf("publish en: %v", err)
+	}
+	plain, err := h.announce.Publish("全量公告", "所有语种可见", "INFO", nil, nil, nil, "", "")
+	if err != nil {
+		t.Fatalf("publish plain: %v", err)
+	}
+
+	ids := func(body string) []string {
+		var page struct {
+			Data struct {
+				Items []struct {
+					ID string `json:"id"`
+				} `json:"items"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal([]byte(body), &page); err != nil {
+			t.Fatalf("list decode: %v (body=%s)", err, body)
+		}
+		got := []string{}
+		for _, it := range page.Data.Items {
+			got = append(got, it.ID)
+		}
+		return got
+	}
+	hasAll := func(got []string, want ...string) {
+		t.Helper()
+		g := map[string]bool{}
+		for _, id := range got {
+			g[id] = true
+		}
+		if len(got) != len(want) {
+			t.Fatalf("条数 = %v,期望 %d 条", got, len(want))
+		}
+		for _, id := range want {
+			if !g[id] {
+				t.Fatalf("应含 %s,got %v", id, got)
+			}
+		}
+	}
+
+	// 不带 language 参数:三条全可见(缺省维度不参与过滤)。
+	st, bd := h.scopeGet(t, "/v1/announcements?limit=20", token)
+	if st != http.StatusOK {
+		t.Fatalf("list status = %d, body = %s", st, bd)
+	}
+	hasAll(ids(bd), zh.ID, en.ID, plain.ID)
+
+	// language=zh-CN:命中中文条 + 未声明语种条;英文条被 filters 排除。
+	st, bd = h.scopeGet(t, "/v1/announcements?limit=20&language=zh-CN", token)
+	hasAll(ids(bd), zh.ID, plain.ID)
+
+	// language=ja:中英两条都被排除,只剩未声明语种条。
+	st, bd = h.scopeGet(t, "/v1/announcements?limit=20&language=ja", token)
+	hasAll(ids(bd), plain.ID)
+
+	// 详情:命中语种 → 200 且回显 language/groupKey;声明字段只读不解释。
+	st, bd = h.scopeGet(t, "/v1/announcements/"+zh.ID+"?language=zh-CN", token)
+	if st != http.StatusOK || !strings.Contains(bd, `"language":"zh-CN"`) ||
+		!strings.Contains(bd, `"groupKey":"maint"`) {
+		t.Fatalf("命中详情: status = %d, body = %s", st, bd)
+	}
+	// 详情:语种未命中 → 404 ANNOUNCEMENT_NOT_FOUND(同码,不泄露存在性)。
+	st, bd = h.scopeGet(t, "/v1/announcements/"+zh.ID+"?language=ja", token)
+	if st != http.StatusNotFound || !strings.Contains(bd, "ANNOUNCEMENT_NOT_FOUND") {
+		t.Fatalf("未命中详情: status = %d, body = %s", st, bd)
+	}
+	// 详情:未声明语种的行,language/groupKey 字段不出现(omitempty)。
+	st, bd = h.scopeGet(t, "/v1/announcements/"+plain.ID, token)
+	if st != http.StatusOK || strings.Contains(bd, `"language"`) || strings.Contains(bd, `"groupKey"`) {
+		t.Fatalf("无声明详情: status = %d, body = %s", st, bd)
 	}
 }
 
