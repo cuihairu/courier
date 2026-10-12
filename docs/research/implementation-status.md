@@ -6,9 +6,10 @@
 > **更新**(2026-10-12,批次 53):F44 由 ❌ → ✅(support.md 附件节 Frozen v1.1 → 网关 → SDK 六端 → e2e 四批落地,证据 commit 见行内);F11 错误码表 v6→v7(+SUPPORT 附件 2 码)。
 > **更新**(2026-10-13,批次 54):F36 由 ◑ → ✅(跑马灯呈现落 UI 包 `8127ba9`,零新契约;◑ 清零,统计行顺修批次 53 起的差 1)。
 > **更新**(2026-10-13,批次 55):交付面,无 F 项变动——六端 `examples/` + quickstart 实测落地(`425fe55`;附带修网关 `/v1/<cap>` 无斜杠根 307 丢 Authorization → 内部重派 `c5c4814`),六端 README 增「快速开始」;选装清单 `docs/sdk-selection.md`(实测字节 + Provider 降级语义)。
+> **更新**(2026-10-13,批次 56):F45 由 ❌ → ✅(support.md v1.1 举报与处罚申诉节 Frozen → 网关 → SDK 六端 → e2e 分批落地,证据 commit 见行内);F11 错误码表 v7→v8(+SUPPORT 举报/申诉 2 码,42 码)。
 > **核对方法**:「已有」声称引用批次号+commit(来自 todo 各批验收记录);「缺口」声称以 grep 机器核对为准(零命中/命中行注明,如 announcement.md `filter` 0 命中、support.md `context` 0 命中、auth.md 仅 `DELETE /devices`、全契约 `language/locale` 0 命中);auth.md:10 与 realname.md:100 为契约明示的边界预留。
 > **图例**:✅ 已落地(仓库内有契约+实现+测试/e2e 证据,部署面残留另行注明)· ◑ 部分(核心面已落,剩余明示)· ❌ 缺口(仓库内未立项/未实现)· 🔌 Provider(不进核心契约)· ⏸ 待议 · ⛔ 不做。
-> **统计**:核心 47 = ✅ 43 + ❌ 4 + ◑ 0(批次 54:F36 落地,◑ 清零);🔌 13;⏸ 9;⛔ 7。
+> **统计**:核心 47 = ✅ 44 + ❌ 3 + ◑ 0(批次 56:F45 落地;批次 54 起◑清零);🔌 13;⏸ 9;⛔ 7。
 
 ## 核心面(47 项)
 
@@ -23,7 +24,7 @@
 | F08 | 令牌轮换 | ✅ | 单飞刷新+重放一次;批次 3/4/12/14/32;primitives v1.1 并发纪律 |
 | F09 | 服务端验签 | ✅ | auth Bearer(批次 3)+回调 HMAC fail-closed(批次 10 `ddcbd03`) |
 | F10 | scope 隔离 | ✅ | scope.md Frozen+网关 scope 中间件;批次 2(`cdd391d`) |
-| F11 | 统一错误码 | ✅ | errors.md v5 35 码六端生成对差零漂移;批次 1/29/51(`5317802`) |
+| F11 | 统一错误码 | ✅ | errors.md v8 42 码六端生成对差零漂移(v8 举报/申诉 2 码);批次 1/29/51/56(`5317802`/`d02ddcc`) |
 | F12 | 凭据管理 | ✅ | 客户端零 Provider 凭证(architecture.md 安全边界) |
 | F16 | 玩家档案 | ✅ | player.md Frozen+archivist;批次 8(`72bf15c`) |
 | F18 | 服务端权威写入 | ✅ | Gateway 唯一入口(批次 2)+支付服务端定价(批次 10) |
@@ -47,7 +48,7 @@
 | F42 | FAQ 自助 | ✅ | FAQ+sage 检索;批次 6/9(`2481383`) |
 | F43 | 上下文附带 | ✅ | support.md Frozen v1.1 `context` 开集 map 服务端零解释透传;croupier 校验 + SDK 六端(`53eaa7c`)+ e2e 回显与 400;批次 51(`5317802`/`f20e9ab`) |
 | F44 | 反馈+日志上传 | ✅ | support.md 附件节 Frozen v1.1(批次 53 `9954281`:单端点申请直传 + 预签名 URL + 限额/allowlist/归属/状态 + fail-closed 存储);croupier `Signer` 接口 + 详情 `attachments[]` 加法(`035125d`)+ SDK 六端(`6dbfca0`)+ e2e(`804e93d`);diagnostics 自有面不变 |
-| F45 | 举报/申诉 | ❌ | 无契约面——v1.1 提案 Draft 已写(批次 48,reports/penalties/appeal 四端点) |
+| F45 | 举报/申诉 | ✅ | support.md v1.1 举报与处罚申诉节 Frozen(批次 56 `d02ddcc`:reports/penalties/appeal 四端点;**判定与执行全在管理面**,玩家侧只读投影 + 申诉入口;进展不向举报人反馈);croupier `PenaltyStore` 投影源 + fail-closed 501 缺省 + e2e(`96d8295`)+ SDK 六端(`de4dc3d`);errors v8 +2 码 |
 | F46 | 客服补单 | ✅ | Reconcile 补发通道;批次 10/11;工具面归 croupier |
 | F47 | 远程配置 | ✅ | config.md Frozen+scribe 条件投影热生效;批次 8(`33c5c18`) |
 | F48 | 条件定向 | ✅ | 五维匹配;批次 8 |
@@ -91,11 +92,10 @@
 | F54 | 买量归因 | ⛔ 不做——垂直领域 |
 | F64–F68 | 社交与实时(好友/聊天/匹配/语音/公会) | ⛔ 不做——roadmap 非目标,与 Nakama/Agones 划界 |
 
-## 缺口汇总(❌ 4 项;截至批次 54,F03/F35/F43/F01/F44/F36 已落地移出)
+## 缺口汇总(❌ 3 项;截至批次 56,F03/F35/F43/F01/F44/F36/F45 已落地移出)
 
 | ID | 缺口 | 建议落点 |
 | --- | --- | --- |
 | F31 | 年龄门/家长同意(海外) | realname v1.1 consent 组(realname.md:100 已预留) |
 | F33 | 审计落库 | 部署面;trace 已贯穿 |
-| F45 | 举报/处罚申诉 | support v1.1 端点组(提案 Draft 已写,批次 48) |
 | F76 | 多语言与本地化 | announcement v1.1 语种维度(提案 Draft 已写,批次 48,单语分条契约化) |

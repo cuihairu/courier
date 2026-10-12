@@ -477,7 +477,7 @@
 - [x] **F42 FAQ/知识库自助**(客户端内检索,命中免工单)｜落点:support FAQ+sage 检索问答(批次 6/9 已覆盖)
 - [x] **F43 上下文自动附带**(自动带 player ID/build/关卡)｜落点:support.md v1.1 可选 `context` 对象(批次 51 冻结并落地)
 - [x] **F44 反馈与日志上传**(一键反馈+截图/日志附件)｜落点:support.md 附件节 v1.1(批次 53 冻结并落地;diagnostics 联动不在契约面)
-- [ ] **F45 举报与处罚申诉**(举报/封禁通知/申诉闭环)｜落点:无契约面(support.md 无举报域)
+- [x] **F45 举报与处罚申诉**(举报/封禁通知/申诉闭环)｜落点:support.md v1.1 举报与处罚申诉节(批次 56 冻结并落地;封禁通知/登录拦截不在 v1,留 v1.2 提案)
 - [x] **F46 客服侧补单/补偿**(按账号查交易/补发)｜落点:支付 Reconcile 补发通道(批次 10/11 已覆盖;工具面归 croupier 管理侧)
 
 ### §8 运营配置与实验
@@ -553,7 +553,7 @@
 
 - [x] **F76 多语言与本地化** → [announcement.md](./contract/announcement.md) v1.1 提案续:单语分条模型契约化(零破坏,`title`/`body` 类型不动)+ DTO 可选 `language`/`groupKey` + SDK 自动附带 `language` 查询参数(游戏可覆写);多语对象 / 多语并存明示 v2 破坏性,永不原地改;语种回退归管理面兜底(批次 48 已落 Draft;冻结待评审)
 - [x] **F45 举报与处罚申诉** → [support.md](./contract/support.md) v1.1 提案续:reports / penalties / appeal 四端点;**处罚判定与执行全在管理面**,契约只做玩家侧投影 + 申诉入口(网关不执行风控);拟新增 2 错误码(`SUPPORT_PENALTY_NOT_FOUND` / `SUPPORT_APPEAL_EXISTS`);v1 不动 auth 登录语义,拦截联动留 v1.2 提案(批次 48 已落 Draft;冻结待评审)
-- [ ] 评审通过与批次 47 同批冻结 → errors.md v5(AUTH 两码 + SUPPORT 两码)+ contractgen 六端同步 + 各端 SDK 实现 + e2e(宽限期 / 撤销 / 过滤命中 / 上下文回显 / 申诉闭环)(部分:同批的 F44 已随批次 53 冻结落地;F45/F76 冻结仍待评审)
+- [ ] 评审通过与批次 47 同批冻结 → errors.md v5(AUTH 两码 + SUPPORT 两码)+ contractgen 六端同步 + 各端 SDK 实现 + e2e(宽限期 / 撤销 / 过滤命中 / 上下文回显 / 申诉闭环)(部分:同批的 F44 已随批次 53、F45 已随批次 56 冻结落地;F76 冻结仍待评审)
 - **剩余缺口**:F44 附件(需对象存储面设计,Provider 口径)、F36 跑马灯 UI 呈现(实现非契约)、F01 第三方 OAuth(新域契约)、F31/F33 维持
 
 ## 批次 49 — 新域契约草案:第三方身份提供方 OAuth(F01,Draft v0.1,2026-10-11)
@@ -592,7 +592,7 @@
 
 ### 评审门(用户侧,冻结红线不由 agent 判断)
 
-- [ ] 七份 Draft(47 三 + 48 两 + 49 一 + 50 一)同批过读(≥ Unity + 一非 C# 端)→ 冻结升版 + errors.md v5(AUTH 2 + SUPPORT 4 + OAUTH 3)+ contractgen 六端同步 + SDK 实现 + e2e(宽限期 / 撤销 / 过滤命中 / 上下文回显 / 申诉闭环 / exchange 换会话 / 附件直传)(部分:五份已随批次 51/52/53 冻结落地——评审门改由用户授权拍板口径替代;F45/F76 仍 Draft 待评审)
+- [ ] 七份 Draft(47 三 + 48 两 + 49 一 + 50 一)同批过读(≥ Unity + 一非 C# 端)→ 冻结升版 + errors.md v5(AUTH 2 + SUPPORT 4 + OAUTH 3)+ contractgen 六端同步 + SDK 实现 + e2e(宽限期 / 撤销 / 过滤命中 / 上下文回显 / 申诉闭环 / exchange 换会话 / 附件直传)(部分:六份已随批次 51/52/53/56 冻结落地——评审门改由用户授权拍板口径替代;F76 仍 Draft 待评审)
 - **此后契约面无待立项项**:F36(实现)已随批次 54 落地;剩余 F31/F33(预留/部署面)不产生新契约
 
 ## 批次 51 — v1.1 提案落地第 1 批:F03 + F35 + F43 冻结到实现(用户授权拍板,2026-10-12)
@@ -698,6 +698,28 @@
 
 - [x] gateway go vet + test(-count=1) 全绿 / tools 全绿 / node 132×3 / unity 8+55+84+11 / ue 7 套件全绿才 commit
 - [x] godot 4.3 headless 实跑示例全链路(UE g++ 同);Unity dotnet 实跑;TS ×3 node 实跑
+
+## 批次 56 — F45 举报与处罚申诉冻结到实现(用户授权拍板,2026-10-13)
+
+> 授权口径同批次 51–53:agent 拍板决策;分批提交(契约 / 网关+e2e / SDK / docs),门禁全绿才 commit。红线不变:英文短 commit、无 AI 痕迹、pull --rebase 后 push、禁 force push、禁 tag/release。来源:批次 48 的 support.md「举报与处罚申诉提案(F45)」Draft。
+
+### 冻结决策(agent 拍板)
+
+- [x] **support.md 举报与处罚申诉节按现稿冻结**(Draft · 批次 48 → Frozen,批次 56):`POST /v1/support/reports`、`GET /v1/support/penalties`、`GET /v1/support/penalties/{penaltyId}`、`POST /v1/support/penalties/{penaltyId}/appeal` 四端点;**处罚判定与执行全在管理面**(croupier / GM / 接入方风控),契约只做玩家侧只读投影 + 申诉入口;errors.md 升 v8(+SUPPORT_PENALTY_NOT_FOUND 404 / SUPPORT_APPEAL_EXISTS 409,均不可重试)
+- [x] **举报进展不向举报人反馈**(防骚扰设计):受理即返回 `{id}`,无举报查询端点;举报本身是玩家侧写入,落 Provider 内存登记(与工单同),不依赖投影源
+- [x] **投影源挡在 PenaltyStore 后**(List/Get/Appeal 三方法):实现方接 croupier 管理面或接入方风控系统;**默认未配置 = fail-closed 501 COMMON_CAPABILITY_DISABLED**(同 F44 Signer 口径,不内置假风控数据到生产 main.go);非本人/不存在一律 404 不泄露存在性;每处罚至多一个进行中申诉,重复 → 409
+- [x] v1 **不动 auth 登录语义**(处罚拦截登录留 v1.2 提案,如 `AUTH_ACCOUNT_SUSPENDED` 联动)
+
+### 落地(分批提交)
+
+- [x] **契约**:support.md v1.1(F45 Frozen)+ errors.md v8 + fixtures v8(42 码)+ contractgen 六端同步 + 各端契约测试 tripwire(TS `errors.version` 8 ×3 / UE `kCount` 42 与 SUPPORT 两码抽查)(`d02ddcc`)
+- [x] **网关实现 + e2e**:croupier `penalties.go`(reports 登记 / penalties 投影分页 issuedAt 倒序 / appeal 单例)+ Go codeTable 两码 + `envelope_sync_test` 版本 tripwire 7→8 + e2e(举报受理 / 倒序分页 / 游标翻页 / 申诉 PENDING 回显 / 重复申诉 409 / 缺失与他人 404 / 四组校验 400 / 未配置投影源 501)(`96d8295`)
+- [x] **SDK 六端**:举报 + 处罚列表/详情/申诉方法(DTO ReportRequest/ReportResult/AppealDto/PenaltyDto;TS ×3 同源 / Unity / UE / Godot)+ 各端 typed 错误测试(`de4dc3d`)
+
+### 门禁
+
+- [x] node 134×3 / unity 86+55+8+11 / ue 7 套件 / godot headless service 测试 / gateway go vet+test(-count=1)/ tools 全绿才 commit
+- [x] `docs/research/implementation-status.md` F45 行状态与证据 commit 同步更新
 
 ## 明确不做
 
