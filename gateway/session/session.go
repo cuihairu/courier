@@ -16,7 +16,7 @@ import (
 type SessionView struct {
 	ID            string
 	AccountID     string
-	AccountStatus string // ACTIVE | DISABLED
+	AccountStatus string // ACTIVE | DISABLED | PENDING_DELETE | DELETED(auth.md v1.1)
 	GameID        string
 	Env           string
 	DeviceID      string
@@ -60,6 +60,10 @@ func (v verifier) Verify(ctx context.Context, accessToken string) (auth.Identity
 	}
 	if s.AccountStatus == "DISABLED" {
 		return auth.Identity{}, auth.ErrAccountDisabled
+	}
+	if s.AccountStatus == "PENDING_DELETE" {
+		// 受理即吊销会话,正常不可达;防御会话吊销与状态迁移竞态(auth.md v1.1)。
+		return auth.Identity{}, auth.ErrAccountPendingDel
 	}
 	if sc, ok := scope.FromContext(ctx); ok && (sc.GameID != s.GameID || sc.Env != s.Env) {
 		return auth.Identity{}, auth.ErrScopeMismatch

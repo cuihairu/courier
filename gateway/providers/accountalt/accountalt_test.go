@@ -109,3 +109,111 @@ func TestRefreshGenerationReplay(t *testing.T) {
 		t.Fatal("会话应已吊销")
 	}
 }
+
+// --- 注销(v1.1):存储层语义与自建一致(wire 一致性由 conformance e2e 把关)---
+
+func TestDeleteCancelFlowStore(t *testing.T) {
+	now := time.Now()
+	p := newTestProvider(t, func(o *Options) {
+		o.DeleteGrace = time.Hour
+		o.Clock = func() time.Time { return now }
+	})
+	acc, err := p.store.CreateEmailAccount("del@b.co", "password8")
+	if err != nil {
+		t.Fatalf("注册: %v", err)
+	}
+	_, access, _, err := p.store.CreateSession(acc.id, "g1", "prod", "d1")
+	if err != nil {
+		t.Fatalf("建会话: %v", err)
+	}
+	if _, err := p.store.codec.parseAccess(access); err != nil {
+		t.Fatalf("access 应可验: %v", err)
+	}
+
+	pending, token, deletedAt, err := p.store.RequestDelete(acc.id, p.store.opts.DeleteGrace)
+	if err != nil || !pending || deletedAt != nil || token == "" {
+		t.Fatalf("RequestDelete = pending=%v token=%q deletedAt=%v err=%v", pending, token, deletedAt, err)
+	}
+	if s, _ := p.store.Session(mustSessionID(t, p, access)); !s.revoked {
+		t.Fatal("受理即应吊销会话")
+	}
+	if got, err := p.store.ConsumeCancelToken("junk"); err == nil {
+		t.Fatalf("垃圾 token 应拒, got %q", got)
+	}
+	if got, err := p.store.ConsumeCancelToken(token); err != nil || got != acc.id {
+		t.Fatalf("ConsumeCancelToken = %q err=%v", got, err)
+	}
+	if _, err := p.store.ConsumeCancelToken(token); err == nil {
+		t.Fatal("token 应一次性")
+	}
+	p.store.CancelDelete(acc.id)
+	if a, _ := p.store.GetAccount(acc.id); a.status != "ACTIVE" {
+		t.Fatalf("撤销后 status = %s", a.status)
+	}
+}
+
+func mustSessionID(t *testing.T, p *Provider, access string) string {
+	t.Helper()
+	ac, err := p.store.codec.parseAccess(access)
+	if err != nil {
+		t.Fatalf("解析 access: %v", err)
+	}
+	return ac.sessionID
+}
+
+func TestDeleteImmediateAndFinalizeStore(t *testing.T) {
+	t.Run("游客恒立即删,同设备索引清除", func(t *testing.T) {
+		p := newTestProvider(t, nil)
+		acc := p.store.CreateGuestAccount("g-dev", "ios")
+		pending, token, deletedAt, err := p.store.RequestDelete(acc.id, time.Hour)
+		if err != nil || pending || token != "" || deletedAt == nil {
+			t.Fatalf("RequestDelete = %v %q %v %v", pending, token, deletedAt, err)
+		}
+		if _, ok := p.store.FindGuestByDevice("g-dev"); ok {
+			t.Fatal("游客索引应已清除(同设备再进 = 新游客)")
+		}
+	})
+
+	t.Run("EMAIL grace=0 立即删,同邮箱可重注册", func(t *testing.T) {
+		p := newTestProvider(t, func(o *Options) { o.DeleteGrace = 0 })
+		acc, err := p.store.CreateEmailAccount("zap@b.co", "password8")
+		if err != nil {
+			t.Fatalf("注册: %v", err)
+		}
+		pending, _, deletedAt, err := p.store.RequestDelete(acc.id, 0)
+		if err != nil || pending || deletedAt == nil {
+			t.Fatalf("RequestDelete = %v %v %v", pending, deletedAt, err)
+		}
+		if _, err := p.store.CreateEmailAccount("zap@b.co", "password8"); err != nil {
+			t.Fatalf("同邮箱重注册应成功: %v", err)
+		}
+	})
+
+	t.Run("宽限期满惰性终态化", func(t *testing.T) {
+		now := time.Now()
+		p := newTestProvider(t, func(o *Options) {
+			o.DeleteGrace = time.Hour
+			o.Clock = func() time.Time { return now }
+		})
+		acc, err := p.store.CreateEmailAccount("late@b.co", "password8")
+		if err != nil {
+			t.Fatalf("注册: %v", err)
+		}
+		if _, _, _, err := p.store.RequestDelete(acc.id, time.Hour); err != nil {
+			t.Fatalf("RequestDelete: %v", err)
+		}
+		if p.store.FinalizeIfExpired(acc.id) {
+			t.Fatal("宽限期内不应终态化")
+		}
+		now = now.Add(2 * time.Hour)
+		if !p.store.FinalizeIfExpired(acc.id) {
+			t.Fatal("宽限期满应终态化")
+		}
+		if a, _ := p.store.GetAccount(acc.id); a.status != StatusDeleted {
+			t.Fatalf("status = %s", a.status)
+		}
+		if _, err := p.store.CreateEmailAccount("late@b.co", "password8"); err != nil {
+			t.Fatalf("同邮箱重注册应成功: %v", err)
+		}
+	})
+}

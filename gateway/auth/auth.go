@@ -31,6 +31,8 @@ var (
 	ErrTokenRevoked       = errors.New("auth: token revoked")
 	ErrScopeMismatch      = errors.New("auth: token scope mismatch")
 	ErrAccountDisabled    = errors.New("auth: account disabled")
+	ErrAccountPendingDel  = errors.New("auth: account pending delete") // auth.md v1.1 注销宽限期
+	ErrDeleteTokenInvalid = errors.New("auth: invalid delete token")   // auth.md v1.1 撤销 token 无效
 )
 
 // Verifier access token 验证抽象;由会话实现方(session 包 + 存储方)提供。
@@ -85,6 +87,10 @@ func codeFor(err error) string {
 		return aggregation.CodeScopeMismatch
 	case errors.Is(err, ErrAccountDisabled):
 		return aggregation.CodeAccountDisabled
+	case errors.Is(err, ErrAccountPendingDel):
+		return aggregation.CodeAccountPending
+	case errors.Is(err, ErrDeleteTokenInvalid):
+		return aggregation.CodeDeleteTokenInvalid
 	case errors.Is(err, ErrInvalidCredentials):
 		return aggregation.CodeInvalidCredentials
 	default:

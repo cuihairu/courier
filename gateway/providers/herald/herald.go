@@ -50,17 +50,21 @@ type Announcement struct {
 	StartAt     *time.Time
 	EndAt       *time.Time
 	PublishedAt time.Time
+	// Filters 定向过滤维度(v1.1):维度 → 值集合 开集 map;nil = 无过滤全量可见。
+	// 服务端匹配依据 + 只读回显,SDK 不解释内容(契约 announcement.md)。
+	Filters map[string][]string
 }
 
 // announcementDTO wire 形状(契约数据模型,camelCase;缺省边界输出 null)。
 type announcementDTO struct {
-	ID          string  `json:"id"`
-	Title       string  `json:"title"`
-	Body        string  `json:"body"`
-	Severity    string  `json:"severity"`
-	StartAt     *string `json:"startAt"`
-	EndAt       *string `json:"endAt"`
-	PublishedAt string  `json:"publishedAt"`
+	ID          string              `json:"id"`
+	Title       string              `json:"title"`
+	Body        string              `json:"body"`
+	Severity    string              `json:"severity"`
+	StartAt     *string             `json:"startAt"`
+	EndAt       *string             `json:"endAt"`
+	PublishedAt string              `json:"publishedAt"`
+	Filters     map[string][]string `json:"filters,omitempty"`
 }
 
 type pageDTO struct {
@@ -117,7 +121,8 @@ func (p *AnnouncementProvider) Capability() providers.Capability { return provid
 func (p *AnnouncementProvider) HealthCheck(_ context.Context) error { return nil }
 
 // Publish 管理面发布(运营侧):校验、分配 ann_ ID、入列、广播。
-func (p *AnnouncementProvider) Publish(title, body, severity string, startAt, endAt *time.Time) (Announcement, error) {
+// filters 为定向过滤维度(v1.1,开集 map,nil = 无过滤);条件 DSL 不进玩家契约。
+func (p *AnnouncementProvider) Publish(title, body, severity string, startAt, endAt *time.Time, filters map[string][]string) (Announcement, error) {
 	if title == "" || len([]rune(title)) > 120 {
 		return Announcement{}, errInvalid("title 1-120 字符")
 	}
@@ -142,6 +147,7 @@ func (p *AnnouncementProvider) Publish(title, body, severity string, startAt, en
 		StartAt:     startAt,
 		EndAt:       endAt,
 		PublishedAt: p.clock(),
+		Filters:     filters,
 	}
 	p.items = append(p.items, a)
 	p.nextID++
@@ -186,11 +192,12 @@ func (p *AnnouncementProvider) handleList(w http.ResponseWriter, r *http.Request
 		p.writeInvalid(w, r, err.Error())
 		return
 	}
+	dims := filterDims(r)
 	now := p.clock()
 	p.mu.RLock()
 	visible := make([]Announcement, 0, len(p.items))
 	for _, a := range p.items {
-		if a.visible(now) {
+		if a.visible(now) && a.visibleTo(dims) {
 			visible = append(visible, a)
 		}
 	}
@@ -221,6 +228,7 @@ func (p *AnnouncementProvider) handleList(w http.ResponseWriter, r *http.Request
 }
 
 func (p *AnnouncementProvider) handleDetail(w http.ResponseWriter, r *http.Request, id string) {
+	dims := filterDims(r)
 	now := p.clock()
 	p.mu.RLock()
 	var found *Announcement
@@ -232,8 +240,8 @@ func (p *AnnouncementProvider) handleDetail(w http.ResponseWriter, r *http.Reque
 	}
 	p.mu.RUnlock()
 
-	if found == nil || !found.visible(now) {
-		// 不存在/过期/未到 startAt 一律同码:不泄露存在性(契约)。
+	// 不存在/过期/未到 startAt/被定向过滤排除 一律同码:不泄露存在性(契约)。
+	if found == nil || !found.visible(now) || !found.visibleTo(dims) {
 		aggregation.WriteError(w, middleware.TraceID(r.Context()),
 			aggregation.CodeAnnouncementNotFound, "announcement not found")
 		return
@@ -259,6 +267,42 @@ func (a Announcement) visible(now time.Time) bool {
 	return true
 }
 
+// filterDims 请求携带的定向维度(契约 v1.1:platform/appVersion/region/language;
+// 未知查询参数容忍忽略,未知维度 key 是管理面开集,匹配走同一规则)。
+func filterDims(r *http.Request) map[string]string {
+	q := r.URL.Query()
+	dims := make(map[string]string, 4)
+	for _, k := range []string{"platform", "appVersion", "region", "language"} {
+		if v := q.Get(k); v != "" {
+			dims[k] = v
+		}
+	}
+	return dims
+}
+
+// visibleTo 定向匹配(契约 v1.1):filters 中出现的每个维度,若请求携带对应
+// 参数且值不在集合内 → 不可见;请求缺该维度参数 → 该维度不排除(缺省跳过)。
+func (a Announcement) visibleTo(dims map[string]string) bool {
+	for dim, allowed := range a.Filters {
+		if len(allowed) == 0 {
+			continue // 空集合 = 维度未生效(缺省跳过语义)
+		}
+		if v, ok := dims[dim]; ok && !containsStr(allowed, v) {
+			return false
+		}
+	}
+	return true
+}
+
+func containsStr(set []string, v string) bool {
+	for _, s := range set {
+		if s == v {
+			return true
+		}
+	}
+	return false
+}
+
 func (p *AnnouncementProvider) dto(a Announcement) announcementDTO {
 	return announcementDTO{
 		ID:          a.ID,
@@ -268,6 +312,7 @@ func (p *AnnouncementProvider) dto(a Announcement) announcementDTO {
 		StartAt:     formatMilliPtr(a.StartAt),
 		EndAt:       formatMilliPtr(a.EndAt),
 		PublishedAt: formatMilli(a.PublishedAt),
+		Filters:     a.Filters,
 	}
 }
 

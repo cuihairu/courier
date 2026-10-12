@@ -29,6 +29,8 @@ const (
 	CodeAccountDisabled    = "AUTH_ACCOUNT_DISABLED"
 	CodeDeviceLimit        = "AUTH_DEVICE_LIMIT"
 	CodeEmailTaken         = "AUTH_EMAIL_TAKEN"
+	CodeAccountPending     = "AUTH_ACCOUNT_PENDING_DELETE" // v5,auth.md v1.1
+	CodeDeleteTokenInvalid = "AUTH_DELETE_TOKEN_INVALID"   // v5,auth.md v1.1
 	CodeSessionConflict    = "SESSION_CONFLICT"
 
 	CodeAnnouncementNotFound  = "ANNOUNCEMENT_NOT_FOUND"
@@ -77,6 +79,8 @@ var codeTable = map[string]codeSpec{
 	CodeAccountDisabled:    {http.StatusForbidden, false},
 	CodeDeviceLimit:        {http.StatusForbidden, false},
 	CodeEmailTaken:         {http.StatusConflict, false},
+	CodeAccountPending:     {http.StatusForbidden, false},
+	CodeDeleteTokenInvalid: {http.StatusUnauthorized, false},
 	CodeSessionConflict:    {http.StatusConflict, false},
 
 	CodeAnnouncementNotFound:  {http.StatusNotFound, false},

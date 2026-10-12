@@ -19,6 +19,7 @@ import (
 	"github.com/cuihairu/courier/gateway/providers/chirp"
 	"github.com/cuihairu/courier/gateway/providers/croupier"
 	"github.com/cuihairu/courier/gateway/providers/herald"
+	"github.com/cuihairu/courier/gateway/providers/hooks"
 	"github.com/cuihairu/courier/gateway/providers/sage"
 	"github.com/cuihairu/courier/gateway/providers/scribe"
 	"github.com/cuihairu/courier/gateway/providers/teller"
@@ -36,11 +37,11 @@ func main() {
 	// M1:自建 AccountProvider;M2:herald(公告)/ croupier(客服)/ chirp(推送)。
 	// 接入方可经配置换掉或关闭任何一个。
 	reg := providers.NewRegistry()
-	acc := account.New(account.Options{})
+	acc := account.New(account.Options{DeleteGrace: account.DefaultDeleteGrace})
 	// identity 第二实现(批次 18):签名自验证令牌架构;路由表
 	// {"identity":{"primary":"courier-account-alt"}} 即整体切换(一致性 e2e
 	// 见 e2e/identity_conformance_test.go:两实现同一 wire 场景全绿)。
-	accAlt := accountalt.New(accountalt.Options{})
+	accAlt := accountalt.New(accountalt.Options{DeleteGrace: accountalt.DefaultDeleteGrace})
 	// 会话校验器:经可重定向包装供 M2+ 域共享(通道/工单都为已认证玩家服务);
 	// 身份源切换时随之重指(下方读配置后),否则换身份源后 M2 域验不了新令牌。
 	sessVerifier := auth.NewSwitchable(acc.Verifier())
@@ -62,6 +63,9 @@ func main() {
 	// 玩家档案(M3,批次 8):archivist(自建轻量)——账号档案 + 账号↔角色映射
 	// (按 scope 隔离;角色数据归各游戏,本域不存)。
 	archivistP := archivist.New(archivist.Options{RequireAuth: reqAuth})
+	// 注销级联钩子(契约 auth.md v1.1 注册制):网关不认识下游存储,各 Provider
+	// 自行订阅清理(archivist 清档案与角色绑定);新 Provider 接入 = 注册钩子。
+	hooks.Register(hooks.AccountDeleted, archivistP.DeleteAccount)
 	// 小助手(M4,批次 9):sage(自建 FAQ 检索)——命中即答,答不出引导转人工
 	// (复用 support 域提单链路,经客户端组装;LLM 供应商按同一接口替换,默认不依赖)。
 	sageP := sage.New(sage.Options{RequireAuth: reqAuth})

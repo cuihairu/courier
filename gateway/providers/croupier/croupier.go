@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/cuihairu/courier/gateway/aggregation"
 	"github.com/cuihairu/courier/gateway/auth"
@@ -52,12 +53,13 @@ type replyEventDTO struct {
 
 // ticketDTO wire 形状(契约数据模型)。
 type ticketDTO struct {
-	ID        string `json:"id"`
-	Title     string `json:"title"`
-	Status    string `json:"status"`
-	Category  string `json:"category"`
-	CreatedAt string `json:"createdAt"`
-	UpdatedAt string `json:"updatedAt"`
+	ID        string         `json:"id"`
+	Title     string         `json:"title"`
+	Status    string         `json:"status"`
+	Category  string         `json:"category"`
+	Context   map[string]any `json:"context,omitempty"` // v1.1:零解释透传回显
+	CreatedAt string         `json:"createdAt"`
+	UpdatedAt string         `json:"updatedAt"`
 }
 
 type messageDTO struct {
@@ -100,6 +102,7 @@ type ticketRecord struct {
 	title     string
 	status    string
 	category  string
+	context   map[string]any // v1.1:工单上下文(开集,服务端零解释)
 	messages  []messageRecord
 	createdAt time.Time
 	updatedAt time.Time
@@ -169,7 +172,7 @@ func (p *SupportProvider) HealthCheck(_ context.Context) error { return nil }
 
 // CreateTicket 管理面之外的测试/运维便捷入口(等价 POST /tickets,不占限流)。
 func (p *SupportProvider) CreateTicket(owner, title, body, category string) (Ticket, error) {
-	return p.createTicket(owner, title, body, category)
+	return p.createTicket(owner, title, body, category, nil)
 }
 
 // Ticket 管理面视角的工单快照。
@@ -263,12 +266,19 @@ func (p *SupportProvider) handleCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Title    string `json:"title"`
-		Body     string `json:"body"`
-		Category string `json:"category"`
+		Title    string         `json:"title"`
+		Body     string         `json:"body"`
+		Category string         `json:"category"`
+		Context  map[string]any `json:"context"` // v1.1:可选,扁平开集
 	}
 	if !p.decode(w, r, &req) {
 		return
+	}
+	if req.Context != nil {
+		if err := validContext(req.Context); err != nil {
+			p.writeInvalid(w, r, err.Error())
+			return
+		}
 	}
 	if p.limiter != nil {
 		if ok, retryAfter := p.limiter.Allow(id.AccountID); !ok {
@@ -278,7 +288,7 @@ func (p *SupportProvider) handleCreate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	t, err := p.createTicket(id.AccountID, req.Title, req.Body, req.Category)
+	t, err := p.createTicket(id.AccountID, req.Title, req.Body, req.Category, req.Context)
 	if err != nil {
 		p.writeInvalid(w, r, err.Error())
 		return
@@ -434,7 +444,7 @@ func faqMatch(f faqRecord, keywordLower string) bool {
 	return false
 }
 
-func (p *SupportProvider) createTicket(owner, title, body, category string) (Ticket, error) {
+func (p *SupportProvider) createTicket(owner, title, body, category string, context map[string]any) (Ticket, error) {
 	if title == "" || len([]rune(title)) > 120 {
 		return Ticket{}, errInvalid("title 1-120 字符")
 	}
@@ -451,6 +461,7 @@ func (p *SupportProvider) createTicket(owner, title, body, category string) (Tic
 		title:     title,
 		status:    "OPEN",
 		category:  category,
+		context:   context,
 		messages:  []messageRecord{{senderType: "PLAYER", body: body, createdAt: now}},
 		createdAt: now,
 		updatedAt: now,
@@ -488,9 +499,43 @@ func ticketDTOOf(rec *ticketRecord) ticketDTO {
 		Title:     rec.title,
 		Status:    rec.status,
 		Category:  rec.category,
+		Context:   rec.context,
 		CreatedAt: formatMilli(rec.createdAt),
 		UpdatedAt: formatMilli(rec.updatedAt),
 	}
+}
+
+// validContext 工单上下文校验(契约 support.md v1.1):扁平开集 map,仅原始值
+// (string/number/boolean);键 1–32 字符 [a-zA-Z0-9_.]、≤10 键、单值 ≤256 字符、
+// 整体 ≤1 KiB;超限 → COMMON_INVALID_ARGUMENT。服务端零解释:不白名单业务含义。
+func validContext(ctx map[string]any) error {
+	if len(ctx) > 10 {
+		return errInvalid("context ≤10 keys")
+	}
+	raw, err := json.Marshal(ctx)
+	if err != nil || len(raw) > 1024 {
+		return errInvalid("context ≤1KiB")
+	}
+	for k, v := range ctx {
+		if n := len(k); n < 1 || n > 32 {
+			return errInvalid("context key 1-32 chars")
+		}
+		for _, c := range k {
+			if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '_' || c == '.') {
+				return errInvalid("context key 仅限 [a-zA-Z0-9_.]")
+			}
+		}
+		switch tv := v.(type) {
+		case string:
+			if utf8.RuneCountInString(tv) > 256 {
+				return errInvalid("context string value ≤256 chars")
+			}
+		case float64, bool:
+		default:
+			return errInvalid("context value 须为 string/number/boolean")
+		}
+	}
+	return nil
 }
 
 func (p *SupportProvider) decode(w http.ResponseWriter, r *http.Request, v any) bool {

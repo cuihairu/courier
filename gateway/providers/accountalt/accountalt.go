@@ -23,6 +23,7 @@ import (
 	"github.com/cuihairu/courier/gateway/auth"
 	"github.com/cuihairu/courier/gateway/middleware"
 	"github.com/cuihairu/courier/gateway/providers"
+	"github.com/cuihairu/courier/gateway/providers/hooks"
 	"github.com/cuihairu/courier/gateway/scope"
 )
 
@@ -97,6 +98,10 @@ func (v *verifier) Verify(ctx context.Context, accessToken string) (auth.Identit
 	if !ok || acc.status == "DISABLED" {
 		return auth.Identity{}, auth.ErrAccountDisabled
 	}
+	if acc.status == "PENDING_DELETE" {
+		// 受理即吊销会话,正常不可达;防御会话吊销与状态迁移竞态(契约 v1.1)。
+		return auth.Identity{}, auth.ErrAccountPendingDel
+	}
 	if sc, ok := scope.FromContext(ctx); ok && (sc.GameID != claims.gameID || sc.Env != claims.env) {
 		return auth.Identity{}, auth.ErrScopeMismatch
 	}
@@ -125,6 +130,10 @@ func (p *Provider) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		p.sensitive(http.HandlerFunc(p.handleRefresh)).ServeHTTP(w, r)
 	case "logout":
 		p.reqAuth(http.HandlerFunc(p.handleLogout)).ServeHTTP(w, r)
+	case "account/delete":
+		p.reqAuth(http.HandlerFunc(p.handleDelete)).ServeHTTP(w, r)
+	case "account/delete/cancel":
+		http.HandlerFunc(p.handleDeleteCancel).ServeHTTP(w, r)
 	case "session":
 		p.reqAuth(http.HandlerFunc(p.handleSession)).ServeHTTP(w, r)
 	case "devices":
@@ -275,6 +284,8 @@ func (p *Provider) writeStoreError(w http.ResponseWriter, r *http.Request, err e
 		aggregation.WriteError(w, tid, aggregation.CodeInvalidArgument, err.Error())
 	case errors.Is(err, ErrDisabled):
 		aggregation.WriteError(w, tid, aggregation.CodeAccountDisabled, err.Error())
+	case errors.Is(err, ErrDeleteTokenInvalid):
+		aggregation.WriteError(w, tid, aggregation.CodeDeleteTokenInvalid, err.Error())
 	case errors.Is(err, auth.ErrTokenExpired):
 		aggregation.WriteError(w, tid, aggregation.CodeTokenExpired, err.Error())
 	case errors.Is(err, auth.ErrTokenRevoked):
@@ -365,6 +376,19 @@ func (p *Provider) handleLogin(w http.ResponseWriter, r *http.Request) {
 			"invalid email or password")
 		return
 	}
+	if acc.status == StatusPendingDel {
+		if p.store.FinalizeIfExpired(acc.id) {
+			// 宽限期满已匿名化:级联钩子同步触发;按未知账号处理(与防枚举同口径)。
+			hooks.Emit(hooks.AccountDeleted, acc.id)
+			aggregation.WriteError(w, middleware.TraceID(r.Context()), aggregation.CodeInvalidCredentials,
+				"invalid email or password")
+			return
+		}
+		// PENDING 态不可登录:防「登录即复活」,撤销走 cancelToken(契约 auth.md v1.1)。
+		aggregation.WriteError(w, middleware.TraceID(r.Context()), aggregation.CodeAccountPending,
+			"account pending delete")
+		return
+	}
 	if acc.status != "ACTIVE" {
 		aggregation.WriteError(w, middleware.TraceID(r.Context()), aggregation.CodeAccountDisabled,
 			"account disabled")
@@ -426,6 +450,12 @@ func (p *Provider) handleBind(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id, _ := auth.FromContext(r.Context())
+	if acc, ok := p.store.GetAccount(id.AccountID); ok && acc.status == StatusPendingDel {
+		// 会话已随受理吊销,正常不可达;契约口径:bind 对 PENDING 一并拒(防御竞态)。
+		aggregation.WriteError(w, middleware.TraceID(r.Context()), aggregation.CodeAccountPending,
+			"account pending delete")
+		return
+	}
 	acc, err := p.store.BindEmail(id.AccountID, req.Email, req.Password)
 	if err != nil {
 		p.writeStoreError(w, r, err)
@@ -559,5 +589,58 @@ func (p *Provider) handleUnbindDevice(w http.ResponseWriter, r *http.Request, de
 		return
 	}
 	p.store.RevokeDeviceSessions(id.AccountID, deviceID)
+	aggregation.WriteData(w, struct{}{})
+}
+
+// deleteDTO 注销受理响应(v1.1:cancelToken 仅 PENDING,deletedAt 仅 DELETED)。
+type deleteDTO struct {
+	Status        string  `json:"status"`
+	CancelToken   string  `json:"cancelToken,omitempty"`
+	PendingDelete bool    `json:"pendingDelete,omitempty"`
+	DeletedAt     *string `json:"deletedAt,omitempty"`
+}
+
+func strPtr(s string) *string { return &s }
+
+// POST /account/delete(Bearer,v1.1)— 语义与自建一致(受理即吊销;EMAIL
+// 宽限、GUEST 立即;幂等受理重签 cancelToken)。
+func (p *Provider) handleDelete(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		badRequest(w, r, "use POST")
+		return
+	}
+	id, _ := auth.FromContext(r.Context())
+	pending, token, deletedAt, err := p.store.RequestDelete(id.AccountID, p.store.opts.DeleteGrace)
+	if err != nil {
+		p.writeStoreError(w, r, err)
+		return
+	}
+	if pending {
+		aggregation.WriteData(w, deleteDTO{Status: StatusPendingDel, CancelToken: token, PendingDelete: true})
+		return
+	}
+	// 立即删除:级联钩子同步触发(下游 Provider 各自订阅清理;契约注册制)。
+	hooks.Emit(hooks.AccountDeleted, id.AccountID)
+	aggregation.WriteData(w, deleteDTO{Status: StatusDeleted, DeletedAt: strPtr(fmtTime(*deletedAt))})
+}
+
+// POST /account/delete/cancel(匿名,v1.1)— 宽限期内撤销;一次性 cancelToken。
+func (p *Provider) handleDeleteCancel(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		badRequest(w, r, "use POST")
+		return
+	}
+	req, ok := decode[struct {
+		CancelToken string `json:"cancelToken"`
+	}](w, r)
+	if !ok {
+		return
+	}
+	accountID, err := p.store.ConsumeCancelToken(req.CancelToken)
+	if err != nil {
+		p.writeStoreError(w, r, err)
+		return
+	}
+	p.store.CancelDelete(accountID)
 	aggregation.WriteData(w, struct{}{})
 }

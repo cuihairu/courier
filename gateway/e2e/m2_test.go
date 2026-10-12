@@ -183,7 +183,7 @@ func TestAnnouncementPublished_PushesWithin5s_ThenPullHistory(t *testing.T) {
 
 	// 运营侧发布(管理面入口)。chirp handleStream 在 WriteHeader 前同步注册
 	// 订阅者,openStream 返回 200 即订阅已建立,无需额外等待。
-	a, err := h.announce.Publish("版本 1.2 已发布", "新增公会战玩法", "INFO", nil, nil)
+	a, err := h.announce.Publish("版本 1.2 已发布", "新增公会战玩法", "INFO", nil, nil, nil)
 	if err != nil {
 		t.Fatalf("publish: %v", err)
 	}
@@ -333,7 +333,7 @@ func TestAnnouncementDetailAndSupportFAQ_ContractEndpoints(t *testing.T) {
 	token := h.login(t)
 
 	// 公告详情:命中返回 DTO,缺失/过期同码不泄露存在性(announcement.md)。
-	a, err := h.announce.Publish("维护通知", "周三 03:00-05:00 停服", "WARNING", nil, nil)
+	a, err := h.announce.Publish("维护通知", "周三 03:00-05:00 停服", "WARNING", nil, nil, nil)
 	if err != nil {
 		t.Fatalf("publish: %v", err)
 	}

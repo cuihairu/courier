@@ -15,11 +15,12 @@ import (
 
 // 存储层错误(错误码由上层映射,见 docs/contract/auth.md)。
 var (
-	ErrEmailTaken   = errors.New("account: 邮箱已被注册")
-	ErrDeviceLimit  = errors.New("account: 设备数超限")
-	ErrNotFound     = errors.New("account: 不存在")
-	ErrAlreadyBound = errors.New("account: 账号已绑定邮箱")
-	ErrDisabled     = errors.New("account: 账号禁用")
+	ErrEmailTaken         = errors.New("account: 邮箱已被注册")
+	ErrDeviceLimit        = errors.New("account: 设备数超限")
+	ErrNotFound           = errors.New("account: 不存在")
+	ErrAlreadyBound       = errors.New("account: 账号已绑定邮箱")
+	ErrDisabled           = errors.New("account: 账号禁用")
+	ErrDeleteTokenInvalid = errors.New("account: 撤销 token 无效或过期")
 )
 
 // Options 存储与会话参数(契约 auth.md:TTL/上限接入方可配,契约不冻结数值)。
@@ -30,6 +31,7 @@ type Options struct {
 	Iterations    int           // PBKDF2 迭代,默认 210000(测试调低)
 	RatePerMinute int           // 敏感端点每 IP 限流,默认 10
 	RateBurst     int           // 默认 10
+	DeleteGrace   time.Duration // 注销宽限期(v1.1),负值=未配置走默认 14d,0 = EMAIL 也立即删;上限 30d(管理面钳制)
 	Clock         func() time.Time
 }
 
@@ -53,27 +55,38 @@ func (o *Options) fillDefaults() {
 	if o.RateBurst <= 0 {
 		o.RateBurst = 10
 	}
+	if o.DeleteGrace < 0 {
+		// 负值 = 未配置走契约缺省;0 是合法配置(EMAIL 也立即删,契约 0–30d)。
+		o.DeleteGrace = DefaultDeleteGrace
+	}
+	if o.DeleteGrace > 30*24*time.Hour {
+		o.DeleteGrace = 30 * 24 * time.Hour // 契约上限,管理面配置钳制
+	}
 	if o.Clock == nil {
 		o.Clock = time.Now
 	}
 }
 
-// 账号/会话状态枚举(契约 auth.md「数据模型」)。
+// 账号/会话状态枚举(契约 auth.md「数据模型」;后两值 v1.1 注销)。
 const (
-	AccountEmail   = "EMAIL"
-	AccountGuest   = "GUEST"
-	StatusActive   = "ACTIVE"
-	StatusDisabled = "DISABLED"
+	AccountEmail       = "EMAIL"
+	AccountGuest       = "GUEST"
+	StatusActive       = "ACTIVE"
+	StatusDisabled     = "DISABLED"
+	StatusPendingDel   = "PENDING_DELETE"
+	StatusDeleted      = "DELETED"
+	DefaultDeleteGrace = 14 * 24 * time.Hour
 )
 
 // 四表行结构,字段口径与 docs/contract/auth.md「数据模型」一致。
 type accountRow struct {
-	id        string // acc_<uuidv7>
-	typ       string // EMAIL | GUEST
-	email     string // GUEST 为空
-	status    string // ACTIVE | DISABLED
-	createdAt time.Time
-	updatedAt time.Time
+	id          string    // acc_<uuidv7>
+	typ         string    // EMAIL | GUEST
+	email       string    // GUEST 为空
+	status      string    // ACTIVE | DISABLED | PENDING_DELETE | DELETED
+	deleteAfter time.Time // PENDING_DELETE 宽限期满时刻(v1.1)
+	createdAt   time.Time
+	updatedAt   time.Time
 }
 
 type credentialRow struct {
@@ -107,16 +120,24 @@ type deviceRow struct {
 	lastSeenAt time.Time
 }
 
+// pendingDeleteRow 注销宽限行(v1.1):tokenHash 只存哈希,一次性。
+type pendingDeleteRow struct {
+	accountID string
+	tokenHash string
+	expiresAt time.Time
+}
+
 // Store 内存存储,四表结构与 auth.md 附录 DDL 同构;粗粒度互斥锁。
 // 持久化(SQLite/Postgres)随 M1 后续工程替换,接口形状不变。
 type Store struct {
 	mu   sync.Mutex
 	opts Options
 
-	accounts    map[string]*accountRow
-	credentials map[string]*credentialRow
-	sessions    map[string]*sessionRow
-	devices     map[string]*deviceRow
+	accounts       map[string]*accountRow
+	credentials    map[string]*credentialRow
+	sessions       map[string]*sessionRow
+	devices        map[string]*deviceRow
+	pendingDeletes map[string]*pendingDeleteRow // tokenHash → 宽限行(v1.1)
 
 	emailIndex     map[string]string // email → accountID
 	guestDevIndex  map[string]string // deviceId → guest accountID(游客幂等)
@@ -135,6 +156,7 @@ func NewStore(opts Options) *Store {
 		credentials:    make(map[string]*credentialRow),
 		sessions:       make(map[string]*sessionRow),
 		devices:        make(map[string]*deviceRow),
+		pendingDeletes: make(map[string]*pendingDeleteRow),
 		emailIndex:     make(map[string]string),
 		guestDevIndex:  make(map[string]string),
 		deviceKeys:     make(map[string]string),
@@ -509,4 +531,143 @@ func (s *Store) SessionByAccessToken(_ context.Context, accessToken string) (ses
 		AccessExpires: row.accessExpiresAt,
 		Revoked:       row.revokedAt != nil,
 	}, true
+}
+
+// --- 注销(v1.1,auth.md POST /account/delete) ---
+
+// RequestDelete 注销受理:EMAIL + grace > 0 → 进入 PENDING_DELETE、吊销全部
+// 会话、签发一次性撤销 token(重复受理重签,旧 token 立即失效);否则匿名化
+// 立即删除(GUEST 恒立即,EMAIL 随管理面 grace=0 配置)。
+// 返回:是否进入宽限期、明文 cancelToken(仅宽限期非空)、deletedAt(仅立即删)。
+func (s *Store) RequestDelete(accountID string, grace time.Duration) (pending bool, cancelToken string, deletedAt *time.Time, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	acc, ok := s.accounts[accountID]
+	if !ok {
+		return false, "", nil, ErrNotFound
+	}
+	if acc.status != StatusActive && acc.status != StatusPendingDel {
+		return false, "", nil, ErrDisabled
+	}
+	t := s.now()
+	if acc.typ == AccountEmail && grace > 0 {
+		acc.status = StatusPendingDel
+		acc.deleteAfter = t.Add(grace)
+		acc.updatedAt = t
+		s.revokeAccountSessionsLocked(accountID, t)
+		token, err := genToken()
+		if err != nil {
+			return false, "", nil, err
+		}
+		for h, row := range s.pendingDeletes { // 重签作废旧 token
+			if row.accountID == accountID {
+				delete(s.pendingDeletes, h)
+			}
+		}
+		s.pendingDeletes[sha256Hex(token)] = &pendingDeleteRow{accountID: accountID, expiresAt: acc.deleteAfter}
+		return true, token, nil, nil
+	}
+	if !s.anonymizeLocked(acc, t) {
+		return false, "", nil, ErrNotFound
+	}
+	d := t
+	return false, "", &d, nil
+}
+
+// revokeAccountSessionsLocked 吊销账号全部会话(受理即吊销,宽限期不例外);须持锁。
+func (s *Store) revokeAccountSessionsLocked(accountID string, t time.Time) {
+	for _, sess := range s.sessions {
+		if sess.accountID == accountID && sess.revokedAt == nil {
+			sess.revokedAt = &t
+		}
+	}
+}
+
+// ConsumeCancelToken 校验并消费撤销 token(一次性):匹配且未过期 → 返回
+// accountID;不匹配/已用/已过期 → ErrDeleteTokenInvalid(auth.md v1.1)。
+func (s *Store) ConsumeCancelToken(token string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	row, ok := s.pendingDeletes[sha256Hex(token)]
+	if !ok {
+		return "", ErrDeleteTokenInvalid
+	}
+	delete(s.pendingDeletes, sha256Hex(token))
+	if s.now().After(row.expiresAt) {
+		return "", ErrDeleteTokenInvalid
+	}
+	return row.accountID, nil
+}
+
+// CancelDelete 撤销注销:账号回 ACTIVE;已吊销会话不恢复(需重登);
+// 宽限期计时外状态不保留(再次申请注销重新走受理)。
+func (s *Store) CancelDelete(accountID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if acc, ok := s.accounts[accountID]; ok && acc.status == StatusPendingDel {
+		acc.status = StatusActive
+		acc.deleteAfter = time.Time{}
+		acc.updatedAt = s.now()
+	}
+	for h, row := range s.pendingDeletes {
+		if row.accountID == accountID {
+			delete(s.pendingDeletes, h)
+		}
+	}
+}
+
+// anonymizeLocked 匿名化(auth.md v1.1 执行语义 = 匿名,非物理删行):清 PII
+// (email、凭证、设备行与全部索引),id 保留供外键与审计,status=DELETED;
+// 游客幂等索引一并清除——注销后同设备再进 = 新游客账号。须持锁。
+func (s *Store) anonymizeLocked(acc *accountRow, t time.Time) bool {
+	if acc.status == StatusDeleted {
+		return false
+	}
+	if acc.email != "" {
+		delete(s.emailIndex, acc.email)
+	}
+	acc.email = ""
+	acc.status = StatusDeleted
+	acc.deleteAfter = time.Time{}
+	acc.updatedAt = t
+	delete(s.credentials, acc.id)
+	for h, row := range s.pendingDeletes { // 宽限随终态作废
+		if row.accountID == acc.id {
+			delete(s.pendingDeletes, h)
+		}
+	}
+	for key, rowID := range s.deviceKeys {
+		if row := s.devices[rowID]; row != nil && row.accountID == acc.id {
+			delete(s.devices, rowID)
+			delete(s.deviceKeys, key)
+			if s.guestDevIndex[row.deviceID] == acc.id {
+				delete(s.guestDevIndex, row.deviceID)
+			}
+		}
+	}
+	return true
+}
+
+// FinalizeIfExpired 宽限期满终态化(PENDING_DELETE → 匿名化 DELETED);
+// 触发时机为服务端实现细节(契约不约束)——此处惰性:login/bind/guest 前顺手。
+// 返回是否执行了终态化。
+func (s *Store) FinalizeIfExpired(accountID string) bool {
+	s.mu.Lock()
+	acc, ok := s.accounts[accountID]
+	if !ok || acc.status != StatusPendingDel {
+		s.mu.Unlock()
+		return false
+	}
+	deadline := acc.deleteAfter
+	s.mu.Unlock()
+	if deadline.IsZero() || s.now().Before(deadline) {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cur, ok := s.accounts[accountID]
+	if !ok || cur.status != StatusPendingDel || s.now().Before(cur.deleteAfter) {
+		return false
+	}
+	return s.anonymizeLocked(cur, s.now())
 }

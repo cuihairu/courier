@@ -7,6 +7,7 @@ package accountalt
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -16,11 +17,12 @@ import (
 
 // 存储层错误(错误码由上层映射,契约 docs/contract/auth.md)。
 var (
-	ErrEmailTaken   = errors.New("accountalt: 邮箱已被注册")
-	ErrDeviceLimit  = errors.New("accountalt: 设备数超限")
-	ErrAlreadyBound = errors.New("accountalt: 账号已绑定邮箱")
-	ErrDisabled     = errors.New("accountalt: 账号禁用")
-	ErrNotFound     = errors.New("accountalt: 不存在")
+	ErrEmailTaken         = errors.New("accountalt: 邮箱已被注册")
+	ErrDeviceLimit        = errors.New("accountalt: 设备数超限")
+	ErrAlreadyBound       = errors.New("accountalt: 账号已绑定邮箱")
+	ErrDisabled           = errors.New("accountalt: 账号禁用")
+	ErrNotFound           = errors.New("accountalt: 不存在")
+	ErrDeleteTokenInvalid = errors.New("accountalt: 撤销 token 无效或过期")
 )
 
 // Options 与自建实现同旋钮(契约 auth.md:TTL/上限接入方可配,不冻结数值)。
@@ -31,6 +33,7 @@ type Options struct {
 	Iterations    int           // PBKDF2 迭代,默认 210000(测试调低)
 	RatePerMinute int           // 敏感端点每 IP 限流,默认 10
 	RateBurst     int           // 默认 10
+	DeleteGrace   time.Duration // 注销宽限期(v1.1),负值=未配置走默认 14d,0=立即删;上限 30d
 	Clock         func() time.Time
 	SigningKey    SigningKey // 覆盖签名密钥(测试/多实例共享;非法即 panic 快速失败)
 }
@@ -54,20 +57,35 @@ func (o *Options) fillDefaults() {
 	if o.RateBurst <= 0 {
 		o.RateBurst = 10
 	}
+	if o.DeleteGrace < 0 {
+		// 负值 = 未配置走契约缺省;0 是合法配置(EMAIL 也立即删,契约 0–30d)。
+		o.DeleteGrace = DefaultDeleteGrace
+	}
+	if o.DeleteGrace > 30*24*time.Hour {
+		o.DeleteGrace = 30 * 24 * time.Hour
+	}
 	if o.Clock == nil {
 		o.Clock = time.Now
 	}
 }
 
 type altAccount struct {
-	id        string
-	typ       string // EMAIL | GUEST
-	email     string // 绑定后非空
-	status    string // ACTIVE | DISABLED
-	passHash  []byte
-	passSalt  []byte
-	createdAt time.Time
+	id          string
+	typ         string    // EMAIL | GUEST
+	email       string    // 绑定后非空
+	status      string    // ACTIVE | DISABLED | PENDING_DELETE | DELETED
+	deleteAfter time.Time // PENDING_DELETE 宽限期满时刻(v1.1)
+	passHash    []byte
+	passSalt    []byte
+	createdAt   time.Time
 }
+
+// 状态枚举(与自建同口径;accountalt 其余处惯用字面量,注销流程走常量)。
+const (
+	StatusPendingDel   = "PENDING_DELETE"
+	StatusDeleted      = "DELETED"
+	DefaultDeleteGrace = 14 * 24 * time.Hour
+)
 
 type altSession struct {
 	id             string
@@ -98,6 +116,13 @@ type Store struct {
 	byGuest  map[string]string // deviceID → 游客账号 ID
 	sessions map[string]*altSession
 	devices  map[string]map[string]*altDevice // accountID → deviceID → 行
+	pending  map[string]pendingDeleteRow      // tokenHash → 宽限行(v1.1;token 只存哈希)
+}
+
+// pendingDeleteRow 注销宽限行(v1.1):一次性撤销 token。
+type pendingDeleteRow struct {
+	accountID string
+	expiresAt time.Time
 }
 
 func NewStore(opts *Options) *Store {
@@ -113,6 +138,7 @@ func NewStore(opts *Options) *Store {
 		byGuest:  make(map[string]string),
 		sessions: make(map[string]*altSession),
 		devices:  make(map[string]map[string]*altDevice),
+		pending:  make(map[string]pendingDeleteRow),
 	}
 }
 
@@ -336,4 +362,133 @@ func (s *Store) SetAccountStatus(accountID, status string) {
 	if acc, ok := s.accounts[accountID]; ok {
 		acc.status = status
 	}
+}
+
+// --- 注销(v1.1,auth.md POST /account/delete;语义与自建一致,存储形状不同) ---
+
+// RequestDelete 注销受理:EMAIL + grace > 0 → PENDING_DELETE + 吊销全部会话 +
+// 一次性撤销 token(重复受理重签);否则匿名化立即删除。
+func (s *Store) RequestDelete(accountID string, grace time.Duration) (pending bool, cancelToken string, deletedAt *time.Time, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	acc, ok := s.accounts[accountID]
+	if !ok {
+		return false, "", nil, ErrNotFound
+	}
+	if acc.status != "ACTIVE" && acc.status != StatusPendingDel {
+		return false, "", nil, ErrDisabled
+	}
+	t := s.now()
+	s.revokeAccountSessionsLocked(accountID, t) // 受理即吊销(含立即删路径)
+	if acc.typ == "EMAIL" && grace > 0 {
+		acc.status = StatusPendingDel
+		acc.deleteAfter = t.Add(grace)
+		token := newID("deltok", 24)
+		for h, row := range s.pending { // 重签作废旧 token
+			if row.accountID == accountID {
+				delete(s.pending, h)
+			}
+		}
+		s.pending[tokenHash(token)] = pendingDeleteRow{accountID: accountID, expiresAt: acc.deleteAfter}
+		return true, token, nil, nil
+	}
+	if !s.anonymizeLocked(acc, t) {
+		return false, "", nil, ErrNotFound
+	}
+	d := t
+	return false, "", &d, nil
+}
+
+func (s *Store) revokeAccountSessionsLocked(accountID string, t time.Time) {
+	for _, sess := range s.sessions {
+		if sess.accountID == accountID {
+			sess.revoked = true
+		}
+	}
+}
+
+func tokenHash(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
+}
+
+// ConsumeCancelToken 校验并消费撤销 token(一次性);无效/已用/过期 → ErrDeleteTokenInvalid。
+func (s *Store) ConsumeCancelToken(token string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	h := tokenHash(token)
+	row, ok := s.pending[h]
+	if !ok {
+		return "", ErrDeleteTokenInvalid
+	}
+	delete(s.pending, h)
+	if s.now().After(row.expiresAt) {
+		return "", ErrDeleteTokenInvalid
+	}
+	return row.accountID, nil
+}
+
+// CancelDelete 撤销注销:回 ACTIVE,已吊销会话不恢复(需重登)。
+func (s *Store) CancelDelete(accountID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if acc, ok := s.accounts[accountID]; ok && acc.status == StatusPendingDel {
+		acc.status = "ACTIVE"
+		acc.deleteAfter = time.Time{}
+	}
+	for h, row := range s.pending {
+		if row.accountID == accountID {
+			delete(s.pending, h)
+		}
+	}
+}
+
+// anonymizeLocked 匿名化:清 PII(email、凭证、设备行与索引),id 保留,
+// status=DELETED;游客幂等索引清除(注销后同设备再进 = 新游客账号)。须持锁。
+func (s *Store) anonymizeLocked(acc *altAccount, t time.Time) bool {
+	if acc.status == StatusDeleted {
+		return false
+	}
+	if acc.email != "" {
+		delete(s.byEmail, acc.email)
+	}
+	acc.email = ""
+	acc.passHash = nil
+	acc.passSalt = nil
+	acc.status = StatusDeleted
+	acc.deleteAfter = time.Time{}
+	delete(s.devices, acc.id)
+	for dev, id := range s.byGuest {
+		if id == acc.id {
+			delete(s.byGuest, dev)
+		}
+	}
+	for h, row := range s.pending {
+		if row.accountID == acc.id {
+			delete(s.pending, h)
+		}
+	}
+	return true
+}
+
+// FinalizeIfExpired 宽限期满终态化(惰性,login/bind 前顺手);返回是否终态化。
+func (s *Store) FinalizeIfExpired(accountID string) bool {
+	s.mu.RLock()
+	acc, ok := s.accounts[accountID]
+	if !ok || acc.status != StatusPendingDel {
+		s.mu.RUnlock()
+		return false
+	}
+	deadline := acc.deleteAfter
+	s.mu.RUnlock()
+	if deadline.IsZero() || s.now().Before(deadline) {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cur, ok := s.accounts[accountID]
+	if !ok || cur.status != StatusPendingDel || s.now().Before(cur.deleteAfter) {
+		return false
+	}
+	return s.anonymizeLocked(cur, s.now())
 }

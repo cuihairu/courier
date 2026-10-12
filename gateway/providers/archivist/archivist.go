@@ -104,6 +104,20 @@ func New(opts Options) *PlayerProvider {
 // Name 供应商标识。
 func (p *PlayerProvider) Name() string { return p.name }
 
+// DeleteAccount 账号注销级联(OnAccountDeleted 订阅方,契约 auth.md v1.1 注册制):
+// 清档案与全部角色绑定(角色数据本体归各游戏后端,不在本域)。
+func (p *PlayerProvider) DeleteAccount(accountID string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	delete(p.prof, accountID)
+	prefix := accountID + "|"
+	for k := range p.chars {
+		if strings.HasPrefix(k, prefix) {
+			delete(p.chars, k)
+		}
+	}
+}
+
 // Capability 能力域:player。
 func (p *PlayerProvider) Capability() providers.Capability { return providers.CapPlayer }
 

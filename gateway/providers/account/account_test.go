@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/cuihairu/courier/gateway/middleware"
+	"github.com/cuihairu/courier/gateway/providers/hooks"
 	"github.com/cuihairu/courier/gateway/scope"
 )
 
@@ -477,4 +478,162 @@ func TestRouteFallbacks(t *testing.T) {
 			t.Fatalf("status=%d code=%s", r.status, r.code)
 		}
 	})
+}
+
+// --- 注销与撤销(v1.1,auth.md POST /account/delete + /account/delete/cancel)---
+
+func deleteBody(t *testing.T, r resp) deleteDTO {
+	t.Helper()
+	var d deleteDTO
+	if err := json.Unmarshal(r.data, &d); err != nil {
+		t.Fatalf("解析 delete data 失败: %v (raw=%s)", err, r.data)
+	}
+	return d
+}
+
+const pathDelete = "/v1/identity/account/delete"
+const pathDeleteCancel = "/v1/identity/account/delete/cancel"
+
+func TestDeleteGracePeriodAndCancel(t *testing.T) {
+	h := newHarness(t, func(o *Options) { o.DeleteGrace = time.Hour })
+	s1 := h.mustRegister(t, "del@b.co", "password8", "dev-1")
+	s2 := h.login(t, "del@b.co", "password8", "dev-2")
+	var cancelToken string
+
+	t.Run("受理:PENDING + cancelToken + 全部会话吊销", func(t *testing.T) {
+		r := h.postAuth(t, pathDelete, "", s1.AccessToken)
+		if r.status != http.StatusOK {
+			t.Fatalf("status=%d code=%s", r.status, r.code)
+		}
+		d := deleteBody(t, r)
+		if d.Status != "PENDING_DELETE" || !d.PendingDelete || d.DeletedAt != nil || !tokenRe.MatchString(d.CancelToken) {
+			t.Fatalf("deleteDTO = %+v", d)
+		}
+		cancelToken = d.CancelToken
+		for name, tok := range map[string]string{"dev-1": s1.AccessToken, "dev-2": s2.AccessToken} {
+			if rr := h.getAuth(t, "/v1/identity/session", tok); rr.code != "AUTH_TOKEN_REVOKED" {
+				t.Fatalf("%s 旧会话应已吊销: code=%s", name, rr.code)
+			}
+		}
+	})
+
+	t.Run("宽限期内登录被拒(AUTH_ACCOUNT_PENDING_DELETE)", func(t *testing.T) {
+		r := h.post(t, "/v1/identity/login", registerBody("del@b.co", "password8", ""))
+		if r.status != http.StatusForbidden || r.code != "AUTH_ACCOUNT_PENDING_DELETE" {
+			t.Fatalf("status=%d code=%s", r.status, r.code)
+		}
+	})
+
+	t.Run("撤销:错 token 401,对 token 200 且一次性,撤销后可重登", func(t *testing.T) {
+		r := h.post(t, pathDeleteCancel, `{"cancelToken":"junk"}`)
+		if r.status != http.StatusUnauthorized || r.code != "AUTH_DELETE_TOKEN_INVALID" {
+			t.Fatalf("junk: status=%d code=%s", r.status, r.code)
+		}
+		ok := h.post(t, pathDeleteCancel, `{"cancelToken":"`+cancelToken+`"}`)
+		if ok.status != http.StatusOK {
+			t.Fatalf("撤销失败: status=%d code=%s", ok.status, ok.code)
+		}
+		if re := h.post(t, pathDeleteCancel, `{"cancelToken":"`+cancelToken+`"}`); re.code != "AUTH_DELETE_TOKEN_INVALID" {
+			t.Fatalf("token 应一次性: code=%s", re.code)
+		}
+		s3 := h.login(t, "del@b.co", "password8", "dev-1") // 撤销后可登录
+		if s3.Account.Status != "ACTIVE" {
+			t.Fatalf("撤销后 status = %s", s3.Account.Status)
+		}
+		if rr := h.getAuth(t, "/v1/identity/session", s1.AccessToken); rr.code != "AUTH_TOKEN_REVOKED" {
+			t.Fatalf("已吊销会话不应随撤销恢复: code=%s", rr.code)
+		}
+	})
+
+	t.Run("重复受理重签 token,旧 token 作废", func(t *testing.T) {
+		s4 := h.login(t, "del@b.co", "password8", "dev-2")
+		tokA := deleteBody(t, h.postAuth(t, pathDelete, "", s4.AccessToken)).CancelToken
+		if h.post(t, pathDeleteCancel, `{"cancelToken":"`+tokA+`"}`).status != http.StatusOK {
+			t.Fatal("第一次撤销应成功")
+		}
+		s5 := h.login(t, "del@b.co", "password8", "dev-1")
+		tokB := deleteBody(t, h.postAuth(t, pathDelete, "", s5.AccessToken)).CancelToken
+		if tokB == tokA {
+			t.Fatal("重签 token 应不同")
+		}
+		if r := h.post(t, pathDeleteCancel, `{"cancelToken":"`+tokA+`"}`); r.code != "AUTH_DELETE_TOKEN_INVALID" {
+			t.Fatalf("旧 token 应作废: code=%s", r.code)
+		}
+		if r := h.post(t, pathDeleteCancel, `{"cancelToken":"`+tokB+`"}`); r.status != http.StatusOK {
+			t.Fatalf("新 token 应有效: code=%s", r.code)
+		}
+	})
+}
+
+func TestDeleteImmediateGuestAndEmailZeroGrace(t *testing.T) {
+	t.Run("游客恒立即删,同设备再进 = 新游客", func(t *testing.T) {
+		h := newHarness(t, nil) // GUEST 不吃宽限期(契约:恒立即)
+		gs := h.post(t, "/v1/identity/guest", `{"deviceId":"g-dev-1"}`).dataSession(t)
+		d := deleteBody(t, h.postAuth(t, pathDelete, "", gs.AccessToken))
+		if d.Status != "DELETED" || d.DeletedAt == nil || d.CancelToken != "" || d.PendingDelete {
+			t.Fatalf("deleteDTO = %+v", d)
+		}
+		gs2 := h.post(t, "/v1/identity/guest", `{"deviceId":"g-dev-1"}`).dataSession(t)
+		if gs2.Account.ID == gs.Account.ID || gs2.Account.Status != "ACTIVE" {
+			t.Fatalf("同设备应得新游客账号: old=%s new=%s/%s",
+				gs.Account.ID, gs2.Account.ID, gs2.Account.Status)
+		}
+	})
+
+	t.Run("EMAIL grace=0 立即删:匿名化,同邮箱可重注册,钩子触发", func(t *testing.T) {
+		h := newHarness(t, nil) // 0 = EMAIL 也立即删(契约 0–30d)
+		deleted := make(chan string, 1)
+		cancel := hooks.Register(hooks.AccountDeleted, func(id string) { deleted <- id })
+		defer cancel()
+		s := h.mustRegister(t, "zap@b.co", "password8", "")
+		d := deleteBody(t, h.postAuth(t, pathDelete, "", s.AccessToken))
+		if d.Status != "DELETED" || d.DeletedAt == nil || d.CancelToken != "" {
+			t.Fatalf("deleteDTO = %+v", d)
+		}
+		select {
+		case id := <-deleted:
+			if id != s.Account.ID {
+				t.Fatalf("钩子账号不符: %s", id)
+			}
+		default:
+			t.Fatal("立即删应触发 account.deleted 钩子")
+		}
+		if r := h.post(t, "/v1/identity/login", registerBody("zap@b.co", "password8", "")); r.code != "AUTH_INVALID_CREDENTIALS" {
+			t.Fatalf("匿名化后登录应按未知账号: code=%s", r.code)
+		}
+		if s2 := h.mustRegister(t, "zap@b.co", "password8", ""); s2.Account.ID == s.Account.ID {
+			t.Fatal("同邮箱重注册应得到新账号")
+		}
+	})
+}
+
+func TestDeleteFinalizeAfterGrace(t *testing.T) {
+	h := newHarness(t, func(o *Options) { o.DeleteGrace = time.Hour })
+	deleted := make(chan string, 1)
+	cancel := hooks.Register(hooks.AccountDeleted, func(id string) { deleted <- id })
+	defer cancel()
+	s := h.mustRegister(t, "late@b.co", "password8", "")
+	if d := deleteBody(t, h.postAuth(t, pathDelete, "", s.AccessToken)); d.Status != "PENDING_DELETE" {
+		t.Fatalf("status = %s", d.Status)
+	}
+	select {
+	case id := <-deleted:
+		t.Fatalf("宽限期内不应触发钩子,却收到 %s", id)
+	default:
+	}
+	h.clock.Advance(2 * time.Hour)
+	// 终态化是惰性的(login 前顺手):匿名化后按未知账号(防枚举一致)。
+	r := h.post(t, "/v1/identity/login", registerBody("late@b.co", "password8", ""))
+	if r.status != http.StatusUnauthorized || r.code != "AUTH_INVALID_CREDENTIALS" {
+		t.Fatalf("宽限期满后登录: status=%d code=%s", r.status, r.code)
+	}
+	select {
+	case id := <-deleted:
+		if id != s.Account.ID {
+			t.Fatalf("钩子账号不符: %s", id)
+		}
+	default:
+		t.Fatal("终态化应触发 account.deleted 钩子")
+	}
+	h.mustRegister(t, "late@b.co", "password8", "") // PII 已清,同邮箱可重注册
 }
