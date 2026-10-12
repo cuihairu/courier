@@ -7,6 +7,7 @@
 > **更新**(2026-10-13,批次 54):F36 由 ◑ → ✅(跑马灯呈现落 UI 包 `8127ba9`,零新契约;◑ 清零,统计行顺修批次 53 起的差 1)。
 > **更新**(2026-10-13,批次 55):交付面,无 F 项变动——六端 `examples/` + quickstart 实测落地(`425fe55`;附带修网关 `/v1/<cap>` 无斜杠根 307 丢 Authorization → 内部重派 `c5c4814`),六端 README 增「快速开始」;选装清单 `docs/sdk-selection.md`(实测字节 + Provider 降级语义)。
 > **更新**(2026-10-13,批次 57):F76 由 ❌ → ✅(announcement.md Frozen v1.1 多语内容节 → 网关 herald Language/GroupKey → SDK 六端 CourierConfig.language 自动附带 → e2e,证据 commit 见行内);零新错误码(errors.md 仍 v8)。
+> **更新**(2026-10-13,批次 62):F33 维持 ❌ 但事件面半边已落(网关 `warden.AuditSink` 注入 + `LogSink` 日志半边 + 红线测试,零新错误码);剩余 = 落库 sink 随部署面。
 > **更新**(2026-10-13,批次 56):F45 由 ❌ → ✅(support.md v1.1 举报与处罚申诉节 Frozen → 网关 → SDK 六端 → e2e 分批落地,证据 commit 见行内);F11 错误码表 v7→v8(+SUPPORT 举报/申诉 2 码,42 码)。
 > **核对方法**:「已有」声称引用批次号+commit(来自 todo 各批验收记录);「缺口」声称以 grep 机器核对为准(零命中/命中行注明,如 announcement.md `filter` 0 命中、support.md `context` 0 命中、auth.md 仅 `DELETE /devices`、全契约 `language/locale` 0 命中);auth.md:10 与 realname.md:100 为契约明示的边界预留。
 > **图例**:✅ 已落地(仓库内有契约+实现+测试/e2e 证据,部署面残留另行注明)· ◑ 部分(核心面已落,剩余明示)· ❌ 缺口(仓库内未立项/未实现)· 🔌 Provider(不进核心契约)· ⏸ 待议 · ⛔ 不做。
@@ -41,7 +42,7 @@
 | F29 | 充值限额 | ✅ | charge-check F29 分龄限额;批次 7 |
 | F30 | 防沉迷上报 | ✅ | playtime-report S2S 幂等月累计;批次 7 |
 | F31 | 年龄门/同意(海外) | ❌ | realname.md:100 明示 v1.1 预留 consent 组(出海需求触发再冻结);未立项 |
-| F33 | 审计留痕 | ❌ | trace 贯穿已有(layers.md L5);审计落库随部署面 |
+| F33 | 审计留痕 | ❌ | trace 贯穿已有(layers.md L5);事件面半边已落(`warden.AuditSink` 注入,nil = 不产出;`COURIER_REALNAME_AUDIT=log` 日志半边;事件只含账号维度元数据,身份输入红线不进事件,批次 62);落库随部署面 |
 | F34 | 公告系统 | ✅ | announcement.md Frozen+herald;批次 6(`38fe759`) |
 | F35 | 公告定向过滤 | ✅ | announcement.md Frozen v1.1 `filters` 开集 map + 四查询维度;herald 匹配 + SDK list 参数(`53eaa7c`)+ e2e 命中/未命中/详情 404;批次 51(`5317802`/`f20e9ab`) |
 | F36 | 跑马灯 | ✅ | 数据面零新契约(severity 字段 announcement.md:32);跑马灯呈现随批次 54 落 UI 包(TS 三端 `onMarqueeRendered`/`formatMarquee` + Unity `MarqueeRendered`/`AnnouncementText`,packcheck 结构守卫,`8127ba9`) |
@@ -98,4 +99,4 @@
 | ID | 缺口 | 建议落点 |
 | --- | --- | --- |
 | F31 | 年龄门/家长同意(海外) | realname v1.1 consent 组(realname.md:100 已预留) |
-| F33 | 审计落库 | 部署面;trace 已贯穿 |
+| F33 | 审计落库 | 部署面;事件面已落(批次 62:`warden.AuditSink` + 日志半边) |

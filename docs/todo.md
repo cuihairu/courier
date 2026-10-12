@@ -459,7 +459,7 @@
 - [x] **F30 防沉迷数据上报**(时长/消费 S2S 上报)｜落点:realname playtime-report S2S(批次 7 已覆盖,幂等月累计)
 - [ ] **F31 年龄门与同意管理(海外)**(首启年龄筛查,VPC 家长同意)｜落点:realname.md:100 明示 v1.1 预留 consent 组(只加不改,出海需求触发再冻结)——未立项
 - [Provider·不进核心] **F32 数据最小化与第三方共享清单**(采集项/目的/权限清单)｜落点:红线内建契约(默认关闭/字段最小化,contract/index.md 宪法 5/6);清单输出归 Provider
-- [ ] **F33 审计与合规留痕**(实名/同意/限额判定可追溯日志)｜落点:trace 贯穿 gateway→Provider 已实现(layers.md L5);审计落库随部署面
+- [ ] **F33 审计与合规留痕**(实名/同意/限额判定可追溯日志)｜落点:trace 贯穿 gateway→Provider 已实现(layers.md L5);**事件面半边已落**(批次 62:`warden.AuditSink` 注入,nil = 不产出;`COURIER_REALNAME_AUDIT=log` 开日志半边;红线测试锁定事件不含姓名/证件号/指纹);剩余半边 = 落库 sink(DB/SIEM 直写与保留策略)随部署面
 
 ### §6 消息与触达
 
@@ -791,6 +791,20 @@
 
 - [x] gateway `go vet ./...` + `go test -count=1 ./...` 全绿 / tools 三包全绿才 commit
 - [x] **race 卫生补验**(本批后加跑):gateway 全仓 `go test -count=1 -race ./...` exit 0、18 包 ok、零 DATA RACE(含新并发换源单测);根模块 `./tools/...` -race 同绿——本轮首次全量 race 实跑(批次 22 曾局部验)
+
+## 批次 62 — F33 审计事件面半边 + 054a59e CI 收口(2026-10-13)
+
+> 来源:巡检点火 r20261013b——F33 复核「trace 贯穿之外是否有不需要新凭据就能先落的日志/留痕半边;能先落代码半边就先落并写明剩余半边的依赖」。
+
+- [x] **F33 事件面半边落地**(F33 todo 行维持未勾——落库半边仍在):`gateway/providers/warden/audit.go` 新增 `AuditSink` 接口 + `AuditEvent`(TraceID/AccountID/Action/Outcome/At,**只含账号维度元数据**)+ `LogSink`(标准日志一行 JSON);`Options.AuditSink` 注入(nil = 不产出,同 hooks.Notify 口径);四发射位 verify/curfew/charge_check/playtime_report——纯读 status 不留痕,S2S 鉴权失败与入参非法 400 不留痕(动作未发生)
+- [x] **红线测试**:`audit_test.go` 六测——关键动作产出与结果值、纯读零事件、nil sink 零产出零 panic、失败路径零事件、**`TestAudit_RedLine_NeverCarriesIdentityInput`**(事件序列化形状断言不含姓名/证件号/指纹,realname.md 红线)、LogSink 行 JSON 回读
+- [x] **main.go 装配**:`COURIER_REALNAME_AUDIT=log` 开日志半边(stdout 结构化行,容器侧采集即用,**无需新凭据**);剩余半边 = 落库 sink(DB/SIEM 直写 + 保留策略)随部署面注入 `Options.AuditSink`,依赖:部署面凭据/存储未到位
+- [x] **文档对齐**:layers.md L5 审计句 / architecture.md 安全边界「写操作可审计」/ provider-guide.md 注入表 realname 行 / implementation-status.md F33 行与更新行(维持 ❌,事件面注记)/ todo F33 落点注
+- [x] **054a59e CI 收口**:两 run 结论 = **cancelled(非红)**——排队期被 161c246 推送顶替取消(run_started 22:52:30Z、cancelled 22:55:20Z,jobs 为空 = 从未拿到 runner);同因清扫了 d0049d9/4db37de/71170e1 的排队 run(下次 push 顶替排队 run 的机制,`cancel-in-progress: false` 只保护 in-progress);代码面验证由最新 tree 的 run 承担(161c246 ⊇ 054a59e,本批推送后同理)
+
+### 门禁
+
+- [x] warden 包 `-race` 全绿;gateway 全仓 `go test -count=1 -race ./...` exit 0(18 包)+ `go vet` + `gofmt` 干净;vitepress build 过(docs 改动)
 
 ## 明确不做
 

@@ -71,7 +71,7 @@ sidecar 形态契约不动,属部署面演进。
 | support | `croupier.Options.AttachmentSigner`(F44 附件直传)、`PenaltyStore`(F45 处罚投影源:List/Get/Appeal) | nil = 附件 / 处罚能力 501(不内置假存储假风控到生产) |
 | support | `Notify`(坐席回复 → chirp 广播)、`TicketRatePerMinute/Burst`(默认 5/分钟) | nil = 不推送 |
 | payments | `teller.Options.ChannelSecret`(回调 HMAC-SHA256)、`Deliver` 发货钩子(按订单幂等,接入方落库) | 密钥空 = 回调一律 403 `PAYMENT_INVALID_SIGNATURE` |
-| realname | `warden.Options.S2SToken` | 缺省 = S2S 端点 fail-closed |
+| realname | `warden.Options.S2SToken`、`AuditSink`(F33 审计事件面:verify/curfew/charge_check/playtime_report,事件只含账号维度元数据) | S2S 缺省 = fail-closed 401;sink 缺省 = 不产出(`COURIER_REALNAME_AUDIT=log` 开日志半边),落库随部署面 |
 | 级联 | `hooks.Register(hooks.AccountDeleted, fn)`(契约 auth.md v1.1 注册制:注销数据清理由下游 Provider 自订) | 网关不认识任何下游存储 |
 
 ## 5. 凭据与配置注入

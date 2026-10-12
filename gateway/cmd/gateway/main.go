@@ -61,9 +61,17 @@ func main() {
 	// ——契约红线「默认关闭」;接入方在 COURIER_GATEWAY_CONFIG 显式配置
 	// {"realname":{"primary":"warden"}} 开启,S2S 上报凭证经
 	// COURIER_REALNAME_S2S_TOKEN(缺省 = S2S 端点 fail-closed)。
+	// 审计留痕(F33 日志半边):COURIER_REALNAME_AUDIT=log 开启结构化审计行
+	// (stdout,容器侧采集进日志系统);未开启 = 不产出。落库 sink(DB/SIEM 直写,
+	// 保留策略)随部署面注入 warden.Options.AuditSink。
+	var auditSink warden.AuditSink
+	if os.Getenv("COURIER_REALNAME_AUDIT") == "log" {
+		auditSink = warden.LogSink{}
+	}
 	wardenP := warden.New(warden.Options{
 		RequireAuth: reqAuth,
 		S2SToken:    os.Getenv("COURIER_REALNAME_S2S_TOKEN"),
+		AuditSink:   auditSink,
 	})
 	// 配置/应用状态(M3,批次 8):scribe(自建),config/branding/app 同管道;
 	// 玩家侧只读投影,发布/版本/维护开关走管理面(Publish/SetVersion/SetMaintenance)。
