@@ -765,6 +765,19 @@
 - [x] **CI**:批次 57/58 推送全绿(`96b3d15` 七 job success 含 examples 六端 e2e);`ad91846`(docs-only)queued 中(runner 排队,先前 `38290127729` 同因排队后全绿)
 - [x] **门禁补验**:批次 58 `config.mjs` 侧栏改动经 `vitepress build` 实跑通过(18.3s 零错误;dist 已 gitignore 不入库)
 
+## 批次 60 — 选装清单字节与测试计数复测(过期口径修正,2026-10-13)
+
+> 来源:巡检推进(PD1013 后续轮)。批次 55 的实测口径在批次 57/58(F45/F76 SDK 面)落地后过期。可自主推进面:实测口径复测 + 现仓计数刷新,零契约/零实现改动。
+
+- [x] **sdk-selection.md 字节复测 + 口径统一**(`d0049d9`):UPM 四包统一取 `packages/*/Runtime/`(原口径混用:core/service 取 Runtime,ui/diagnostics 取包根,差异 README/package.json 非源码);F45+F76 后 core 76,766 / service 58,102(+3,631)/ ui 22,673 / diagnostics 20,495,最小集 134,868(~132 KiB)、四包全装 178,036(~174 KiB);TS core 44,448 / service 38,793(+3,025)/ contract 7,659,最小集 83,241(~81 KiB)、整树 132,490(~129 KiB);UE 239,583(~234 KiB,+13,673)、Godot 61,434(~60 KiB)
+- [x] **口径注补实测证据**:TS 三端 `service/core/contract/ui/diagnostics` 子树**字节全同**(diff 实证),差异只在 `platform/`(miniprogram +24 B、laybox +1,473 B 相对 cocos)——原注「各差几百字节」对 laybox 已过期
+- [x] **layers.md 现仓映射计数刷新**:`CoreTests~` 48 → 55 例 Fact;node:test 123 → 136 例(按当前文件分布:契约 6 / core 22 / lifecycle 35 / utf8 7 / service 16 / service2 9 / stream 9 / wechat 7 / wechatStream 5 / ui 9 / diagnostics 11);批次 39/41 段落里的 123 例属批次历史快照,不改
+- [x] **standing 声称实证**:godot 八套 headless 全绿(实跑八套;`test_core.gd` 的 `Parse JSON failed` / `push_error` 输出为负路径用例预期,退出码 0)
+
+### 门禁
+
+- [x] tools 三包 `go test -count=1` 全绿 / `vitepress build docs` 实跑通过(17.6s 零错误)
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。
