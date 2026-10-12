@@ -632,14 +632,14 @@
 ### 落地四批(分批提交)
 
 - [x] **契约**:oauth.md Frozen v1 + auth.md `type` 加 `OAUTH` + errors.md v6 + fixtures v6 + contractgen 六端(本批)
-- [ ] **网关实现**:oauth Provider 注册表 + 验证接口 + account/accountalt 双实现 exchange/bind/unbind/bindings(一致性同口径)+ 能力域开关 + main.go 接线
-- [ ] **SDK 六端**:exchange / bind / unbind / bindings 方法(Unity / Cocos / 小程序 / Laybox / UE / Godot)
-- [ ] **e2e 场景**:exchange 换会话(新 OAUTH 账号)/ 重复 exchange 登录同账号 / bind 冲突 `OAUTH_IDENTITY_TAKEN` / 重复 bind `COMMON_INVALID_ARGUMENT` / 解绑幂等 / bindings 列表 / 凭证无效 `OAUTH_IDENTITY_INVALID` / provider 未注册 `OAUTH_PROVIDER_UNKNOWN`
+- [x] **网关实现**:oauth Provider 注册表 + 验证接口 + account/accountalt 双实现 exchange/bind/unbind/bindings(一致性同口径)+ 能力域开关 + main.go 接线(`689ece9`;默认无校验器 = fail-closed `OAUTH_PROVIDER_UNKNOWN`,e2e/单测以 `SetDefault(DeterministicVerifier{})` 装配)
+- [x] **SDK 六端**:exchange / bind / unbind / bindings 方法(Unity / Cocos / 小程序 / Laybox / UE / Godot)(`e22e3d2`;顺修 UE contract_test kCount 35→38 + 域前缀 13→14 + TS contract.test version 5→6 三处随 fixtures v6 的漂移 tripwire)
+- [x] **e2e 场景**:exchange 换会话(新 OAUTH 账号)/ 重复 exchange 登录同账号 / bind 冲突 `OAUTH_IDENTITY_TAKEN` / 重复 bind `COMMON_INVALID_ARGUMENT` / 解绑幂等 / bindings 列表(升序,无 subject;exchange 建号即写入该身份)/ 凭证无效 `OAUTH_IDENTITY_INVALID` / provider 格式不符 `OAUTH_PROVIDER_UNKNOWN`(runIdentityContract 增 4 个 v1.1 oauth 子场景,双实现同断言;-count=3 防 flake)
 
 ### 门禁
 
-- [ ] `go test ./...`(gateway)+ `go test ./tools/...` + 六端 node/ue/dotnet 测试全绿才 commit
-- [ ] `docs/research/implementation-status.md` F01 行状态与证据 commit 随每批同步更新
+- [x] `go test ./...`(gateway)+ `go test ./tools/...` + 六端 node/ue/dotnet 测试全绿才 commit(node 130×3 / unity 55+8+80+11 / ue 7 套件全绿)
+- [x] `docs/research/implementation-status.md` F01 行状态与证据 commit 随每批同步更新(◑ → ✅,缺口汇总 7 → 6 项)
 
 ## 明确不做
 

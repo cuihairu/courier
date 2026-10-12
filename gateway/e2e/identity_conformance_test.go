@@ -24,6 +24,7 @@ import (
 	"github.com/cuihairu/courier/gateway/providers/chirp"
 	"github.com/cuihairu/courier/gateway/providers/croupier"
 	"github.com/cuihairu/courier/gateway/providers/herald"
+	"github.com/cuihairu/courier/gateway/providers/oauth"
 	"github.com/cuihairu/courier/gateway/routing"
 )
 
@@ -58,6 +59,10 @@ func newConformanceGateway(t *testing.T,
 	t.Helper()
 	clock := newConfClock()
 	id, idVerifier := newIdentity(clock.Now)
+
+	// v1.1 oauth.md:一致性装配用确定性校验器(token 必须为 "ok.<subject>")。
+	oauth.SetDefault(oauth.DeterministicVerifier{})
+	t.Cleanup(func() { oauth.SetDefault(nil) })
 
 	reg := providers.NewRegistry()
 	ver := auth.NewSwitchable(idVerifier)
@@ -567,6 +572,158 @@ func runIdentityContract(t *testing.T, h *confHarness) {
 		}
 		if r := h.do(t, http.MethodPost, "/v1/identity/register", confRegisterBody("fin@b.co", "password8", ""), "", ""); r.status != http.StatusOK {
 			t.Fatalf("同邮箱重注册: status=%d code=%s", r.status, r.code)
+		}
+	})
+
+	// v1.1 oauth.md(POST /oauth/exchange + /oauth/bind + GET|DELETE /oauth/bindings;
+	// 装配 DeterministicVerifier):无匹配建 OAUTH 账号,命中登录同账号,两实现同断言。
+	t.Run("v1.1 oauth:exchange 新账号,重复 exchange 同账号新会话", func(t *testing.T) {
+		body := `{"provider":"google","token":"ok.sub-1","tokenType":"ID_TOKEN","deviceId":"oa-dev"}`
+		r := h.do(t, http.MethodPost, "/v1/identity/oauth/exchange", body, "", "")
+		if r.status != http.StatusOK {
+			t.Fatalf("exchange status = %d code=%s", r.status, r.code)
+		}
+		s := r.sessionData(t)
+		acc := s["account"].(map[string]any)
+		if acc["type"] != "OAUTH" || acc["email"] != nil || acc["status"] != "ACTIVE" {
+			t.Fatalf("OAUTH 账号字段异常: %v", acc)
+		}
+		id := acc["id"].(string)
+
+		r2 := h.do(t, http.MethodPost, "/v1/identity/oauth/exchange", body, "", "")
+		if r2.status != http.StatusOK {
+			t.Fatalf("re-exchange status = %d code=%s", r2.status, r2.code)
+		}
+		s2 := r2.sessionData(t)
+		if s2["account"].(map[string]any)["id"] != id {
+			t.Fatal("同 (provider,subject) 应登录同一账号")
+		}
+		if confStr(t, s2, "accessToken") == confStr(t, s, "accessToken") {
+			t.Fatal("每次 exchange 应签发新会话")
+		}
+	})
+
+	t.Run("v1.1 oauth:凭证无效与提供方未知", func(t *testing.T) {
+		forged := h.do(t, http.MethodPost, "/v1/identity/oauth/exchange",
+			`{"provider":"google","token":"forged"}`, "", "")
+		if forged.status != http.StatusUnauthorized || forged.code != "OAUTH_IDENTITY_INVALID" || forged.retryable {
+			t.Fatalf("forged: status=%d code=%s retryable=%v", forged.status, forged.code, forged.retryable)
+		}
+		missing := h.do(t, http.MethodPost, "/v1/identity/oauth/exchange",
+			`{"provider":"google","tokenType":"ID_TOKEN"}`, "", "")
+		if missing.status != http.StatusBadRequest || missing.code != "COMMON_INVALID_ARGUMENT" {
+			t.Fatalf("缺 token: status=%d code=%s", missing.status, missing.code)
+		}
+		// 格式不符 = 未注册同码 OAUTH_PROVIDER_UNKNOWN(fail-closed 装配下两者同 wire)。
+		for name, prov := range map[string]string{"大写": "Google", "下划线": "bad_provider", "空串": ""} {
+			r := h.do(t, http.MethodPost, "/v1/identity/oauth/exchange",
+				`{"provider":"`+prov+`","token":"ok.sub-x"}`, "", "")
+			if r.status != http.StatusBadRequest || r.code != "OAUTH_PROVIDER_UNKNOWN" || r.retryable {
+				t.Fatalf("%s: status=%d code=%s retryable=%v", name, r.status, r.code, r.retryable)
+			}
+		}
+	})
+
+	t.Run("v1.1 oauth:bind/重复 bind/身份被占/列表升序无 subject/解绑幂等", func(t *testing.T) {
+		s := h.do(t, http.MethodPost, "/v1/identity/oauth/exchange",
+			`{"provider":"google","token":"ok.sub-oa","deviceId":"oa-b"}`, "", "").sessionData(t)
+		oatok := confStr(t, s, "accessToken")
+		oaID := s["account"].(map[string]any)["id"].(string)
+
+		// exchange 建号即写入该身份:初始列表 = [google]。
+		init := h.do(t, http.MethodGet, "/v1/identity/oauth/bindings", "", oatok, "")
+		if init.status != http.StatusOK {
+			t.Fatalf("bindings status = %d code=%s", init.status, init.code)
+		}
+		var list struct {
+			Items []map[string]any `json:"items"`
+		}
+		if err := json.Unmarshal(init.data, &list); err != nil {
+			t.Fatalf("解析 bindings: %v (raw=%s)", err, init.data)
+		}
+		if len(list.Items) != 1 || list.Items[0]["provider"] != "google" {
+			t.Fatalf("初始 bindings 应含 exchange 身份: %v", list.Items)
+		}
+
+		h.clock.Advance(1 * time.Millisecond) // 隔 1ms:同毫秒并列时升序不稳定
+		bound := h.do(t, http.MethodPost, "/v1/identity/oauth/bind",
+			`{"provider":"apple","token":"ok.sub-oa"}`, oatok, "")
+		if bound.status != http.StatusOK {
+			t.Fatalf("bind status = %d code=%s", bound.status, bound.code)
+		}
+		var b struct {
+			Provider  string `json:"provider"`
+			CreatedAt string `json:"createdAt"`
+		}
+		if err := json.Unmarshal(bound.data, &b); err != nil {
+			t.Fatalf("解析 bind data: %v (raw=%s)", err, bound.data)
+		}
+		if b.Provider != "apple" || b.CreatedAt == "" {
+			t.Fatalf("bind data = %+v", b)
+		}
+		// 同 provider 重复 bind(任一 subject)→ 400。
+		if r := h.do(t, http.MethodPost, "/v1/identity/oauth/bind",
+			`{"provider":"apple","token":"ok.other"}`, oatok, ""); r.status != http.StatusBadRequest || r.code != "COMMON_INVALID_ARGUMENT" {
+			t.Fatalf("同 provider 重复 bind: status=%d code=%s", r.status, r.code)
+		}
+
+		// 身份被占:另一账号(持 microsoft 身份)绑已属 sub-oa 的 google 身份。
+		s2 := h.do(t, http.MethodPost, "/v1/identity/oauth/exchange",
+			`{"provider":"microsoft","token":"ok.sub-2","deviceId":"oa-2"}`, "", "").sessionData(t)
+		if r := h.do(t, http.MethodPost, "/v1/identity/oauth/bind",
+			`{"provider":"google","token":"ok.sub-oa"}`, confStr(t, s2, "accessToken"), ""); r.status != http.StatusConflict || r.code != "OAUTH_IDENTITY_TAKEN" || r.retryable {
+			t.Fatalf("身份被占: status=%d code=%s retryable=%v", r.status, r.code, r.retryable)
+		}
+
+		lr := h.do(t, http.MethodGet, "/v1/identity/oauth/bindings", "", oatok, "")
+		if err := json.Unmarshal(lr.data, &list); err != nil {
+			t.Fatalf("解析 bindings: %v", err)
+		}
+		if len(list.Items) != 2 ||
+			list.Items[0]["provider"] != "google" || list.Items[1]["provider"] != "apple" {
+			t.Fatalf("bindings 应按 createdAt 升序 [google apple]: %v", list.Items)
+		}
+		for _, item := range list.Items {
+			if _, ok := item["subject"]; ok {
+				t.Fatalf("bindings 不得返回 subject: %v", item)
+			}
+		}
+
+		for i := 0; i < 2; i++ { // 幂等:重复解绑仍 200
+			if r := h.do(t, http.MethodDelete, "/v1/identity/oauth/bindings/google", "", oatok, ""); r.status != http.StatusOK {
+				t.Fatalf("unbind #%d: status=%d code=%s", i+1, r.status, r.code)
+			}
+		}
+		lr = h.do(t, http.MethodGet, "/v1/identity/oauth/bindings", "", oatok, "")
+		if err := json.Unmarshal(lr.data, &list); err != nil || len(list.Items) != 1 || list.Items[0]["provider"] != "apple" {
+			t.Fatalf("解绑后仅剩 apple: err=%v items=%v", err, list.Items)
+		}
+
+		// 解绑后 re-exchange 同身份 = 新 OAUTH 账号。
+		s3 := h.do(t, http.MethodPost, "/v1/identity/oauth/exchange",
+			`{"provider":"google","token":"ok.sub-oa","deviceId":"oa-3"}`, "", "").sessionData(t)
+		if s3["account"].(map[string]any)["id"] == oaID {
+			t.Fatal("解绑后 re-exchange 应为新账号")
+		}
+	})
+
+	t.Run("v1.1 oauth:绑定邮箱账号后 exchange 命中同账号", func(t *testing.T) {
+		h.do(t, http.MethodPost, "/v1/identity/register", confRegisterBody("em@b.co", "password8", ""), "", "")
+		em := h.confLogin(t, "em@b.co", "password8", "em-dev")
+		emID := em["account"].(map[string]any)["id"].(string)
+
+		if r := h.do(t, http.MethodPost, "/v1/identity/oauth/bind",
+			`{"provider":"google","token":"ok.sub-em"}`, confStr(t, em, "accessToken"), ""); r.status != http.StatusOK {
+			t.Fatalf("bind to EMAIL: status=%d code=%s", r.status, r.code)
+		}
+		x := h.do(t, http.MethodPost, "/v1/identity/oauth/exchange",
+			`{"provider":"google","token":"ok.sub-em","deviceId":"em-dev"}`, "", "")
+		if x.status != http.StatusOK {
+			t.Fatalf("exchange status = %d code=%s", x.status, x.code)
+		}
+		acc := x.sessionData(t)["account"].(map[string]any)
+		if acc["id"] != emID || acc["type"] != "EMAIL" {
+			t.Fatalf("应命中邮箱账号: %v (期望 %s)", acc, emID)
 		}
 	})
 }
