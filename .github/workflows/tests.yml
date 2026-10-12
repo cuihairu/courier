@@ -3,10 +3,10 @@
 # 覆盖:Go(gateway 模块 + 根模块 tools:contractgen/packcheck/tsync)、Node 24 原生 TS
 # (cocos / miniprogram / laybox,零依赖 node --test)、UE(ISO C++17
 # 独立编译,g++ 无引擎依赖)、Unity 四个纯逻辑 dotnet 工程(dotnet test,
-# 引擎运行时不进门禁)。
+# 引擎运行时不进门禁)、六端示例(起本地网关实跑 examples/,godot 端除外)。
 #
 # 不覆盖:引擎本体运行时 —— unity 引擎内 Test Runner 用例、godot headless 用例
-# (本机 godot 4.3 可跑,CI 未装引擎)。
+# (本机 godot 4.3 可跑,CI 未装引擎;godot 示例同此口径,本地实跑验证)。
 name: Tests
 
 on:
@@ -79,3 +79,35 @@ jobs:
       - uses: actions/checkout@v7
       - name: run_tests.sh
         run: sh sdks/ue/run_tests.sh
+
+  examples:
+    name: examples (six-end e2e vs local gateway)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: build and boot gateway
+        run: |
+          (cd gateway && go build -o /tmp/courier-gateway ./cmd/gateway)
+          COURIER_GATEWAY_ADDR=:18099 /tmp/courier-gateway &
+          for i in $(seq 1 20); do curl -sf http://127.0.0.1:18099/healthz && break; sleep 0.5; done
+      - name: ts examples (cocos / miniprogram / laybox)
+        run: |
+          for sdk in cocos miniprogram laybox; do
+            COURIER_ENDPOINT=http://127.0.0.1:18099 node "examples/$sdk/example.ts"
+          done
+      - name: unity example (dotnet pure-logic)
+        run: dotnet run --project examples/unity -- http://127.0.0.1:18099
+      - name: ue example (c++17 headless)
+        run: |
+          g++ -std=c++17 -Wall -Wextra examples/ue/example.cpp \
+            -Isdks/ue/service -Isdks/ue/core -Isdks/ue/contract -o /tmp/ue_example
+          /tmp/ue_example http://127.0.0.1:18099

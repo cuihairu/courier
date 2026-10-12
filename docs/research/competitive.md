@@ -1,6 +1,6 @@
 # 竞品调研:Courier 的取位与边界
 
-> 数据口径:GitHub 星数/活跃度经 GitHub API 核查,**截至 2026-10-08**;商业产品以官方文档为准。本文只做盘点与推论,不做背书;链接随论断给出,失效请提 issue。
+> 数据口径:GitHub 星数/活跃度经 GitHub API 核查,**截至 2026-10-13**(批次 55 复核:仅 Nakama 13,478→13,495、活跃度月份顺延;其余星数/停更状态未变,外部链接逐一 200);商业产品以官方文档为准。本文只做盘点与推论,不做背书;链接随论断给出,失效请提 issue。
 
 ## 一句话结论
 
@@ -14,7 +14,7 @@
 
 | 项目 | 定位 | 星数 | 活跃度(最后推送) | 与 Courier 的差异 |
 | --- | --- | --- | --- | --- |
-| [Nakama](https://github.com/heroiclabs/nakama) | 开源游戏服务器(实时多人/匹配/排行榜/聊天/社交) | 13,478 | 2026-09(活跃,Go,Apache-2.0) | 它是**一整套服务器**;Courier 是客户端 SDK + 轻网关,不碰实时多人/匹配 |
+| [Nakama](https://github.com/heroiclabs/nakama) | 开源游戏服务器(实时多人/匹配/排行榜/聊天/社交) | 13,495 | 2026-10(活跃,Go,Apache-2.0) | 它是**一整套服务器**;Courier 是客户端 SDK + 轻网关,不碰实时多人/匹配 |
 | [Open Game Backend(OpenGB)](https://github.com/OpenGameBackend/OpenGameBackend) | 模块化可脚本化游戏后端(TypeScript,Rivet 系) | 主仓 2;插件 57/10/5 | 2024-11 起停更;[Rivet 侧已 archived](https://github.com/rivet-dev/toolchain) | 方向相近但已停滞/被吸收——品类的反面教材 |
 | [XtraLife](https://github.com/xtralifecloud/xtralife-server) | 开源游戏 BaaS(前身 Clan of the Cloud,Node.js) | 5 | 2024-10(零星),org 多数仓 2016–2022 停更 | 用户/存储/货币型 BaaS,无公告/客服/合规面;事实上无人维护 |
 | [Playgama Bridge](https://github.com/Playgama/bridge)([Unity 版](https://github.com/Playgama/bridge-unity)) | HTML5 游戏一键发 20+ web 平台的平台抽象 SDK | 121 / 56 | 2026-10(活跃,TS/LGPL、C#/MIT) | 抽象的是「**发布平台**」(Poki/CrazyGames/Yandex),Courier 抽象的是「**游戏服务后端**」;Web 桥 ≠ 通用服务 SDK |
