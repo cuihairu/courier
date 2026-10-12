@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Courier Unity SDK 示例:纯逻辑层(Core+Service)dotnet 直跑,与 ServiceTests~
+       同一编译口径(引擎件不参与);传输/存储为示例内接入方适配(HttpClient/内存)。 -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>Courier.UnityExample</AssemblyName>
+    <RootNamespace>Courier.UnityExample</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="../../sdks/unity/packages/com.courier.core/Runtime/*.cs" />
+    <Compile Include="../../sdks/unity/packages/com.courier.core/Runtime/Core/*.cs" />
+    <Compile Include="../../sdks/unity/packages/com.courier.core/Runtime/Core/Contract/*.cs" />
+    <Compile Include="../../sdks/unity/packages/com.courier.core/Runtime/Identity/*.cs" />
+    <Compile Include="../../sdks/unity/packages/com.courier.core/Runtime/Session/*.cs" />
+    <Compile Include="../../sdks/unity/packages/com.courier.service/Runtime/*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+
+</Project>

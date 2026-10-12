@@ -52,3 +52,7 @@ sdks/unity/DiagnosticsTests~/obj/
 
 # Godot(生成物:class_name 类缓存等,首次 --import 生成)
 sdks/godot/.godot/
+
+# 示例工程(dotnet 直跑 Unity SDK 的宿主工程,同测试工程豁免策略)
+!examples/unity/Example.csproj
+examples/unity/bin/
