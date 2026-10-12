@@ -44,6 +44,17 @@ type Options struct {
 	// TicketRatePerMinute / TicketRateBurst 提单限流(契约:默认 5/分钟)。
 	TicketRatePerMinute int
 	TicketRateBurst     int
+
+	// AttachmentSigner 附件直传预签名(契约 v1.1 F44;nil = 附件能力 fail-closed 501)。
+	AttachmentSigner Signer
+	// MaxAttachmentsPerTicket 每工单附件上限(契约缺省 3)。
+	MaxAttachmentsPerTicket int
+	// MaxAttachmentBytes 单文件上限字节(契约缺省 10 MiB)。
+	MaxAttachmentBytes int64
+	// AttachmentTypes 允许 contentType(契约缺省 5 项;nil = 用缺省表)。
+	AttachmentTypes map[string]bool
+	// AttachmentTTL 预签名有效期(契约缺省 10 分钟)。
+	AttachmentTTL time.Duration
 }
 
 // replyEventDTO 推送事件 data(契约 messages.md:{ticketId})。
@@ -74,8 +85,9 @@ type ticketPageDTO struct {
 }
 
 type detailDTO struct {
-	Ticket   ticketDTO    `json:"ticket"`
-	Messages []messageDTO `json:"messages"`
+	Ticket      ticketDTO       `json:"ticket"`
+	Messages    []messageDTO    `json:"messages"`
+	Attachments []attachmentDTO `json:"attachments"` // v1.1:加法扩展,追加序
 }
 
 type faqDTO struct {
@@ -97,15 +109,16 @@ type messageRecord struct {
 }
 
 type ticketRecord struct {
-	id        string
-	owner     string // accountId
-	title     string
-	status    string
-	category  string
-	context   map[string]any // v1.1:工单上下文(开集,服务端零解释)
-	messages  []messageRecord
-	createdAt time.Time
-	updatedAt time.Time
+	id          string
+	owner       string // accountId
+	title       string
+	status      string
+	category    string
+	context     map[string]any // v1.1:工单上下文(开集,服务端零解释)
+	messages    []messageRecord
+	attachments []attachmentRecord // v1.1:附件登记行(追加序)
+	createdAt   time.Time
+	updatedAt   time.Time
 }
 
 // SupportProvider 客服工单与 FAQ。
@@ -115,6 +128,12 @@ type SupportProvider struct {
 	auth    func(http.Handler) http.Handler
 	notify  func(eventType string, data any)
 	limiter *middleware.RateLimiter
+
+	signer            Signer
+	maxAttachments    int
+	maxAttachmentSize int64
+	attachmentTypes   map[string]bool
+	uploadTTL         time.Duration
 
 	mu      sync.RWMutex
 	tickets map[string]*ticketRecord
@@ -151,13 +170,27 @@ func New(opts Options) *SupportProvider {
 	if opts.TicketRateBurst <= 0 {
 		opts.TicketRateBurst = 5
 	}
+	if opts.MaxAttachmentsPerTicket <= 0 {
+		opts.MaxAttachmentsPerTicket = defaultMaxAttachmentsPerTicket
+	}
+	if opts.MaxAttachmentBytes <= 0 {
+		opts.MaxAttachmentBytes = defaultMaxAttachmentBytes
+	}
+	if opts.AttachmentTTL <= 0 {
+		opts.AttachmentTTL = defaultAttachmentTTL
+	}
 	return &SupportProvider{
-		name:    opts.Name,
-		clock:   opts.Clock,
-		auth:    authMW,
-		notify:  opts.Notify,
-		limiter: middleware.NewRateLimiter(opts.TicketRatePerMinute, opts.TicketRateBurst),
-		tickets: make(map[string]*ticketRecord),
+		name:              opts.Name,
+		clock:             opts.Clock,
+		auth:              authMW,
+		notify:            opts.Notify,
+		limiter:           middleware.NewRateLimiter(opts.TicketRatePerMinute, opts.TicketRateBurst),
+		signer:            opts.AttachmentSigner,
+		maxAttachments:    opts.MaxAttachmentsPerTicket,
+		maxAttachmentSize: opts.MaxAttachmentBytes,
+		attachmentTypes:   opts.AttachmentTypes,
+		uploadTTL:         opts.AttachmentTTL,
+		tickets:           make(map[string]*ticketRecord),
 	}
 }
 
@@ -244,6 +277,10 @@ func (p *SupportProvider) route(w http.ResponseWriter, r *http.Request) {
 			id, action := rest[:i], rest[i+1:]
 			if action == "messages" && r.Method == http.MethodPost {
 				p.handleAppend(w, r, id)
+				return
+			}
+			if action == "attachments" && r.Method == http.MethodPost {
+				p.handleRequestUpload(w, r, id)
 				return
 			}
 			p.writeNotFound(w, r)
@@ -391,7 +428,11 @@ func (p *SupportProvider) handleDetail(w http.ResponseWriter, r *http.Request, t
 		p.writeNotFound(w, r)
 		return
 	}
-	dto := detailDTO{Ticket: ticketDTOOf(rec), Messages: make([]messageDTO, 0, len(rec.messages))}
+	dto := detailDTO{
+		Ticket:      ticketDTOOf(rec),
+		Messages:    make([]messageDTO, 0, len(rec.messages)),
+		Attachments: p.attachmentsOf(rec), // v1.1:追加序
+	}
 	for _, m := range rec.messages { // createdAt 升序(追加序)
 		dto.Messages = append(dto.Messages, messageDTO{
 			SenderType: m.senderType, Body: m.body, CreatedAt: formatMilli(m.createdAt),
@@ -579,6 +620,15 @@ func pageParams(r *http.Request) (limit, cursor int, err error) {
 	}
 	return limit, cursor, nil
 }
+
+// 附件限额访问器(Options 缺省已在 New 归一,这里不再判零)。
+func (p *SupportProvider) maxAttachmentLimit() int { return p.maxAttachments }
+
+func (p *SupportProvider) maxAttachmentBytes() int64 { return p.maxAttachmentSize }
+
+func (p *SupportProvider) attachmentTTL() time.Duration { return p.uploadTTL }
+
+func (p *SupportProvider) allowedAttachmentTypes() map[string]bool { return p.attachmentTypes }
 
 // errInvalid / errNotFound:参数类与不存在(内部哨兵)。
 type invalidError string

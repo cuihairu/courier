@@ -52,6 +52,10 @@ func main() {
 	reqAuth := auth.RequireAuth(sessVerifier)
 	chirpP := chirp.New(chirp.Options{RequireAuth: reqAuth})
 	heraldP := herald.New(herald.Options{RequireAuth: reqAuth, Notify: chirpP.Hub().Publish})
+	// 客服(M2,批次 4):Notify 广播 support.ticket_replied 到 chirp.Hub。
+	// 附件直传(F44,support.md v1.1)存储面由接入方注入 croupier.Options.AttachmentSigner
+	// (换 S3 / OSS / 本地静态服务器 = 换配置,契约不动);未配置 = 501
+	// COMMON_CAPABILITY_DISABLED(不内置假存储到生产)。
 	croupierP := croupier.New(croupier.Options{RequireAuth: reqAuth, Notify: chirpP.Hub().Publish})
 	// 实名(M2 后段,批次 7):注册 warden(自建核验),但默认路由表不含 realname
 	// ——契约红线「默认关闭」;接入方在 COURIER_GATEWAY_CONFIG 显式配置
