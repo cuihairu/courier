@@ -15,10 +15,10 @@ namespace Courier.ServiceTests
 {
     public class DomainServiceTests
     {
-        static (CourierServices, FakeTransport) NewServices()
+        static (CourierServices, FakeTransport) NewServices(CourierConfig config = null)
         {
             var transport = new FakeTransport();
-            var client = new CourierClient(Fixtures.Config(), transport, new FakeTokenStore(),
+            var client = new CourierClient(config ?? Fixtures.Config(), transport, new FakeTokenStore(),
                 new FixedClock(Fixtures.BaseTime));
             transport.EnqueueJson(200, Fixtures.Success(Fixtures.SessionJson()));
             client.InitAsync(CancellationToken.None).Wait();
@@ -98,6 +98,44 @@ namespace Courier.ServiceTests
             Assert.Equal("ANNOUNCEMENT_NOT_FOUND", ex.Error.WireCode);
             Assert.False(ex.Error.Retryable);
             Assert.Equal(2, transport.Requests.Count); // 404 不重试(1 次 = 建会话 + 1 次 = 详情)
+        }
+
+        [Fact]
+        public async Task Announcement_List_ConfigLanguageAutoAttachAndOverride()
+        {
+            // F76:配置 locale 自动附带 language(仅列表);显式 query.Language 覆写;
+            // 配置缺省不附带(与 v1 行为一致,见上方 WireAndParse 的 URL 断言)。
+            var cfg = new CourierConfig("game_demo", "prod", "https://api.example.com", "zh-CN");
+            var (svc, transport) = NewServices(cfg);
+            transport.EnqueueJson(200, Fixtures.Success(
+                "{\"items\":[],\"nextCursor\":\"\"}"));
+
+            await svc.Announcements.ListAsync(2, null, CancellationToken.None);
+            Assert.Equal("https://api.example.com/v1/announcements?limit=2&language=zh-CN",
+                transport.Requests.Last().Url);
+
+            transport.EnqueueJson(200, Fixtures.Success(
+                "{\"items\":[],\"nextCursor\":\"\"}"));
+            await svc.Announcements.ListAsync(2, null,
+                new AnnouncementQuery { Language = "en" }, CancellationToken.None);
+            Assert.Equal("https://api.example.com/v1/announcements?limit=2&language=en",
+                transport.Requests.Last().Url);
+        }
+
+        [Fact]
+        public async Task Announcement_Detail_LanguageGroupKeyMetadata()
+        {
+            // F76:行内 language/groupKey 是语种声明元数据,只读回显、不参与匹配。
+            var (svc, transport) = NewServices();
+            transport.EnqueueJson(200, Fixtures.Success(
+                "{\"id\":\"ann_f76\",\"title\":\"维护公告\",\"body\":\"停机\"," +
+                "\"severity\":\"INFO\",\"publishedAt\":\"2026-10-13T00:00:00.000Z\"," +
+                "\"language\":\"zh-CN\",\"groupKey\":\"maint\"}"));
+
+            var dto = await svc.Announcements.GetAsync("ann_f76", CancellationToken.None);
+
+            Assert.Equal("zh-CN", dto.Language);
+            Assert.Equal("maint", dto.GroupKey);
         }
 
         // --- 客服域(croupier 路由:POST/GET tickets、detail、messages、faq)---

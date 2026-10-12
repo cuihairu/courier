@@ -21,7 +21,7 @@ namespace Courier.Service
         public CourierServices(CourierClient client)
         {
             var api = client.Api;
-            Announcements = new AnnouncementService(api);
+            Announcements = new AnnouncementService(api, client.Config?.Language);
             Support = new SupportService(api);
             RealName = new RealNameService(api);
             App = new AppService(api);

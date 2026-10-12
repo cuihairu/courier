@@ -20,11 +20,16 @@ namespace Courier.Core
         public string Env { get; }
         public string Endpoint { get; }
 
-        public CourierConfig(string gameId, string env, string endpoint)
+        /// <summary>玩家 locale(RFC 5646,F76):公告列表自动附带 language 参数;缺省不附带。
+        /// 引擎侧系统语言由接入方读入,SDK 本体零引擎 API。</summary>
+        public string Language { get; }
+
+        public CourierConfig(string gameId, string env, string endpoint, string language = null)
         {
             GameId = gameId;
             Env = env;
             Endpoint = endpoint;
+            Language = language;
         }
 
         /// <summary>校验 scope 契约:game_id 非空,env 在注册表内(dev/staging/prod,scope.md)。</summary>

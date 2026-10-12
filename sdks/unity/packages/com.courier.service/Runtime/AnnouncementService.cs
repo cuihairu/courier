@@ -10,10 +10,12 @@ namespace Courier.Service
     {
         const string Prefix = "/v1/announcements";
         readonly ApiClient _api;
+        readonly string _defaultLanguage;
 
-        public AnnouncementService(ApiClient api)
+        public AnnouncementService(ApiClient api, string defaultLanguage = null)
         {
             _api = api;
+            _defaultLanguage = defaultLanguage;
         }
 
         /// <summary>可见公告列表(分页;limit 默认 20 最大 100,游标回传 nextCursor)。</summary>
@@ -36,6 +38,12 @@ namespace Courier.Service
             if (query != null)
             {
                 path += query.ToQueryString();
+            }
+            // F76 多语内容:配置 locale 自动附带 language(仅列表);显式 query.Language 覆写,
+            // 配置缺省不附带(与 v1 行为一致)。行内 language 元数据不参与匹配。
+            if (string.IsNullOrEmpty(query?.Language) && !string.IsNullOrEmpty(_defaultLanguage))
+            {
+                path += "&language=" + _defaultLanguage;
             }
             var json = await _api.SendAsync("GET", Prefix + path, null, true, ct)
                 .ConfigureAwait(false);

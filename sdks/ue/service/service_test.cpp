@@ -72,9 +72,12 @@ struct Harness {
     FakeTransport transport;
     std::unique_ptr<CourierClient> client;
 
-    Harness() {
+    explicit Harness(const std::string& language = std::string()) {
         CourierClientOptions options;
         options.config = {"https://api.example.com", "game_demo", "prod"};
+        if (!language.empty()) {
+            options.config.language = language;
+        }
         options.transport = &transport;
         options.sleep = [](int) {};
         client = std::make_unique<CourierClient>(std::move(options));
@@ -468,6 +471,44 @@ int main() {
         CHECK(page.data.items[0].filters.has_value(), "filters present");
         CHECK(page.data.items[0].filters->at("platform").size() == 2, "filters platform size");
         CHECK(page.data.items[0].filters->at("region").at(0) == "CN", "filters region value");
+    }
+    {
+        // F76 多语内容:配置 locale 自动附带 language(仅列表);显式 query.language 覆写
+        Harness h("zh-CN");
+        h.sign_in();
+        h.transport.enqueue(200, data_envelope("{\"items\":[],\"nextCursor\":\"\"}"));
+
+        AnnouncementService svc(&h.client->api(), h.client->config().language);
+        const ServiceOutcome<Page<AnnouncementDto>> page = svc.list(20);
+
+        CHECK(page.ok, "f76 list ok");
+        CHECK(h.transport.requests[1].url ==
+                  "https://api.example.com/v1/announcements?limit=20&language=zh-CN",
+              "f76 config language auto attach");
+
+        AnnouncementQuery q;
+        q.language = "en";
+        h.transport.enqueue(200, data_envelope("{\"items\":[],\"nextCursor\":\"\"}"));
+        const ServiceOutcome<Page<AnnouncementDto>> overridden = svc.list(20, "", q);
+        CHECK(h.transport.requests[2].url ==
+                  "https://api.example.com/v1/announcements?limit=20&language=en",
+              "f76 explicit query language wins");
+    }
+    {
+        // F76:行内 language/groupKey 语种声明元数据,只读回显
+        Harness h;
+        h.sign_in();
+        h.transport.enqueue(200, data_envelope(
+            "{\"id\":\"ann_f76\",\"title\":\"维护公告\",\"body\":\"停机\","
+            "\"severity\":\"INFO\",\"publishedAt\":\"t\","
+            "\"language\":\"zh-CN\",\"groupKey\":\"maint\"}"));
+
+        AnnouncementService svc(&h.client->api());
+        const ServiceOutcome<AnnouncementDto> out = svc.get("ann_f76");
+
+        CHECK(out.ok, "f76 detail ok");
+        CHECK(out.data.language.has_value() && *out.data.language == "zh-CN", "f76 language meta");
+        CHECK(out.data.groupKey.has_value() && *out.data.groupKey == "maint", "f76 groupKey meta");
     }
     {
         // 工单 context 编码下发 + 回显零解释透传

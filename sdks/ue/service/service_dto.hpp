@@ -33,6 +33,8 @@ struct AnnouncementDto {
     std::optional<std::string> endAt;    // 缺省 = 不过期
     std::string publishedAt;
     std::optional<std::map<std::string, std::vector<std::string>>> filters;  // 定向过滤(v1.1;缺省 = 全量可见)
+    std::optional<std::string> language;  // 语种声明元数据(F76,RFC 5646;不参与匹配,只读回显)
+    std::optional<std::string> groupKey;  // 同内容多语关联键(F76;客户端不解释,仅供去重类产品逻辑)
 };
 
 /// 列表定向参数(v1.1):缺省维度不过滤;值须与发布 filters 维度值精确匹配。
@@ -158,6 +160,8 @@ inline AnnouncementDto decode_announcement(const json::Value& v) {
     if (json::get_opt_str(v, "startAt", s)) d.startAt = s;
     if (json::get_opt_str(v, "endAt", s)) d.endAt = s;
     d.publishedAt = json::get_str(v, "publishedAt");
+    if (json::get_opt_str(v, "language", s)) d.language = s;   // F76 语种声明元数据
+    if (json::get_opt_str(v, "groupKey", s)) d.groupKey = s;   // F76 多语关联键
     if (const json::Value* f = v.find("filters"); f && f->is_object()) {
         std::map<std::string, std::vector<std::string>> m;
         for (const auto& [key, val] : f->members()) {

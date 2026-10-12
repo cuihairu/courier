@@ -5,6 +5,7 @@ import { test } from "node:test";
 import { CourierClient } from "../src/core/courierClient.ts";
 import type { Transport, TransportRequest, TransportResponse } from "../src/core/transport.ts";
 import { CourierServices } from "../src/service/courierServices.ts";
+import type { CourierConfig } from "../src/core/types.ts";
 import { SseParser } from "../src/service/sseParser.ts";
 
 const config = { endpoint: "https://api.example.com", gameId: "game_demo", env: "prod" };
@@ -30,8 +31,12 @@ class FakeTransport implements Transport {
   }
 }
 
-async function newServices(transport: FakeTransport): Promise<CourierServices> {
-  const client = new CourierClient({ config, transport, sleep: async () => {} });
+async function newServices(
+  transport: FakeTransport, cfgOverride?: Partial<CourierConfig>,
+): Promise<CourierServices> {
+  const client = new CourierClient({
+    config: { ...config, ...cfgOverride }, transport, sleep: async () => {},
+  });
   transport.enqueue(200, '{"data":' + sessionJson + "}");
   await client.identity.guest({ deviceId: "device-1" });
   return new CourierServices(client);
@@ -282,6 +287,35 @@ test("公告列表:v1.1 定向参数缺省 = 维度不过滤(无查询参数)", 
 
   const req = transport.requests[1];
   assert.equal(req.url, "https://api.example.com/v1/announcements?limit=20");
+});
+
+test("公告列表:F76 配置 locale 自动附带 language;显式 query.language 覆写", async () => {
+  const transport = new FakeTransport();
+  const svc = await newServices(transport, { language: "zh-CN" });
+  transport.enqueue(200, JSON.stringify({ data: { items: [], nextCursor: "" } }));
+  await svc.announcements.listAsync(20);
+  assert.equal(transport.requests[1].url,
+    "https://api.example.com/v1/announcements?limit=20&language=zh-CN");
+
+  transport.enqueue(200, JSON.stringify({ data: { items: [], nextCursor: "" } }));
+  await svc.announcements.listAsync(20, undefined, { language: "en" });
+  assert.equal(transport.requests[2].url,
+    "https://api.example.com/v1/announcements?limit=20&language=en");
+});
+
+test("公告详情:F76 language/groupKey 语种声明元数据解析(可选字段)", async () => {
+  const transport = new FakeTransport();
+  const svc = await newServices(transport);
+  transport.enqueue(200, JSON.stringify({
+    data: {
+      id: "ann_9", title: "维护公告", body: "今晚维护", severity: "INFO",
+      publishedAt: "t", language: "zh-CN", groupKey: "maint",
+    },
+  }));
+
+  const ann = await svc.announcements.getAsync("ann_9");
+  assert.equal(ann.language, "zh-CN");
+  assert.equal(ann.groupKey, "maint");
 });
 
 test("提单:v1.1 context 开集 map 原样透传(键值类型 string/number/boolean)", async () => {

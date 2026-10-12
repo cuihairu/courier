@@ -23,7 +23,7 @@ export class CourierServices {
   readonly realname: RealNameService;
 
   constructor(client: CourierClient) {
-    this.announcements = new AnnouncementService(client.api);
+    this.announcements = new AnnouncementService(client.api, client.config.language);
     this.support = new SupportService(client.api);
     this.app = new AppService(client.api);
     this.config = new AppConfigService(client.api);

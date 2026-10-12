@@ -12,6 +12,8 @@ export interface AnnouncementDto {
   readonly endAt?: string;   // 缺省 = 不过期
   readonly publishedAt: string;
   readonly filters?: Readonly<Record<string, readonly string[]>>; // 定向过滤(v1.1;缺省 = 全量可见)
+  readonly language?: string; // 语种声明元数据(F76,RFC 5646;不参与匹配,只读回显)
+  readonly groupKey?: string; // 同内容多语关联键(F76;客户端不解释,仅供去重类产品逻辑)
 }
 
 /** 列表定向参数(v1.1):缺省维度不过滤;值须与发布 filters 维度值精确匹配。 */

@@ -8,9 +8,11 @@ const prefix = "/v1/announcements";
 
 export class AnnouncementService {
   private readonly api: ApiClient;
+  private readonly defaultLanguage: string;
 
-  constructor(api: ApiClient) {
+  constructor(api: ApiClient, defaultLanguage?: string) {
     this.api = api;
+    this.defaultLanguage = defaultLanguage ?? "";
   }
 
   /** 可见公告列表(分页;limit 默认 20 最大 100,游标回传 nextCursor)。
@@ -22,12 +24,18 @@ export class AnnouncementService {
       path += "&cursor=" + encodeURIComponent(cursor);
     }
     if (query) {
-      for (const key of ["platform", "appVersion", "region", "language"] as const) {
+      for (const key of ["platform", "appVersion", "region"] as const) {
         const value = query[key];
         if (value) {
           path += "&" + key + "=" + encodeURIComponent(value);
         }
       }
+    }
+    // F76 多语内容:配置 locale 自动附带 language(仅列表);显式 query.language 覆写,
+    // 配置缺省不附带(与 v1 行为一致)。行内 language 元数据不参与匹配。
+    const language = query?.language ?? this.defaultLanguage;
+    if (language) {
+      path += "&language=" + encodeURIComponent(language);
     }
     return await this.api.request<Page<AnnouncementDto>>("GET", path, undefined, true);
   }

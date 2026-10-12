@@ -15,6 +15,8 @@ namespace Courier.Service
         public string EndAt { get; set; }
         public string PublishedAt { get; set; }
         public Dictionary<string, List<string>> Filters { get; set; } // 定向过滤(v1.1;缺省 = 全量可见)
+        public string Language { get; set; } // 语种声明元数据(F76,RFC 5646;不参与匹配,只读回显)
+        public string GroupKey { get; set; } // 同内容多语关联键(F76;客户端不解释,仅供去重类产品逻辑)
     }
 
     /// <summary>列表定向参数(v1.1):缺省维度不过滤;值须与发布 filters 维度值精确匹配。</summary>

@@ -11,7 +11,9 @@ namespace courier {
 
 class AnnouncementService {
 public:
-    explicit AnnouncementService(ApiClient* api) : api_(api) {}
+    /// default_language:接入方传入 CourierConfig.language(F76);配置缺省 = 不附带。
+    explicit AnnouncementService(ApiClient* api, std::string default_language = std::string())
+        : api_(api), default_language_(std::move(default_language)) {}
 
     /// 可见公告列表(分页;limit 默认 20 最大 100,游标回传 nextCursor)。
     ServiceOutcome<Page<AnnouncementDto>> list(int limit, const std::string& cursor = "") {
@@ -30,6 +32,11 @@ public:
         append_dim(path, "appVersion", query.appVersion);
         append_dim(path, "region", query.region);
         append_dim(path, "language", query.language);
+        // F76 多语内容:配置 locale 自动附带 language(仅列表);显式 query.language 覆写,
+        // 配置缺省不附带(与 v1 行为一致)。行内 language 元数据不参与匹配。
+        if ((!query.language.has_value() || query.language->empty()) && !default_language_.empty()) {
+            path += "&language=" + url_encode(default_language_);
+        }
         RequestOutcome out = api_->request("GET", path, nullptr, true);
         ServiceOutcome<Page<AnnouncementDto>> result;
         if (out.ok) {
@@ -64,6 +71,7 @@ private:
     }
 
     ApiClient* api_;
+    std::string default_language_;
 };
 
 }  // namespace courier

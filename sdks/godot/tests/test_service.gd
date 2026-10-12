@@ -52,9 +52,11 @@ func err_wire(r: Dictionary) -> String:
 	return str(r.get("error", {}).get("wire", ""))
 
 
-func new_services(transport: FakeTransport) -> CourierServices:
+func new_services(transport: FakeTransport, cfg_override: Dictionary = {}) -> CourierServices:
+	var cfg: Dictionary = {"endpoint": "https://api.example.com", "gameId": "game_demo", "env": "prod"}
+	cfg.merge(cfg_override, true)
 	var options := {
-		"config": {"endpoint": "https://api.example.com", "gameId": "game_demo", "env": "prod"},
+		"config": cfg,
 		"transport": transport,
 	}
 	_client = CourierClient.new(options)
@@ -271,12 +273,35 @@ func t_support_penalties() -> void:
 	check(transport.requests.size() == 6, "409/404 不重试(实际 %d)" % transport.requests.size())
 
 
+# ---- v1.1 F76:多语内容 ----
+
+func t_announcement_language() -> void:
+	var transport := FakeTransport.new(self)
+	var svc := await new_services(transport, {"language": "zh-CN"})
+	transport.enqueue(200, success('{"items":[],"nextCursor":""}'))
+
+	await svc.announcements.list(20)
+	check(str(transport.requests[1]["url"]) == "https://api.example.com/v1/announcements?limit=20&language=zh-CN",
+			"配置 locale 应自动附带 language(实际 %s)" % str(transport.requests[1]["url"]))
+
+	transport.enqueue(200, success('{"items":[],"nextCursor":""}'))
+	await svc.announcements.list(20, "", {"language": "en"})
+	check(str(transport.requests[2]["url"]) == "https://api.example.com/v1/announcements?limit=20&language=en",
+			"显式 query.language 应覆写(实际 %s)" % str(transport.requests[2]["url"]))
+
+	transport.enqueue(200, success('{"id":"ann_9","title":"维护公告","body":"停机","severity":"INFO","publishedAt":"t","language":"zh-CN","groupKey":"maint"}'))
+	var detail: Dictionary = await svc.announcements.get_announcement("ann_9")
+	check(str(detail["data"]["language"]) == "zh-CN", "语种声明元数据应解析")
+	check(str(detail["data"]["groupKey"]) == "maint", "groupKey 应解析")
+
+
 func _init() -> void:
 	await t_sse_standard()
 	await t_sse_multiline()
 	await t_sse_unknown_reset()
 	await t_announcement_list()
 	await t_announcement_not_found()
+	await t_announcement_language()
 	await t_support_create()
 	await t_support_detail_append()
 	await t_support_faq()

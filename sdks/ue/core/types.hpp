@@ -34,6 +34,7 @@ struct CourierConfig {
     std::string endpoint;
     std::string game_id;
     std::string env;
+    std::string language{};  // 玩家 locale(RFC 5646,F76):公告列表自动附带 language 参数;缺省不附带
 };
 
 /// 账号(契约 auth.md 数据模型;GUEST 时 email 缺省)。

@@ -17,7 +17,8 @@ var realname: CourierRealNameService
 
 
 func _init(client: CourierClient) -> void:
-	announcements = CourierAnnouncementService.new(client.api)
+	announcements = CourierAnnouncementService.new(
+			client.api, str(client.config.get("language", "")))
 	support = CourierSupportService.new(client.api)
 	app = CourierAppService.new(client.api)
 	config = CourierAppConfigService.new(client.api)
