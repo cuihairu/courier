@@ -136,11 +136,21 @@ gateway/
 
 ## Provider 治理:热插拔 / 降级链 / 熔断
 
-- **配置驱动**:每个 Provider 由配置声明 `primary` + `fallbacks[]`;运行时配置重载即生效,不重启(路由表原子替换,在途请求按旧表完成)。
+- **配置驱动**:每个 Provider 由配置声明 `primary` + `fallbacks[]`;运行时配置重载即生效,不重启(路由表原子替换,在途请求按旧表完成)。现状边界:原子替换在 `providers/router.Reload` 进程内接缝(实名域已用),管理面重载端点未实现——`main.go` 仍只在启动时读一次 `COURIER_GATEWAY_CONFIG`。
 - **降级链**:主 Provider 失败/超时 → 依序 fallback;全部失败按域定义安全态(如 RealName → `PENDING_REVIEW`)。
 - **熔断**:连续 N 次失败开路 T 秒,半开探测恢复;熔断期直接走 fallback。
 - **HealthCheck**:注册表剔除不健康实例。
 - RealName([contract/realname.md](./contract/realname.md))是第一个完整适用方;规则对所有 Provider 通用。
+
+### 敏感域独立切换策略(账号 / 实名 / 支付)
+
+接口可替换 ≠ 数据可迁移;三个敏感域各自定义切换面与不迁什么:
+
+| 域 | 切换面(配置即换) | 不迁 / 保守面 | 实证 |
+| --- | --- | --- | --- |
+| 账号 | 验证器与主存同源:路由表 identity primary 换到第二实现即经 `auth.Switchable` 原子重指(fallbacks 不参与,验证器不逐请求切) | 令牌语义不跨实现:account(不透明随机令牌 + 会话表)与 accountalt(HMAC 自验证令牌)互不认,切换后旧令牌验不过 → 重新登录 | 两实现同 wire 由一致性 e2e 证明(`e2e/identity_conformance_test.go`,批次 18);并发换源下在途验证只返回旧/新目标身份、无中间态(`auth` 包 `-race` 单测) |
+| 实名 | 默认关闭,路由表显式开启;`router.Router` 路由表原子替换 + 熔断 + 全链失败安全态(PENDING_REVIEW / 不可玩 / 不放行) | 身份输入只活调用栈(禁日志/trace/诊断,只允许存指纹)——切换不得借机把明文落库 | `router` 包单测(降级序 / 熔断半开 / 安全态 / 在途按旧表)+ `e2e/realname_test.go`(默认 501 / fallback 链 / 热重载续服) |
+| 支付 | 渠道切换 = 换回调签名密钥配置(按渠道 HMAC-SHA256)+ `Deliver` 发货钩子;密钥空 = 回调一律 403 | 订单状态与台账不随渠道走(台账归部署面 / 接入方存储);回调幂等与断单对账语义契约不变 | `payment.md` 订单-发货核心流 + 回调幂等红线;`teller.Options.ChannelSecret` / `Deliver` |
 
 ## 新能力设计
 

@@ -778,6 +778,19 @@
 
 - [x] tools 三包 `go test -count=1` 全绿 / `vitepress build docs` 实跑通过(17.6s 零错误)
 
+## 批次 61 — 阶段 C 敏感域切换策略 + 账号侧换源在途测试(2026-10-13)
+
+> 来源:巡检推进单 r1——两项门控(F31/F33)确认用户侧后按 roadmap 定位可推进面:阶段 C 三项子项中「账号/实名/支付定义独立安全切换策略」与「禁用/热重载不破坏在途请求」的账号侧测试为开放项。
+
+- [x] **治理四条声称逐条对码核验**:`providers/router`(批次 7)熔断 5 次开路 + 30 次调用半开探测(`BreakerConfig` 默认值)、全链失败安全态(`PENDING_REVIEW` = warden 状态机 + `REALNAME_PENDING_REVIEW` 码)、原子快照在途按旧表(`TestReloadAtomic_InFlightCompletesOnOldTable` + e2e `HotReloadFallbacks`)均**有实现有测试**;唯一缺口 = 热重载无管理面端点(`main.go` 仅启动读一次配置)→ 已补边界注
+- [x] **新增测试(实现前先补测试)**:`gateway/auth/switchable_test.go` + `TestSwitchableSetTarget_ConcurrentInFlightCompletes`——8 协程持续验证 + 切换方 200 次重指并发,-race 下每个在途调用只返回旧/新目标身份、无中间态(补上 realname 侧 `router` 已覆盖、identity 侧缺失的对偶证明)
+- [x] **architecture.md「敏感域独立切换策略」**新节:账号(验证器随 primary 原子重指;令牌语义不跨实现,旧令牌重登)/ 实名(默认关闭 + 安全态 + 身份输入不落库)/ 支付(换渠道签名密钥 + Deliver 钩子;台账不随渠道)三行的配置切换面 + 不迁什么 + 实证索引;治理节补热重载现状边界注
+- [x] **roadmap 阶段 C 进度注**:切换策略已定义 + 在途测试覆盖已齐;剩余开放项 = 每域第二实现(仅账号域兑现,其余未立项)
+
+### 门禁
+
+- [x] gateway `go vet ./...` + `go test -count=1 ./...` 全绿 / `auth` 包 `-race` 全绿 / tools 三包全绿才 commit
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。
