@@ -26,6 +26,8 @@ export default defineConfig({
           { text: '五层架构', link: '/layers' },
           { text: '路线图', link: '/roadmap' },
           { text: 'TODO', link: '/todo' },
+          { text: '选装清单', link: '/sdk-selection' },
+          { text: 'Provider 接入指南', link: '/provider-guide' },
           { text: '竞品调研', link: '/research/competitive' },
           { text: '功能调研', link: '/research/features' },
         ]

@@ -1,0 +1,92 @@
+# 自定义 Provider 接入指南
+
+> 面向要**替换或新增**网关能力域后端(Provider)的接入方。默认供应商可换可关;
+> 客户端 SDK **零改动**(wire 由 `docs/contract/` 冻结,见 [sdk-selection.md](./sdk-selection.md)
+> 九域默认接线与 501 降级后果)。治理原则见 [architecture.md](./architecture.md)「Provider 治理」:
+> 接口统一 ≠ 数据迁移;接入方式两种(服务端 Provider 默认 / 客户端直连例外)。
+
+## 1. 最小接入:四方法 + 注册 + 路由表
+
+Provider = 一个 `providers.Handler`(`gateway/providers/registry.go`),以 `/v1/{capability}/` 为前缀服务:
+
+```go
+type Handler interface {
+    Name() string                                  // 供应商标识(如 "herald"),注册表内唯一
+    Capability() providers.Capability              // 能力域;同能力可注册多个(降级链候选)
+    HealthCheck(ctx context.Context) error         // 单次可用性探测
+    ServeHTTP(w http.ResponseWriter, r *http.Request)  // Path 保留能力域前缀
+}
+```
+
+接入三步(装配先例:`gateway/cmd/gateway/main.go`):
+
+```go
+reg := providers.NewRegistry()
+_ = reg.Register(myProvider) // 同名重复注册报错;同能力多注册即降级链候选
+```
+
+```json
+// COURIER_GATEWAY_CONFIG(JSON 路由表,覆盖内置默认):
+{"identity": {"primary": "courier-account-alt"},
+ "announcements": {"primary": "herald", "fallbacks": ["my-herald"]},
+ "payments": {"disabled": true}}
+```
+
+范围说明:这是**同一网关进程内**的替换(编译期 import + 配置期选路);独立进程 / HTTP
+sidecar 形态契约不动,属部署面演进。
+
+## 2. 路由与降级语义
+
+- 路由表一行 = `CapabilityConfig{primary, fallbacks[], disabled}`
+  (`gateway/providers/config.go`);`primary` 空 = 未配置,`disabled: true` = 显式关闭,
+  二者同样返回 `501 COMMON_CAPABILITY_DISABLED`。
+- 请求分发沿降级链逐个 `HealthCheck`,失败尝试下一个;健康缓存与熔断自批次 7 实现。
+- `fallbacks` 引用未注册的名字**静默跳过**(不残废);配置键拼错(未知能力域)在
+  `LoadConfig` 直接报错,不静默失效。
+- 管理语义:能力域 = 路由前缀,业务名不得成为能力域;新能力先在
+  [errors.md](./contract/errors.md) 注册域前缀,再进 `providers/capability.go` 与路由表。
+
+## 3. 能力域全集与默认供应商
+
+| 能力域 | 前缀 | 默认 Provider | 里程碑 | 备注 |
+| --- | --- | --- | --- | --- |
+| identity | /v1/identity/ | `courier-account` | M1 | 第二实现 `courier-account-alt`(批次 18) |
+| announcements | /v1/announcements/ | `herald` | M2 | |
+| support | /v1/support/ | `croupier` | M2 | 注入点最多(见 §4) |
+| messages | /v1/messages/ | `chirp` | M2 | SSE 推送通道,其余域经其 Hub 广播 |
+| realname | /v1/realname/ | `warden` | M2 后段 | **默认关闭**:路由表显式配置才开启(契约红线) |
+| app | /v1/app/ | `scribe` | M3 | config / branding / app 同管道 |
+| player | /v1/player/ | `archivist` | M3 | 玩家档案 + 账号↔角色映射 |
+| assistant | /v1/assistant/ | `sage` | M4 | FAQ 检索;LLM 供应商按同一接口替换,默认不依赖 |
+| payments | /v1/payments/ | `teller` | M5 | 自建沙箱渠道;真实渠道按同一回调签名面接入 |
+
+## 4. Options 装配面:逐域注入点
+
+各 Provider 的 `Options` 结构是唯一装配面;**nil / 未配置 = fail-closed,不是 panic 也不是裸奔**:
+
+| 域 | 注入点 | 缺省行为 |
+| --- | --- | --- |
+| identity | `account.Options` / `accountalt.Options`;会话校验器经 `auth.NewSwitchable` 供 M2+ 域共享,身份源切换 = `SetTarget` 跟随 primary | 双实现同一 wire(见 §6) |
+| identity·oauth | `OAuthDisabled: true` 关闭 oauth 域(501);第三方凭证校验器经 providers/oauth 装配,未注册 = `OAUTH_PROVIDER_UNKNOWN` | fail-closed |
+| support | `croupier.Options.AttachmentSigner`(F44 附件直传)、`PenaltyStore`(F45 处罚投影源:List/Get/Appeal) | nil = 附件 / 处罚能力 501(不内置假存储假风控到生产) |
+| support | `Notify`(坐席回复 → chirp 广播)、`TicketRatePerMinute/Burst`(默认 5/分钟) | nil = 不推送 |
+| payments | `teller.Options.ChannelSecret`(回调 HMAC-SHA256)、`Deliver` 发货钩子(按订单幂等,接入方落库) | 密钥空 = 回调一律 403 `PAYMENT_INVALID_SIGNATURE` |
+| realname | `warden.Options.S2SToken` | 缺省 = S2S 端点 fail-closed |
+| 级联 | `hooks.Register(hooks.AccountDeleted, fn)`(契约 auth.md v1.1 注册制:注销数据清理由下游 Provider 自订) | 网关不认识任何下游存储 |
+
+## 5. 凭据与配置注入
+
+Provider 的密钥一律**环境变量注入、进程内 fail-closed**(`COURIER_PAYMENTS_CHANNEL_SECRET`、
+`COURIER_REALNAME_S2S_TOKEN` 等,见 main.go);不落配置文件、不进契约。
+持久化(落库 / 对账 / 审计 / 对象存储)随部署面——trace 贯穿 gateway→Provider 已内建
+([layers.md](./layers.md) L5),内存实现在单机与测试场景即为完整功能。
+
+## 6. 替换验收:一致性测试先例
+
+「Provider 可换」的行为证明 = **同一 wire 场景对两个实现各跑一遍、同一断言**
+(`gateway/e2e/identity_conformance_test.go`,批次 18):
+
+- 装配与 main.go 同构(registry + 路由表 + 冻结中间件链:trace → 结构化错误 → 限流 → scope);
+- 场景覆盖含跨域校验(换身份源后 herald 照常认证新令牌);
+- 新 Provider 接入建议给出同构一致性测试;e2e 全绿 + 网关 `go vet` + `go test -count=1`
+  全绿为本仓提交门禁。

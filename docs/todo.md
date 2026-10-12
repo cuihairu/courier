@@ -743,6 +743,18 @@
 - [x] node 136×3(+2)/ unity 88(+2)+55+8+11 / ue 7 套件(无警告)/ godot headless(+1)/ gateway go vet+test(-count=1)/ tools 全绿才 commit
 - [x] `docs/research/implementation-status.md` F76 行状态与证据 commit 同步更新(统计 ✅ 45 + ❌ 2)
 
+## 批次 58 — 自定义 Provider 接入指南(阶段 D 收尾,2026-10-13)
+
+> 来源:roadmap 阶段 D「自定义 Provider 接入指南仍开放」(批次 55 进度注)——批次 44 四项未含此项,属阶段 D 最后开放项。纯文档批次:全部声称逐条对照仓库证据核验(批次 22 审计口径),零契约/零实现改动。
+
+- [x] **`docs/provider-guide.md`**:四方法 Handler 接口 + 注册 + 路由表最小接入;降级链/熔断/501 语义;九域默认供应商表(realname 默认关闭红线);逐域 Options 注入点表(F44 AttachmentSigner / F45 PenaltyStore / teller ChannelSecret+Deliver / hooks.AccountDeleted,均 fail-closed 缺省);身份源替换一致性测试先例(`e2e/identity_conformance_test.go`,批次 18);明确范围 = 同进程替换,sidecar 形态契约不动
+- [x] **互链收口**:sdk-selection.md Provider 节修正「健康检查逐请求评估」为「含健康缓存与熔断(批次 7)」(registry.go 实况)+ 指向本指南;VitePress 侧栏指南组补「选装清单」(批次 55 遗漏)与「Provider 接入指南」两项
+- [x] **roadmap 阶段 D 进度更新**:四项全闭环(示例/选装/quickstart/Provider 指南)
+
+### 门禁
+
+- [x] 指南内符号与缺省行为逐条对照源码核验(registry.go / capability.go / config.go / main.go / croupier,teller Options / hooks / switchable.go / routing.go);文档间链接全部实存
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。
