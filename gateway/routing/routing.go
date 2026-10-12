@@ -41,7 +41,16 @@ func New(reg *providers.Registry, cfg providers.Config, chain middleware.Middlew
 
 	for _, cap := range providers.AllCapabilities() {
 		d := dispatcher(reg.Chain(cap, cfg[cap]), cap)
-		root.Handle("/v1/"+string(cap)+"/", chain(http.HandlerFunc(d)))
+		h := chain(http.HandlerFunc(d))
+		root.Handle("/v1/"+string(cap)+"/", h)
+		// 无斜杠根(契约登记形态,如 GET /v1/announcements)内部补斜杠重派,
+		// 不发 307:部分客户端(.NET HttpClient 实测)重定向后会丢 Authorization。
+		capRoot := "/v1/" + string(cap)
+		root.HandleFunc(capRoot, func(w http.ResponseWriter, r *http.Request) {
+			r2 := r.Clone(r.Context())
+			r2.URL.Path = capRoot + "/"
+			h.ServeHTTP(w, r2)
+		})
 	}
 	// 未知 /v1 前缀:结构化 404,不进业务链(未知路由无 scope 可校验)。
 	root.Handle("/v1/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

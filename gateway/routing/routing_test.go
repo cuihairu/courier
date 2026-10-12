@@ -155,6 +155,32 @@ func TestUnknownRoute(t *testing.T) {
 			t.Fatalf("status = %d, 期望 400", rec.Code)
 		}
 	})
+
+	t.Run("能力根无斜杠(契约登记形态)内部重派,不发 307", func(t *testing.T) {
+		// .NET HttpClient 等客户端在 307 重定向后丢弃 Authorization,故无斜杠
+		// 形态必须直接分发:命中 Provider 且无 Location 头。
+		reg := providers.NewRegistry()
+		_ = reg.Register(&stubHandler{name: "herald", cap: providers.CapAnnouncements, healthy: true})
+		cfg := providers.Config{providers.CapAnnouncements: {Primary: "herald"}}
+		srv := testServer(reg, cfg)
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/v1/announcements", nil)
+		req.Header.Set(scope.HeaderGameID, "game_demo")
+		req.Header.Set(scope.HeaderEnv, "prod")
+		srv.ServeHTTP(rec, req)
+		if rec.Code != http.StatusNoContent {
+			t.Fatalf("status = %d body=%s, 期望 204(无重定向)", rec.Code, rec.Body.String())
+		}
+		if rec.Header().Get("Location") != "" {
+			t.Fatalf("不得发重定向,Location = %q", rec.Header().Get("Location"))
+		}
+
+		// 未配置域:无斜杠同样落到 501 降级(与斜杠形态同语义)。
+		rec2, env2 := do(t, testServer(providers.NewRegistry(), nil), "/v1/payments")
+		if rec2.Code != http.StatusNotImplemented || env2.Error.Code != "COMMON_CAPABILITY_DISABLED" {
+			t.Fatalf("无斜杠未配置: status=%d error=%+v, 期望 501", rec2.Code, env2.Error)
+		}
+	})
 }
 
 func TestHealthz(t *testing.T) {
