@@ -42,7 +42,10 @@ const (
 	CodeOauthIdentityTaken   = "OAUTH_IDENTITY_TAKEN"
 
 	CodeSupportAttachmentTooLarge = "SUPPORT_ATTACHMENT_TOO_LARGE" // v7,support.md 附件
-	CodeSupportAttachmentLimit    = "SUPPORT_ATTACHMENT_LIMIT"     // v6,oauth.md v1
+	CodeSupportAttachmentLimit    = "SUPPORT_ATTACHMENT_LIMIT"     // v7,support.md 附件
+
+	CodeSupportPenaltyNotFound = "SUPPORT_PENALTY_NOT_FOUND" // v8,support.md F45
+	CodeSupportAppealExists    = "SUPPORT_APPEAL_EXISTS"     // v8,support.md F45
 
 	CodeRealNameRequired = "REALNAME_REQUIRED"
 	CodeRealNameRejected = "REALNAME_REJECTED"
@@ -100,6 +103,9 @@ var codeTable = map[string]codeSpec{
 
 	CodeSupportAttachmentTooLarge: {http.StatusRequestEntityTooLarge, false},
 	CodeSupportAttachmentLimit:    {http.StatusConflict, false},
+
+	CodeSupportPenaltyNotFound: {http.StatusNotFound, false},
+	CodeSupportAppealExists:    {http.StatusConflict, false},
 
 	CodeRealNameRequired: {http.StatusForbidden, false},
 	CodeRealNameRejected: {http.StatusForbidden, false},

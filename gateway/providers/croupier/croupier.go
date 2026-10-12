@@ -55,6 +55,9 @@ type Options struct {
 	AttachmentTypes map[string]bool
 	// AttachmentTTL 预签名有效期(契约缺省 10 分钟)。
 	AttachmentTTL time.Duration
+
+	// PenaltyStore 处罚投影源(契约 v1.1 F45;nil = 处罚/申诉能力 fail-closed 501)。
+	PenaltyStore PenaltyStore
 }
 
 // replyEventDTO 推送事件 data(契约 messages.md:{ticketId})。
@@ -135,9 +138,11 @@ type SupportProvider struct {
 	attachmentTypes   map[string]bool
 	uploadTTL         time.Duration
 
-	mu      sync.RWMutex
-	tickets map[string]*ticketRecord
-	faqs    []faqRecord
+	mu        sync.RWMutex
+	tickets   map[string]*ticketRecord
+	faqs      []faqRecord
+	reports   []reportRecord // v1.1 F45:举报登记(玩家侧写入,管理面消费)
+	penalties PenaltyStore   // v1.1 F45:处罚投影源(nil = fail-closed 501)
 }
 
 type faqRecord struct {
@@ -190,6 +195,7 @@ func New(opts Options) *SupportProvider {
 		maxAttachmentSize: opts.MaxAttachmentBytes,
 		attachmentTypes:   opts.AttachmentTypes,
 		uploadTTL:         opts.AttachmentTTL,
+		penalties:         opts.PenaltyStore,
 		tickets:           make(map[string]*ticketRecord),
 	}
 }
@@ -291,6 +297,34 @@ func (p *SupportProvider) route(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		p.writeInvalid(w, r, "ticket detail requires GET")
+	case path == "reports": // v1.1 F45:举报受理
+		if r.Method == http.MethodPost {
+			p.handleReport(w, r)
+			return
+		}
+		p.writeInvalid(w, r, "reports requires POST")
+	case path == "penalties": // v1.1 F45:我的处罚(投影)
+		if r.Method == http.MethodGet {
+			p.handleListPenalties(w, r)
+			return
+		}
+		p.writeInvalid(w, r, "penalties requires GET")
+	case strings.HasPrefix(path, "penalties/"):
+		rest := strings.TrimPrefix(path, "penalties/")
+		if i := strings.Index(rest, "/"); i >= 0 {
+			id, action := rest[:i], rest[i+1:]
+			if action == "appeal" && r.Method == http.MethodPost {
+				p.handleAppeal(w, r, id)
+				return
+			}
+			p.writeNotFound(w, r)
+			return
+		}
+		if r.Method == http.MethodGet {
+			p.handleGetPenalty(w, r, rest)
+			return
+		}
+		p.writeInvalid(w, r, "penalty detail requires GET")
 	default:
 		p.writeNotFound(w, r)
 	}
