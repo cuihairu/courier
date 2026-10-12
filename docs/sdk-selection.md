@@ -1,0 +1,63 @@
+# 按需选装清单(字节实测)
+
+> 用途:回答「哪些能不进、各进哪个省多少、得到什么」。数据口径见末节。
+
+## UPM 四包(Unity)
+
+包按依赖方向拆四层:core 是被依赖方,service 依赖 core,ui/diagnostics 依赖 service。**只装自己用到的**。
+
+| 包 | 实测源码字节 | 不装省什么 | 装了得到什么 |
+| --- | --- | --- | --- |
+| `com.courier.core` | 76,773 B(~75 KiB) | —— 地基,不可省 | scope 头/Bearer 附着/信封解析、生命周期状态机、ApiClient 退避重试与 `AUTH_TOKEN_EXPIRED` 刷新重放、Identity/Session 编排、传输与令牌存储抽象 |
+| `com.courier.service` | 54,471 B(~53 KiB) | 自写九域 REST 调用 | `CourierServices` 门面:公告/客服(含附件直传)/应用配置/品牌/玩家/小助手/支付/实名 + SSE 解析 |
+| `com.courier.ui` | 23,318 B(~23 KiB) | 自己写面板渲染 | 公告面板 + 跑马灯(`MarqueeRendered` 事件)、客服面板;纯逻辑 C#,不绑 UI 框架,渲染走回调/事件 |
+| `com.courier.diagnostics` | 21,028 B(~21 KiB) | 无埋点上报 | trace 关联/性能事件/崩溃上报三流(diagnostics.md) |
+
+最小可用集 `core + service` = 131,244 B(~128 KiB);四包全装 = 175,590 B(~171 KiB)。
+**常见裁剪**:游戏没有运营公告就砍 ui;自建埋点管道就砍 diagnostics;纯自建后端、只要登录/会话就只装 core。
+
+## TS 三端(cocos / miniprogram / laybox)
+
+同构单树,不可按目录拆包(单 `src/`),但可按「用不用 ui/diagnostics/platform」做死代码消除:
+
+| 子树 | 实测字节 | 说明 |
+| --- | --- | --- |
+| `core/` | 44,330 B | 地基(含 `FetchTransport`,miniprogram 侧用 `createWechatTransport(wx)`) |
+| `service/` | 35,768 B | 九域门面 |
+| `ui/` | 13,323 B | 公告面板 + 跑马灯(`onMarqueeRendered`) |
+| `diagnostics/` | 16,088 B | 三流上报 |
+| `platform/` | 12,179 B | 只留自己用的那一端适配,其余可删 |
+| `contract/` | 7,375 B | 生成物,别删 |
+
+最小集 `core + service` ≈ 80,098 B(~78 KiB);整树 ≈ 129 KiB。
+
+## UE(header-only)与 Godot(单树)
+
+| 端 | 实测字节 | 说明 |
+| --- | --- | --- |
+| UE `contract + core + service` | 225,910 B(~221 KiB) | 头文件树,未用的服务头不 include 即不进目标文件(无 UI 包、无 diagnostics 包) |
+| Godot `src/` | 59,746 B(~58 KiB) | 含平台件 `platform/`(HTTPClient/FileTokenStore);UI 待引擎集成面 |
+
+## Provider 维度(网关侧,不是包体积)
+
+不按能力域接 Provider = 该域 501 `COMMON_CAPABILITY_DISABLED`(非故障),SDK 照契约安全隐藏对应 UI。默认接线路由表(`cmd/gateway/main.go`):
+
+| 能力域 | 默认 Provider | 不接的后果 |
+| --- | --- | --- |
+| `identity` | `courier-account`(可换 `courier-account-alt`) | 无登录/会话 |
+| `announcements` | `herald` | 公告隐藏 |
+| `support` | `croupier` | 客服隐藏(含附件直传) |
+| `messages` | `chirp` | 无推送通道(SSE 流不可用) |
+| `app` | `scribe` | 无配置/品牌/版本(维护门随之失能) |
+| `player` | `archivist` | 无玩家档案 |
+| `assistant` | `sage` | 无小助手 |
+| `payments` | `teller` | 无支付 |
+| `realname` | 无默认(需自接) | 实名/防沉迷面隐藏 |
+
+替换/降级语义见 [routing 包文档](../gateway/routing/routing.go) 与 [layers.md](./layers.md):primary + `fallbacks[]`,健康检查逐请求评估;禁用或全链不健康分别回 501 / 503 `COMMON_UNAVAILABLE`。
+
+## 口径注
+
+- 字节 = 2026-10-13 `du -sb` 实测**源码**字节:UPM 包在引擎内编译、无独立构建产物,TS 三端无 bundler 不产构建产物——此处是「接入面积」,不等于下载体积或引擎内占用。
+- TS 三仓代码同步生成(`tools/tsync`),`cocos/src/` 的字节代表三端口径,`miniprogram`/`laybox` 各差几百字节(platform 适配差异)。
+- 引擎侧真实产物(Unity IL2CPP 剥离、UE GC 段、Godot 字节码)随项目依赖图变化,本清单不估算。

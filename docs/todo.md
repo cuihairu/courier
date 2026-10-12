@@ -388,7 +388,7 @@
 > 来源:[docs/research/competitive.md](./research/competitive.md) 的 6 条可参考项 + 3 条边界。**已有落点的不重复立项**(见本批末「覆盖对照」),以下只补调研点到任务行的缺口:
 
 - [x] **各端示例齐平**(Nakama 实践第一半:契约跨端一致已由 `tools/contractgen` 六端测试守住,但「示例与文档齐平」缺):现全仓无 `examples/` 目录 —— 为六端(unity / cocos / ue / godot / miniprogram / laybox)各建一个最小可跑示例(接入 → 登录 → 收公告 → 发工单),放 `examples/<端>/`,并给运行方式 ｜ 落地:批次 55,`425fe55` + 网关无斜杠根修复 `c5c4814`;六端对本地网关逐条实测同链路同输出
-- [ ] **按需选装指南**(MSDK 启示:「不为用不到的功能付体积」是被验证的付费需求):docs 出一页**选装清单** —— UPM 四包(core/service/ui/diagnostics)× Provider 逐项列出「不装省什么、装了得到什么」,附各包**构建产物实测字节**(非估算);现 docs 对「选装/体积」0 命中
+- [x] **按需选装指南**(MSDK 启示:「不为用不到的功能付体积」是被验证的付费需求):docs 出一页**选装清单** —— UPM 四包(core/service/ui/diagnostics)× Provider 逐项列出「不装省什么、装了得到什么」,附各包**构建产物实测字节**(非估算);现 docs 对「选装/体积」0 命中 ｜ 落地:批次 55,`docs/sdk-selection.md`(du -sb 实测源码字节;UPM 分发即源码/TS 无 bundler,口径注注明「接入面积≠下载体积」);Provider 维度列九域默认接线与 501 降级后果
 - [x] **每端 quickstart 实测**(Nakama 实践第二半:示例与文档齐平):逐端跑 README 的 quickstart,给出命令与实际预期输出,跑不通的修文档不改契约 ｜ 落地:批次 55,六端 README 各加「快速开始」(实测命令+输出);过程中发现并修 .NET HttpClient 307 丢 Authorization(`c5c4814`)
 - [ ] **对标数据时效**(competitive.md 数据口径 2026-10-08):星数/活跃度随巡检批次复核更新;链接失效提 issue
 
@@ -406,7 +406,7 @@
 | Playgama 平台差异压进 Adapter | `layers.md` L3 + packcheck 结构验收 | 已有 |
 | 边界(实时/渠道不做) | `roadmap.md` 非目标 + 本文件「明确不做」 | 已有 |
 
-- **验收**:六端示例各一条命令真实跑通(报文附运行输出);选装清单含实测字节;quickstart 逐端实测记录;对标口径更新到当期日期 → 验收注:项 1/3 已随批次 55 落地(`425fe55`/`c5c4814`);项 2(选装清单实测字节)、项 4(对标口径刷新)仍开放
+- **验收**:六端示例各一条命令真实跑通(报文附运行输出);选装清单含实测字节;quickstart 逐端实测记录;对标口径更新到当期日期 → 验收注:项 1/2/3 已随批次 55 落地(`425fe55`/`c5c4814`/sdk-selection);项 4(对标口径刷新)仍开放
 
 ## 批次 45 — 功能清单全量对照(features.md 76 项入账,2026-10-11)
 
@@ -691,6 +691,7 @@
 - [x] `examples/` 六端示例 + README(网关起法、逐端命令、预期输出、进引擎换传输/存储的说明)(`425fe55`)
 - [x] 网关修复:`/v1/<能力域>` 无斜杠根(契约登记形态)由 307 改为内部补斜杠重派——.NET HttpClient 重定向后实测丢弃 `Authorization`(`c5c4814`,含 routing 单测两断言:命中 Provider 无 Location;未配置域同语义 501)
 - [x] 六端 README 各加「快速开始」(实测命令+输出+cocos/miniprogram/laybox/unity/ue/godot 各自的进引擎换件说明)
+- [x] `docs/sdk-selection.md` 选装清单(批次 44 项 2):UPM 四包/TS 子树/UE+Godot 实测字节 + 九域 Provider 默认接线与降级语义;最小集 Unity 128 KiB / TS 78 KiB
 
 ### 门禁
 
