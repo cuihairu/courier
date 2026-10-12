@@ -789,7 +789,8 @@
 
 ### 门禁
 
-- [x] gateway `go vet ./...` + `go test -count=1 ./...` 全绿 / `auth` 包 `-race` 全绿 / tools 三包全绿才 commit
+- [x] gateway `go vet ./...` + `go test -count=1 ./...` 全绿 / tools 三包全绿才 commit
+- [x] **race 卫生补验**(本批后加跑):gateway 全仓 `go test -count=1 -race ./...` exit 0、18 包 ok、零 DATA RACE(含新并发换源单测);根模块 `./tools/...` -race 同绿——本轮首次全量 race 实跑(批次 22 曾局部验)
 
 ## 明确不做
 
