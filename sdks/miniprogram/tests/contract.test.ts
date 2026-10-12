@@ -14,7 +14,7 @@ const errors = JSON.parse(readFileSync(new URL("errors.json", fixtureUrl), "utf8
 };
 
 test("错误码集合与契约 fixture 完全一致(双向)", () => {
-  assert.equal(errors.version, 5);
+  assert.equal(errors.version, 6);
   const enumValues = Object.values(ErrorCode);
   assert.equal(enumValues.length, errors.codes.length);
   assert.deepEqual([...enumValues].sort(), errors.codes.map((c) => c.code).sort());

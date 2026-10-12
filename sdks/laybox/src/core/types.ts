@@ -73,3 +73,24 @@ export interface BindRequest {
   readonly email: string;
   readonly password: string;
 }
+
+/** 第三方凭证换会话请求(契约 oauth.md v1.1:SDK 不内置第三方 SDK,凭证由接入方
+ *  自行集成取得;凭证只发一次,不本地缓存;tokenType 缺省 ID_TOKEN)。 */
+export interface OAuthExchangeRequest {
+  readonly provider: string;
+  readonly token: string;
+  readonly tokenType?: "ID_TOKEN" | "ACCESS_TOKEN" | "CODE";
+  readonly deviceId?: string;
+  readonly platform?: string;
+}
+
+/** 已绑定第三方身份(契约 oauth.md GET bindings:不返回 subject,防客户端侧泄露)。 */
+export interface OAuthBindingDto {
+  readonly provider: string;
+  readonly createdAt: string;
+}
+
+export interface OAuthBindingListDto {
+  readonly items: readonly OAuthBindingDto[];
+  readonly nextCursor?: string;
+}

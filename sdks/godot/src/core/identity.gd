@@ -54,3 +54,35 @@ func delete_account() -> Dictionary:
 func cancel_delete(cancel_token: String) -> Dictionary:
 	return await api.request("POST", PREFIX + "account/delete/cancel",
 			{"cancelToken": cancel_token}, false)
+
+
+## 第三方凭证换会话(v1.1 oauth.md):无匹配即创建 type=OAUTH 账号,命中即登录
+## 同账号(每次签发新会话)。OAUTH_IDENTITY_INVALID → 引导重新授权,不自动重试;
+## OAUTH_PROVIDER_UNKNOWN → 该登录方式不可用(可能未配置)。
+## token_type 为空串则不下发(缺省 ID_TOKEN);凭证由接入方自行集成取得。
+func oauth_exchange(provider: String, token: String, token_type: String = "",
+		device_id: String = "", platform: String = "") -> Dictionary:
+	var body := {"provider": provider, "token": token}
+	if token_type != "":
+		body["tokenType"] = token_type
+	if device_id != "":
+		body["deviceId"] = device_id
+	if platform != "":
+		body["platform"] = platform
+	return await _send("POST", "oauth/exchange", body, false)
+
+
+## 绑定第三方身份到当前账号(v1.1 oauth.md;Bearer):供下次一键登录。
+## OAUTH_IDENTITY_TAKEN → 该身份已绑定其他账号,可引导改用该账号登录。
+func oauth_bind(provider: String, token: String) -> Dictionary:
+	return await _send("POST", "oauth/bind", {"provider": provider, "token": token}, true)
+
+
+## 解绑指定提供方(v1.1 oauth.md;Bearer,幂等;解绑不影响账号本身)。
+func oauth_unbind(provider: String) -> Dictionary:
+	return await api.request("DELETE", PREFIX + "oauth/bindings/" + provider, null, true)
+
+
+## 当前账号已绑定列表(v1.1 oauth.md;Bearer;按 createdAt 升序,不返回 subject)。
+func oauth_bindings() -> Dictionary:
+	return await api.request("GET", PREFIX + "oauth/bindings", null, true)

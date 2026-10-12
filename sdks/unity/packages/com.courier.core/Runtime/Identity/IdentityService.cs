@@ -80,6 +80,37 @@ namespace Courier.Identity
                 new CancelDeleteRequest { CancelToken = cancelToken }, false, ct);
         }
 
+        /// <summary>POST /v1/identity/oauth/exchange(v1.1 oauth.md):第三方凭证换会话,
+        /// 无匹配即创建 type=OAUTH 账号,命中即登录同账号(每次签发新会话);
+        /// OAUTH_IDENTITY_INVALID → 引导重新授权,不自动重试;
+        /// OAUTH_PROVIDER_UNKNOWN → 该登录方式不可用(可能未配置)。</summary>
+        public Task<SessionDto> ExchangeAsync(OAuthExchangeRequest request, CancellationToken ct)
+        {
+            return Send<SessionDto>("POST", "oauth/exchange", request, false, ct);
+        }
+
+        /// <summary>POST /v1/identity/oauth/bind(v1.1 oauth.md;Bearer):绑定第三方身份,
+        /// 供下次一键登录;OAUTH_IDENTITY_TAKEN → 该身份已绑定其他账号,可引导改用该账号登录。</summary>
+        public Task<OAuthBindingDto> OauthBindAsync(string provider, string token, CancellationToken ct)
+        {
+            return Send<OAuthBindingDto>("POST", "oauth/bind",
+                new OauthBindRequest { Provider = provider, Token = token }, true, ct);
+        }
+
+        /// <summary>DELETE /v1/identity/oauth/bindings/{provider}(v1.1 oauth.md;Bearer,幂等;
+        /// 解绑不影响账号本身)。</summary>
+        public Task OauthUnbindAsync(string provider, CancellationToken ct)
+        {
+            return SendVoid("DELETE", "oauth/bindings/" + provider, null, true, ct);
+        }
+
+        /// <summary>GET /v1/identity/oauth/bindings(v1.1 oauth.md;Bearer;按 CreatedAt 升序,
+        /// 不返回 Subject)。</summary>
+        public Task<OAuthBindingListDto> OauthBindingsAsync(CancellationToken ct)
+        {
+            return Send<OAuthBindingListDto>("GET", "oauth/bindings", null, true, ct);
+        }
+
         async Task<T> Send<T>(string method, string action, object body, bool withAuth, CancellationToken ct)
         {
             var data = await _api.SendAsync(method, Prefix + action, body, withAuth, ct).ConfigureAwait(false);

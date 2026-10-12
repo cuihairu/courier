@@ -59,6 +59,31 @@ public:
         return api_->request("POST", prefix() + "account/delete/cancel", &body, false);
     }
 
+    /// 第三方凭证换会话(v1.1 oauth.md):无匹配即创建 type=OAUTH 账号,命中即登录
+    /// 同账号(每次签发新会话)。OAUTH_IDENTITY_INVALID → 引导重新授权,不自动重试;
+    /// OAUTH_PROVIDER_UNKNOWN → 该登录方式不可用(可能未配置)。
+    RequestOutcome oauth_exchange(const OAuthExchangeRequest& request) {
+        return send("oauth/exchange", encode_oauth_exchange(request));
+    }
+
+    /// 绑定第三方身份到当前账号(v1.1 oauth.md;Bearer):供下次一键登录。
+    /// OAUTH_IDENTITY_TAKEN → 该身份已绑定其他账号,可引导改用该账号登录。
+    RequestOutcome oauth_bind(const std::string& provider, const std::string& token) {
+        json::Value body = encode_oauth_bind(provider, token);
+        return api_->request("POST", prefix() + "oauth/bind", &body, true);
+    }
+
+    /// 解绑指定提供方(v1.1 oauth.md;Bearer,幂等;解绑不影响账号本身)。
+    RequestOutcome oauth_unbind(const std::string& provider) {
+        return api_->request("DELETE", prefix() + "oauth/bindings/" + provider, nullptr, true);
+    }
+
+    /// 当前账号已绑定列表(v1.1 oauth.md;Bearer;按 created_at 升序,不返回 subject;
+    /// data 为 OAuthBindingListDto,decode_oauth_bindings 解析)。
+    RequestOutcome oauth_bindings() {
+        return api_->request("GET", prefix() + "oauth/bindings", nullptr, true);
+    }
+
 private:
     static std::string prefix() { return "/v1/identity/"; }
 

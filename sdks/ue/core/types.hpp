@@ -102,6 +102,27 @@ struct BindRequest {
     std::string password;
 };
 
+/// 第三方凭证换会话请求(契约 oauth.md v1.1:SDK 不内置第三方 SDK,凭证由接入方
+/// 自行集成取得;凭证只发一次,不本地缓存;token_type 缺省 ID_TOKEN)。
+struct OAuthExchangeRequest {
+    std::string provider;
+    std::string token;
+    std::optional<std::string> token_type;  // ID_TOKEN / ACCESS_TOKEN / CODE
+    std::optional<std::string> device_id;
+    std::optional<std::string> platform;
+};
+
+/// 已绑定第三方身份(契约 oauth.md GET bindings:不返回 subject,防客户端侧泄露)。
+struct OAuthBindingDto {
+    std::string provider;
+    std::string created_at;
+};
+
+struct OAuthBindingListDto {
+    std::vector<OAuthBindingDto> items;
+    std::string next_cursor;
+};
+
 // ---- 解码(wire JSON → DTO;字段缺失安全) ----
 
 inline AccountDto decode_account(const json::Value& v) {
@@ -175,6 +196,20 @@ inline DeleteAccountDto decode_delete_account(const json::Value& v) {
     return d;
 }
 
+inline OAuthBindingListDto decode_oauth_bindings(const json::Value& v) {
+    OAuthBindingListDto d;
+    if (const json::Value* items = v.find("items"); items && items->is_array()) {
+        for (const json::Value& item : items->items()) {
+            OAuthBindingDto b;
+            b.provider = json::get_str(item, "provider");
+            b.created_at = json::get_str(item, "createdAt");
+            d.items.push_back(std::move(b));
+        }
+    }
+    json::get_opt_str(v, "nextCursor", d.next_cursor);
+    return d;
+}
+
 // ---- 编码(DTO → wire JSON;可选字段缺省不下发) ----
 
 inline json::Value encode_credentials(const CredentialsRequest& r) {
@@ -203,6 +238,29 @@ inline json::Value encode_bind(const BindRequest& r) {
 inline json::Value encode_cancel_delete(const std::string& cancel_token) {
     json::Value v = json::Value::object();
     v.set("cancelToken", json::Value::str(cancel_token));
+    return v;
+}
+
+inline json::Value encode_oauth_exchange(const OAuthExchangeRequest& r) {
+    json::Value v = json::Value::object();
+    v.set("provider", json::Value::str(r.provider));
+    v.set("token", json::Value::str(r.token));
+    if (r.token_type.has_value()) {
+        v.set("tokenType", json::Value::str(*r.token_type));
+    }
+    if (r.device_id.has_value()) {
+        v.set("deviceId", json::Value::str(*r.device_id));
+    }
+    if (r.platform.has_value()) {
+        v.set("platform", json::Value::str(*r.platform));
+    }
+    return v;
+}
+
+inline json::Value encode_oauth_bind(const std::string& provider, const std::string& token) {
+    json::Value v = json::Value::object();
+    v.set("provider", json::Value::str(provider));
+    v.set("token", json::Value::str(token));
     return v;
 }
 

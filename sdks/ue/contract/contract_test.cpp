@@ -24,8 +24,8 @@ static int gFailed = 0;
 int main() {
     using namespace courier;
 
-    // 冻结码数量(docs/contract/fixtures/errors.json v5 = 35)。
-    CHECK(static_cast<int>(ErrorCode::kCount) == 35, "kCount == 35");
+    // 冻结码数量(docs/contract/fixtures/errors.json v6 = 38)。
+    CHECK(static_cast<int>(ErrorCode::kCount) == 38, "kCount == 38");
 
     // 抽查冻结映射(wire / HTTP / retryable)。
     CHECK(std::strcmp(error_spec(ErrorCode::CommonInternal).wire, "COMMON_INTERNAL") == 0,
@@ -47,6 +47,15 @@ int main() {
     CHECK(error_spec(ErrorCode::AuthDeleteTokenInvalid).http == 401 &&
               !error_spec(ErrorCode::AuthDeleteTokenInvalid).retryable,
           "AUTH_DELETE_TOKEN_INVALID 401");
+    CHECK(error_spec(ErrorCode::OauthProviderUnknown).http == 400 &&
+              !error_spec(ErrorCode::OauthProviderUnknown).retryable,
+          "OAUTH_PROVIDER_UNKNOWN 400");
+    CHECK(error_spec(ErrorCode::OauthIdentityInvalid).http == 401 &&
+              !error_spec(ErrorCode::OauthIdentityInvalid).retryable,
+          "OAUTH_IDENTITY_INVALID 401");
+    CHECK(error_spec(ErrorCode::OauthIdentityTaken).http == 409 &&
+              !error_spec(ErrorCode::OauthIdentityTaken).retryable,
+          "OAUTH_IDENTITY_TAKEN 409");
     CHECK(error_spec(ErrorCode::AppVersionUnsupported).http == 426,
           "APP_VERSION_UNSUPPORTED 426");
     CHECK(error_spec(ErrorCode::RealnameCurfewBlocked).http == 403 &&
@@ -74,7 +83,7 @@ int main() {
     // 域前缀注册表。
     std::size_t prefixCount = 0;
     const char* const* prefixes = error_prefixes(prefixCount);
-    CHECK(prefixCount == 13, "域前缀 13 个");
+    CHECK(prefixCount == 14, "域前缀 14 个");
     bool hasRate = false;
     for (std::size_t i = 0; i < prefixCount; i++) {
         if (std::strcmp(prefixes[i], "RATE") == 0) hasRate = true;

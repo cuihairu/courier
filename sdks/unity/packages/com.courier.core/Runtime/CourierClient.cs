@@ -82,6 +82,30 @@ namespace Courier
             return _identity.BindAsync(request, ct);
         }
 
+        /// <summary>第三方凭证换会话(v1.1 oauth.md;登录族编排,会话落库 + 生命周期迁移)。</summary>
+        public Task<SessionDto> OAuthExchangeAsync(OAuthExchangeRequest request, CancellationToken ct)
+        {
+            return AuthAsync(() => _identity.ExchangeAsync(request, ct), ct);
+        }
+
+        /// <summary>绑定第三方身份(当前会话 Bearer;绑定不换会话,状态不变)。</summary>
+        public Task<OAuthBindingDto> OauthBindAsync(string provider, string token, CancellationToken ct)
+        {
+            return _identity.OauthBindAsync(provider, token, ct);
+        }
+
+        /// <summary>解绑指定提供方(Bearer,幂等;解绑不影响账号本身)。</summary>
+        public Task OauthUnbindAsync(string provider, CancellationToken ct)
+        {
+            return _identity.OauthUnbindAsync(provider, ct);
+        }
+
+        /// <summary>当前账号已绑定第三方身份列表(Bearer;按 CreatedAt 升序,不返回 Subject)。</summary>
+        public Task<OAuthBindingListDto> OauthBindingsAsync(CancellationToken ct)
+        {
+            return _identity.OauthBindingsAsync(ct);
+        }
+
         /// <summary>登出:服务端吊销 + 本地清场 + signed_out。</summary>
         public Task SignOutAsync(CancellationToken ct)
         {

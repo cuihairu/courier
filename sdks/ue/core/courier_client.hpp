@@ -83,6 +83,11 @@ public:
         return auth_flow([this, &request] { return identity_->register_account(request); });
     }
 
+    /// 第三方凭证换会话完整流(v1.1 oauth.md;登录族编排同 login/guest)。
+    RequestOutcome oauth_exchange(const OAuthExchangeRequest& request) {
+        return auth_flow([this, &request] { return identity_->oauth_exchange(request); });
+    }
+
 private:
     TokenStore* store() { return external_store_ != nullptr ? external_store_ : owned_store_.get(); }
 

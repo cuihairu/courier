@@ -411,3 +411,65 @@ test("cancelDelete:匿名 POST account/delete/cancel 携带 cancelToken", async 
   assert.ok(!("Authorization" in req.headers)); // 匿名端点
   assert.deepEqual(JSON.parse(req.jsonBody ?? "{}"), { cancelToken: "deltok_x" });
 });
+
+// --- 第三方身份(v1.1,oauth.md exchange / bind / 解绑 / 绑定列表)---
+
+test("oauthExchange:匿名 POST oauth/exchange,响应会话落库", async () => {
+  const transport = new FakeTransport();
+  const store = new MemoryTokenStore();
+  const client = new CourierClient({ config, transport, tokenStore: store, sleep: async () => {} });
+  transport.enqueue(200, success({
+    account: {
+      id: "acc_oa", type: "OAUTH", status: "ACTIVE", createdAt: "2026-10-12T00:00:00.000Z",
+    },
+    accessToken: "access-oa",
+    accessExpiresAt: "t",
+    refreshToken: "refresh-oa",
+    refreshExpiresAt: "t",
+    deviceId: "device-1",
+  }));
+
+  const s = await client.identity.oauthExchange({
+    provider: "google", token: "tok_x", deviceId: "device-1", platform: "ios",
+  });
+
+  const req = transport.requests[0];
+  assert.equal(req.method, "POST");
+  assert.equal(req.url, "https://api.example.com/v1/identity/oauth/exchange");
+  assert.ok(!("Authorization" in req.headers)); // 匿名端点
+  assert.deepEqual(JSON.parse(req.jsonBody ?? "{}"), {
+    provider: "google", token: "tok_x", deviceId: "device-1", platform: "ios",
+  });
+  assert.equal(s.account?.type, "OAUTH");
+  assert.equal(store.load()?.accessToken, "access-oa"); // 会话落库,同 login 口径
+});
+
+test("oauthBind/oauthUnbind/oauthBindings:Bearer wire 形状", async () => {
+  const transport = new FakeTransport();
+  const { client } = newClient(transport);
+  transport.enqueue(200, successRaw(sessionJson));
+  await client.identity.guest({ deviceId: "device-1" });
+
+  transport.enqueue(200, success({ provider: "google", createdAt: "2026-10-12T00:00:00.000Z" }));
+  const b = await client.identity.oauthBind("google", "tok_x");
+  assert.equal(transport.requests[1].method, "POST");
+  assert.equal(transport.requests[1].url, "https://api.example.com/v1/identity/oauth/bind");
+  assert.equal(transport.requests[1].headers["Authorization"], "Bearer access-1");
+  assert.deepEqual(JSON.parse(transport.requests[1].jsonBody ?? "{}"),
+    { provider: "google", token: "tok_x" });
+  assert.equal(b.provider, "google");
+
+  transport.enqueue(200, success({}));
+  await client.identity.oauthUnbind("google");
+  assert.equal(transport.requests[2].method, "DELETE");
+  assert.equal(transport.requests[2].url, "https://api.example.com/v1/identity/oauth/bindings/google");
+
+  transport.enqueue(200, success({
+    items: [{ provider: "apple", createdAt: "2026-10-12T00:00:00.000Z" }],
+  }));
+  const list = await client.identity.oauthBindings();
+  assert.equal(transport.requests[3].method, "GET");
+  assert.equal(transport.requests[3].url, "https://api.example.com/v1/identity/oauth/bindings");
+  assert.equal(list.items[0].provider, "apple");
+  assert.ok(!("subject" in list.items[0])); // 不返回 subject,防客户端侧泄露
+});

@@ -391,6 +391,82 @@ int main() {
         CHECK(req.json_body == "{\"cancelToken\":\"deltok_a\"}", "cancel body");
     }
 
+    // ---- v1.1 oauth.md(POST oauth/exchange + oauth/bind,GET bindings +
+    // DELETE bindings/{provider}) ----
+    {
+        Harness h;
+        CHECK(h.client->init(), "init ok");
+        h.transport.enqueue(200, data_envelope(
+            "{\"account\":{\"id\":\"acc_oa\",\"type\":\"OAUTH\",\"status\":\"ACTIVE\","
+            "\"createdAt\":\"t\"},\"accessToken\":\"access-oa\","
+            "\"accessExpiresAt\":\"t\",\"refreshToken\":\"refresh-oa\","
+            "\"refreshExpiresAt\":\"t\",\"deviceId\":\"device-oa\"}"));
+
+        const RequestOutcome out = h.client->oauth_exchange(
+            OAuthExchangeRequest{"google", "ok.sub-1", std::string("ID_TOKEN"),
+                                 std::string("device-oa"), std::nullopt});
+        CHECK(out.ok, "oauth_exchange ok");
+        CHECK(out.data.is_object() && out.data.has("accessToken"), "exchange data present");
+
+        const TransportRequest& req = h.transport.requests[0];
+        CHECK(req.method == "POST", "exchange method POST");
+        CHECK(req.url == "https://api.example.com/v1/identity/oauth/exchange", "exchange url");
+        CHECK(req.headers.find("Authorization") == req.headers.end(), "exchange anonymous");
+        CHECK(req.json_body ==
+                  "{\"provider\":\"google\",\"token\":\"ok.sub-1\","
+                  "\"tokenType\":\"ID_TOKEN\",\"deviceId\":\"device-oa\"}",
+              "exchange body (tokenType 缺省不下发)");
+        CHECK(h.client->session().access_token() == "access-oa", "exchange session adopted");
+    }
+    {
+        Harness h;
+        h.sign_in();
+        h.transport.enqueue(200, data_envelope(
+            "{\"provider\":\"google\",\"createdAt\":\"2026-10-12T00:00:00.000Z\"}"));
+
+        const RequestOutcome out = h.client->identity().oauth_bind("google", "tok_x");
+        CHECK(out.ok, "oauth_bind ok");
+
+        const TransportRequest& req = h.transport.requests[1];
+        CHECK(req.method == "POST", "bind method POST");
+        CHECK(req.url == "https://api.example.com/v1/identity/oauth/bind", "bind url");
+        CHECK(req.headers.at("Authorization") == "Bearer access-1", "bind Bearer");
+        CHECK(req.json_body == "{\"provider\":\"google\",\"token\":\"tok_x\"}", "bind body");
+    }
+    {
+        Harness h;
+        h.sign_in();
+        h.transport.enqueue(200, data_envelope("{}"));
+        h.transport.enqueue(200, data_envelope("{}"));  // 幂等:重复解绑仍 200
+
+        CHECK(h.client->identity().oauth_unbind("google").ok, "unbind 1 ok");
+        CHECK(h.client->identity().oauth_unbind("google").ok, "unbind 2 ok");
+        for (std::size_t i = 1; i <= 2; i++) {
+            const TransportRequest& req = h.transport.requests[i];
+            CHECK(req.method == "DELETE", "unbind method DELETE");
+            CHECK(req.url == "https://api.example.com/v1/identity/oauth/bindings/google",
+                  "unbind url");
+            CHECK(req.headers.at("Authorization") == "Bearer access-1", "unbind Bearer");
+        }
+    }
+    {
+        Harness h;
+        h.sign_in();
+        h.transport.enqueue(200, data_envelope(
+            "{\"items\":[{\"provider\":\"apple\","
+            "\"createdAt\":\"2026-10-12T00:00:00.000Z\"},"
+            "{\"provider\":\"google\",\"createdAt\":\"2026-10-13T00:00:00.000Z\"}]}"));
+
+        const RequestOutcome out = h.client->identity().oauth_bindings();
+        CHECK(out.ok, "oauth_bindings ok");
+        const OAuthBindingListDto list = decode_oauth_bindings(out.data);
+        CHECK(list.items.size() == 2, "bindings count");  // 升序;契约不返回 subject
+        CHECK(list.items[0].provider == "apple" && list.items[0].created_at ==
+                  "2026-10-12T00:00:00.000Z", "bindings[0]");
+        CHECK(list.items[1].provider == "google", "bindings[1]");
+        CHECK(list.next_cursor.empty(), "no nextCursor = 末页");
+    }
+
     if (gFailed > 0) {
         std::printf("ue core tests: %d failed\n", gFailed);
         return 1;

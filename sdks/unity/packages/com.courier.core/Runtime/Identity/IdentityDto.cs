@@ -51,6 +51,24 @@ namespace Courier.Identity
         public string CancelToken { get; set; }
     }
 
+    /// <summary>POST /v1/identity/oauth/bind(绑定第三方身份;Bearer)。</summary>
+    public sealed class OauthBindRequest
+    {
+        public string Provider { get; set; }
+        public string Token { get; set; }
+    }
+
+    /// <summary>POST /v1/identity/oauth/exchange(v1.1 oauth.md:SDK 不内置第三方 SDK,
+    /// 凭证由接入方自行集成取得;凭证只发一次,不本地缓存;TokenType 缺省 ID_TOKEN)。</summary>
+    public sealed class OAuthExchangeRequest
+    {
+        public string Provider { get; set; }
+        public string Token { get; set; }
+        public string TokenType { get; set; }   // ID_TOKEN / ACCESS_TOKEN / CODE,可选
+        public string DeviceId { get; set; }    // 可选
+        public string Platform { get; set; }    // 可选
+    }
+
     // --- 响应 ---
 
     public sealed class AccountDto
@@ -104,5 +122,20 @@ namespace Courier.Identity
         public string CancelToken { get; set; }  // 宽限期撤销凭证,一次性,撤销端点匿名
         public bool PendingDelete { get; set; }
         public string DeletedAt { get; set; }    // RFC3339 ms UTC,立即删才有
+    }
+
+    /// <summary>已绑定第三方身份(v1.1 oauth.md GET bindings:不返回 Subject,
+    /// 防客户端侧泄露第三方标识)。</summary>
+    public sealed class OAuthBindingDto
+    {
+        public string Provider { get; set; }
+        public string CreatedAt { get; set; }
+    }
+
+    /// <summary>GET /v1/identity/oauth/bindings(分页信封:items + nextCursor;缺失/空 = 末页)。</summary>
+    public sealed class OAuthBindingListDto
+    {
+        public List<OAuthBindingDto> Items { get; set; }
+        public string NextCursor { get; set; }
     }
 }

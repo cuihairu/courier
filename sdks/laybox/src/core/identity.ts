@@ -8,6 +8,9 @@ import type {
   CredentialsRequest,
   DeleteAccountResult,
   GuestRequest,
+  OAuthBindingDto,
+  OAuthBindingListDto,
+  OAuthExchangeRequest,
   SessionDto,
 } from "./types.ts";
 
@@ -58,6 +61,31 @@ export class IdentityService {
   async cancelDelete(cancelToken: string): Promise<void> {
     await this.api.request<unknown>(
       "POST", prefix + "account/delete/cancel", { cancelToken }, false);
+  }
+
+  /** 第三方凭证换会话(v1.1 oauth.md):无匹配即创建 type=OAUTH 账号,命中即登录
+   *  同账号(每次签发新会话)。OAUTH_IDENTITY_INVALID → 引导重新授权,不自动重试;
+   *  OAUTH_PROVIDER_UNKNOWN → 该登录方式不可用(可能未配置),不展示对应入口。 */
+  async oauthExchange(request: OAuthExchangeRequest): Promise<SessionDto> {
+    return await this.send<SessionDto>("POST", "oauth/exchange", request, false);
+  }
+
+  /** 绑定第三方身份到当前账号(v1.1 oauth.md;Bearer):供下次一键登录。
+   *  OAUTH_IDENTITY_TAKEN → 该身份已绑定其他账号,可引导改用该账号登录。 */
+  async oauthBind(provider: string, token: string): Promise<OAuthBindingDto> {
+    return await this.send<OAuthBindingDto>("POST", "oauth/bind", { provider, token }, true);
+  }
+
+  /** 解绑指定提供方(v1.1 oauth.md;Bearer,幂等;解绑不影响账号本身)。 */
+  async oauthUnbind(provider: string): Promise<void> {
+    await this.api.request<unknown>(
+      "DELETE", prefix + "oauth/bindings/" + encodeURIComponent(provider), undefined, true);
+  }
+
+  /** 当前账号已绑定列表(v1.1 oauth.md;Bearer;按 createdAt 升序,不返回 subject)。 */
+  async oauthBindings(): Promise<OAuthBindingListDto> {
+    return await this.api.request<OAuthBindingListDto>(
+      "GET", prefix + "oauth/bindings", undefined, true);
   }
 
   private async send<T>(method: string, action: string, body: unknown,
