@@ -820,6 +820,21 @@
 
 - [x] Unity 四工程 dotnet test 全绿(8+57+88+11 = 164);UE 七套 g++ 独立编译全绿;Godot 八套 headless 全绿;vitepress build 过(docs 改动)
 
+## 批次 64 — realname 域第二实现:warden-alt(托管核验)(2026-10-13)
+
+> 来源:巡检派单 R13——todo 未完项(F31 出海需求、F33 落库半边)全为用户侧拍板/部署面阻塞,按 roadmap 阶段 C「每域第二实现」自定位:identity 已双实现(批次 18),realname 为下一域——realname.md Provider 表本就声名三种形态(自建 warden / 托管 warden-alt / 自定义 Webhook),第二实现是契约已有承诺而非造活。
+
+- [x] **warden-alt Provider**(`gateway/providers/wardenalt/`):判定经注入 `CloudVerifier`(契约「自定义 Webhook」形态,`WebhookVerifier` 适配器随包提供)而非本地证件号解析;REJECTED/PENDING_REVIEW 可达(warden 本地校验恒 VERIFIED);证件号 1–64 字符不本地格式校验(格式政策归核验服务);落库只存 {state, isMinor, ageBand, verifiedAt}(不存指纹/出生日期,红线比 warden 更紧);VERIFIED 幂等锁判定不换人重验;REJECTED 是业务结果(可重交,不计熔断);核验服务错误走降级链,全挂 → PENDING_REVIEW 安全态
+- [x] **fail-closed 未配置面**:nil Cloud = HealthCheck 不就绪 → 路由 503 COMMON_UNAVAILABLE(与「默认关闭 501」不同码:配置缺失 ≠ 能力关闭)
+- [x] **监管默认值同口径**:curfew 窗口(周五六日 20–21)与限额分档(5000/20000/10000/40000 分)自含类型、与 warden 同默认;月账本本地记账(accountID+date 幂等,同日重报替换不累加)
+- [x] **一致性 e2e**(批次 18 identity 先例同构):`e2e/realname_conformance_test.go` 两实现 × 成年/未成年链,同一 wire 场景同一断言(状态机/幂等/401/400/F28 下一窗口/F29 单次+月累计/F30 S2S);异构面(判定来源/格式政策/落库内容)只在各自单测断言;no-cloud 503 用例
+- [x] **main.go 装配**:`COURIER_REALNAME_VERIFY_WEBHOOK` 注入核验服务地址(缺省 = 注册但不就绪 → 503);路由表 `{"realname":{"primary":"warden-alt"}}` 即切换
+- [x] **文档对齐**:architecture.md 单实现清单去 warden / roadmap 阶段 C 进度注 / layers.md L4 映射 / provider-guide.md realname 行
+
+### 门禁
+
+- [x] wardenalt 包 `-race` 全绿;gateway 全仓 `go test -count=1 -race ./...` exit 0(19 包)+ `go vet` + `gofmt` 干净;vitepress build 过(docs 改动)
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。

@@ -21,6 +21,7 @@ import (
 	"github.com/cuihairu/courier/gateway/providers/account"
 	"github.com/cuihairu/courier/gateway/providers/router"
 	"github.com/cuihairu/courier/gateway/providers/warden"
+	"github.com/cuihairu/courier/gateway/providers/wardenalt"
 	"github.com/cuihairu/courier/gateway/routing"
 )
 
@@ -31,15 +32,17 @@ const rnS2SToken = "e2e-s2s-secret"
 
 // rnHarness 实名场景装配:mode 决定 realname 能力形态。
 type rnHarness struct {
-	srv    *httptest.Server
-	warden *warden.Warden
-	fake   *fakeRealName
+	srv       *httptest.Server
+	warden    *warden.Warden
+	wardenAlt *wardenalt.Provider
+	fake      *fakeRealName
 }
 
 const (
-	rnDisabled = iota // 不配置 → 501 降级
-	rnWarden          // warden(自建核验)
-	rnFake            // fakeRealName(治理链演示:可整体替换的 Provider)
+	rnDisabled  = iota // 不配置 → 501 降级
+	rnWarden           // warden(自建核验)
+	rnFake             // fakeRealName(治理链演示:可整体替换的 Provider)
+	rnWardenAlt        // warden-alt(托管核验,批次 64 第二实现)
 )
 
 func newRealNameHarness(t *testing.T, mode int, audit ...warden.AuditSink) *rnHarness {
@@ -70,6 +73,25 @@ func newRealNameHarness(t *testing.T, mode int, audit ...warden.AuditSink) *rnHa
 			t.Fatalf("register fake: %v", err)
 		}
 		cfg[providers.CapRealname] = providers.CapabilityConfig{Primary: fakeRealNameName}
+	case rnWardenAlt:
+		// 托管核验脚本:与 warden 本地解析同判定(成人/未成年),判定源不同
+		// (脚本注入 vs 证件号解析)——一致性 e2e 的同断言基础;未登记 = 拒绝。
+		h.wardenAlt = wardenalt.New(wardenalt.Options{
+			RequireAuth: reqAuth, Clock: rnClock, S2SToken: rnS2SToken,
+			Cloud: wardenalt.VerifierFunc(func(_, _ string, idNumber string) (wardenalt.Verdict, error) {
+				switch idNumber {
+				case "110101199001011234":
+					return wardenalt.Verdict{State: "VERIFIED", AgeBand: wardenalt.BandAdult}, nil
+				case "110101201506201234":
+					return wardenalt.Verdict{State: "VERIFIED", IsMinor: true, AgeBand: wardenalt.Band8To16}, nil
+				}
+				return wardenalt.Verdict{State: "REJECTED"}, nil
+			}),
+		})
+		if err := reg.Register(h.wardenAlt); err != nil {
+			t.Fatalf("register wardenalt: %v", err)
+		}
+		cfg[providers.CapRealname] = providers.CapabilityConfig{Primary: wardenalt.DefaultName}
 	}
 	chain := middleware.Chain(middleware.NewRateLimiter(120, 60))
 	h.srv = httptest.NewServer(routing.New(reg, cfg, chain))

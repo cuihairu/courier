@@ -24,6 +24,7 @@ import (
 	"github.com/cuihairu/courier/gateway/providers/scribe"
 	"github.com/cuihairu/courier/gateway/providers/teller"
 	"github.com/cuihairu/courier/gateway/providers/warden"
+	"github.com/cuihairu/courier/gateway/providers/wardenalt"
 	"github.com/cuihairu/courier/gateway/routing"
 )
 
@@ -73,6 +74,22 @@ func main() {
 		S2SToken:    os.Getenv("COURIER_REALNAME_S2S_TOKEN"),
 		AuditSink:   auditSink,
 	})
+	// realname 第二实现(批次 64):warden-alt(托管核验)——判定经注入的
+	// 核验服务(契约「自定义 Webhook」形态)而非本地证件号解析;网关侧只存
+	// 判定态(不存指纹/出生日期,红线上更紧)。核验服务地址经
+	// COURIER_REALNAME_VERIFY_WEBHOOK 注入;未注入 = Provider 注册但
+	// HealthCheck 不就绪,路由 fail-closed 503(不静默半可用)。路由表
+	// {"realname":{"primary":"warden-alt"}} 即切换(一致性 e2e 见
+	// e2e/realname_conformance_test.go:两实现同一 wire 场景全绿)。
+	var cloud wardenalt.CloudVerifier
+	if ep := os.Getenv("COURIER_REALNAME_VERIFY_WEBHOOK"); ep != "" {
+		cloud = wardenalt.WebhookVerifier{Endpoint: ep}
+	}
+	wardenAltP := wardenalt.New(wardenalt.Options{
+		RequireAuth: reqAuth,
+		Cloud:       cloud,
+		S2SToken:    os.Getenv("COURIER_REALNAME_S2S_TOKEN"),
+	})
 	// 配置/应用状态(M3,批次 8):scribe(自建),config/branding/app 同管道;
 	// 玩家侧只读投影,发布/版本/维护开关走管理面(Publish/SetVersion/SetMaintenance)。
 	scribeP := scribe.New(scribe.Options{RequireAuth: reqAuth, Notify: chirpP.Hub().Publish})
@@ -94,7 +111,7 @@ func main() {
 		ChannelSecret: os.Getenv("COURIER_PAYMENTS_CHANNEL_SECRET"),
 		Notify:        chirpP.Hub().Publish,
 	})
-	for _, h := range []providers.Handler{acc, accAlt, heraldP, croupierP, chirpP, wardenP, scribeP, archivistP, sageP, tellerP} {
+	for _, h := range []providers.Handler{acc, accAlt, heraldP, croupierP, chirpP, wardenP, wardenAltP, scribeP, archivistP, sageP, tellerP} {
 		if err := reg.Register(h); err != nil {
 			log.Fatalf("courier gateway: 注册 %s 失败: %v", h.Name(), err)
 		}

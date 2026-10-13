@@ -54,7 +54,7 @@ sidecar 形态契约不动,属部署面演进。
 | announcements | /v1/announcements/ | `herald` | M2 | |
 | support | /v1/support/ | `croupier` | M2 | 注入点最多(见 §4) |
 | messages | /v1/messages/ | `chirp` | M2 | SSE 推送通道,其余域经其 Hub 广播 |
-| realname | /v1/realname/ | `warden` | M2 后段 | **默认关闭**:路由表显式配置才开启(契约红线) |
+| realname | /v1/realname/ | `warden` | M2 后段 | **默认关闭**:路由表显式配置才开启(契约红线);第二实现 `warden-alt`(托管核验,批次 64) |
 | app | /v1/app/ | `scribe` | M3 | config / branding / app 同管道 |
 | player | /v1/player/ | `archivist` | M3 | 玩家档案 + 账号↔角色映射 |
 | assistant | /v1/assistant/ | `sage` | M4 | FAQ 检索;LLM 供应商按同一接口替换,默认不依赖 |
@@ -71,7 +71,7 @@ sidecar 形态契约不动,属部署面演进。
 | support | `croupier.Options.AttachmentSigner`(F44 附件直传)、`PenaltyStore`(F45 处罚投影源:List/Get/Appeal) | nil = 附件 / 处罚能力 501(不内置假存储假风控到生产) |
 | support | `Notify`(坐席回复 → chirp 广播)、`TicketRatePerMinute/Burst`(默认 5/分钟) | nil = 不推送 |
 | payments | `teller.Options.ChannelSecret`(回调 HMAC-SHA256)、`Deliver` 发货钩子(按订单幂等,接入方落库) | 密钥空 = 回调一律 403 `PAYMENT_INVALID_SIGNATURE` |
-| realname | `warden.Options.S2SToken`、`AuditSink`(F33 审计事件面:verify/curfew/charge_check/playtime_report,事件只含账号维度元数据) | S2S 缺省 = fail-closed 401;sink 缺省 = 不产出(`COURIER_REALNAME_AUDIT=log` 开日志半边),落库随部署面 |
+| realname | `warden.Options.S2SToken`、`AuditSink`(F33 审计事件面:verify/curfew/charge_check/playtime_report,事件只含账号维度元数据);`wardenalt.Options.Cloud`(托管核验:核验服务按 `CloudVerifier` 接口注入,`WebhookVerifier` 为契约「自定义 Webhook」形态适配;地址经 `COURIER_REALNAME_VERIFY_WEBHOOK`) | S2S 缺省 = fail-closed 401;sink 缺省 = 不产出(`COURIER_REALNAME_AUDIT=log` 开日志半边),落库随部署面;warden-alt Cloud 缺省 = HealthCheck 不就绪 → 503(fail-closed,配置缺失 ≠ 能力关闭 501) |
 | 级联 | `hooks.Register(hooks.AccountDeleted, fn)`(契约 auth.md v1.1 注册制:注销数据清理由下游 Provider 自订) | 网关不认识任何下游存储 |
 
 ## 5. 凭据与配置注入
@@ -84,7 +84,9 @@ Provider 的密钥一律**环境变量注入、进程内 fail-closed**(`COURIER_
 ## 6. 替换验收:一致性测试先例
 
 「Provider 可换」的行为证明 = **同一 wire 场景对两个实现各跑一遍、同一断言**
-(`gateway/e2e/identity_conformance_test.go`,批次 18):
+(`gateway/e2e/identity_conformance_test.go`,批次 18;实名域同构先例
+`gateway/e2e/realname_conformance_test.go`,批次 64——warden 与 warden-alt
+各跑成年/未成年同一链路):
 
 - 装配与 main.go 同构(registry + 路由表 + 冻结中间件链:trace → 结构化错误 → 限流 → scope);
 - 场景覆盖含跨域校验(换身份源后 herald 照常认证新令牌);
