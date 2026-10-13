@@ -104,3 +104,4 @@ F13 云存档/进度同步——player.md:5,11 红线「进度不经 Courier,角
 - [x] 批次 65 审计直写半边:warden HTTPSink(SIEM/自建落库代理,尽力交付不阻断请求)+ env 接线 + e2e 装配路径实证 | 35a13a4 | gateway -race 19 包 + e2e
 - [x] 批次 66 审计面扩到第二实现:接缝抽共享包 gateway/audit(Provider 互不 import),warden 与 wardenalt 同形状注入同事件序列 + e2e 两实现同断言 | 0060ac9 | gateway -race 20 包 + e2e
 - [x] 批次 67 player 域第二实现 archivist-alt(事件日志模型 vs 状态表,同契约异构)+ 一致性 e2e | 7a93441 | gateway -race 21 包 + e2e
+- [x] 批次 68 messages 域第二实现 chirp-alt(共享环形日志+游标拉取 vs 每订阅者独立缓冲扇出,同契约异构)+ 一致性 e2e | HASH | gateway -race 22 包 + e2e

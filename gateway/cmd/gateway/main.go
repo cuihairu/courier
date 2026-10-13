@@ -19,6 +19,7 @@ import (
 	"github.com/cuihairu/courier/gateway/providers/archivist"
 	"github.com/cuihairu/courier/gateway/providers/archivistalt"
 	"github.com/cuihairu/courier/gateway/providers/chirp"
+	"github.com/cuihairu/courier/gateway/providers/chirpalt"
 	"github.com/cuihairu/courier/gateway/providers/croupier"
 	"github.com/cuihairu/courier/gateway/providers/herald"
 	"github.com/cuihairu/courier/gateway/providers/hooks"
@@ -54,12 +55,20 @@ func main() {
 	sessVerifier := auth.NewSwitchable(acc.Verifier())
 	reqAuth := auth.RequireAuth(sessVerifier)
 	chirpP := chirp.New(chirp.Options{RequireAuth: reqAuth})
-	heraldP := herald.New(herald.Options{RequireAuth: reqAuth, Notify: chirpP.Hub().Publish})
+	// 推送域第二实现(批次 68):chirp-alt(共享环形日志 + 每连接游标拉取)与
+	// chirp(每订阅者独立缓冲扇出)同契约异构;切换 = {"messages":{"primary":"chirp-alt"}}
+	// (一致性 e2e 见 e2e/messages_conformance_test.go:两实现同一 wire 场景全绿)。
+	chirpAltP := chirpalt.New(chirpalt.Options{RequireAuth: reqAuth})
+	// 域 Provider 的 Notify 钩子经此重指(同 sessVerifier.SetTarget 先例):
+	// primary 换到 chirp-alt 时事件发往第二枢纽,流端点与事件源同源。
+	notifyTarget := chirpP.Hub().Publish
+	publish := func(eventType string, data any) { notifyTarget(eventType, data) }
+	heraldP := herald.New(herald.Options{RequireAuth: reqAuth, Notify: publish})
 	// 客服(M2,批次 4):Notify 广播 support.ticket_replied 到 chirp.Hub。
 	// 附件直传(F44,support.md v1.1)存储面由接入方注入 croupier.Options.AttachmentSigner
 	// (换 S3 / OSS / 本地静态服务器 = 换配置,契约不动);未配置 = 501
 	// COMMON_CAPABILITY_DISABLED(不内置假存储到生产)。
-	croupierP := croupier.New(croupier.Options{RequireAuth: reqAuth, Notify: chirpP.Hub().Publish})
+	croupierP := croupier.New(croupier.Options{RequireAuth: reqAuth, Notify: publish})
 	// 实名(M2 后段,批次 7):注册 warden(自建核验),但默认路由表不含 realname
 	// ——契约红线「默认关闭」;接入方在 COURIER_GATEWAY_CONFIG 显式配置
 	// {"realname":{"primary":"warden"}} 开启,S2S 上报凭证经
@@ -104,7 +113,7 @@ func main() {
 	})
 	// 配置/应用状态(M3,批次 8):scribe(自建),config/branding/app 同管道;
 	// 玩家侧只读投影,发布/版本/维护开关走管理面(Publish/SetVersion/SetMaintenance)。
-	scribeP := scribe.New(scribe.Options{RequireAuth: reqAuth, Notify: chirpP.Hub().Publish})
+	scribeP := scribe.New(scribe.Options{RequireAuth: reqAuth, Notify: publish})
 	// 玩家档案(M3,批次 8):archivist(自建轻量)——账号档案 + 账号↔角色映射
 	// (按 scope 隔离;角色数据归各游戏,本域不存)。
 	archivistP := archivist.New(archivist.Options{RequireAuth: reqAuth})
@@ -126,9 +135,9 @@ func main() {
 	tellerP := teller.New(teller.Options{
 		RequireAuth:   reqAuth,
 		ChannelSecret: os.Getenv("COURIER_PAYMENTS_CHANNEL_SECRET"),
-		Notify:        chirpP.Hub().Publish,
+		Notify:        publish,
 	})
-	for _, h := range []providers.Handler{acc, accAlt, heraldP, croupierP, chirpP, wardenP, wardenAltP, scribeP, archivistP, archivistAltP, sageP, tellerP} {
+	for _, h := range []providers.Handler{acc, accAlt, heraldP, croupierP, chirpP, chirpAltP, wardenP, wardenAltP, scribeP, archivistP, archivistAltP, sageP, tellerP} {
 		if err := reg.Register(h); err != nil {
 			log.Fatalf("courier gateway: 注册 %s 失败: %v", h.Name(), err)
 		}
@@ -158,6 +167,11 @@ func main() {
 		// (跟随 identity 域 primary;fallbacks 不参与)。
 		if cc, ok := userCfg[providers.CapIdentity]; ok && cc.Primary == accountalt.DefaultName {
 			sessVerifier.SetTarget(accAlt.Verifier())
+		}
+		// 推送源切换:Notify 钩子跟随 messages 域 primary(同身份源先例;
+		// 赋值先于 ListenAndServe,无数据竞争)。
+		if cc, ok := userCfg[providers.CapMessages]; ok && cc.Primary == chirpalt.DefaultName {
+			notifyTarget = chirpAltP.Publish
 		}
 	}
 

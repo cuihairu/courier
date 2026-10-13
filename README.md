@@ -81,7 +81,8 @@ Game Client (Unity / UE / Cocos / Mini Program / Layabox / Godot)
      - OAuthProvider         third-party login (optional; provider registry, no built-in vendor)
      - AnnouncementProvider  default: herald (event-driven notification delivery)
      - SupportProvider       default: croupier support / ticket / faq
-     - MessageProvider       default: chirp (gateway + session)
+     - MessageProvider       default: chirp (gateway + session);
+                             second impl chirp-alt (ring log + cursor, same contract)
      - RealNameProvider      default: warden (built-in verification; Alibaba Cloud /
                              Tencent Cloud Huiyan / Yidun / Webhook adapters share one shape);
                              second impl warden-alt (managed verification, same contract)
