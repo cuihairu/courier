@@ -11,6 +11,7 @@
 > **更新**(2026-10-13,批次 65):F33 直写半边已落(网关 `warden.HTTPSink`,SIEM 摄取端 / 自建落库代理按 `COURIER_REALNAME_AUDIT_WEBHOOK`(+ `_TOKEN`)注入;尽力交付不阻断实名请求;e2e 经完整装配面实证,零新错误码);剩余 = 保留策略与查询面,归接入方存储实现。
 > **更新**(2026-10-13,批次 66):F33 审计面扩到第二实现——接缝抽到共享包 `gateway/audit`(Provider 互不 import,不能挂任一 Provider 下),warden 与 warden-alt 同形状注入 `AuditSink`、同事件序列(verify/curfew/charge_check/playtime_report,status 纯读不留痕);main.go 同源接线,e2e 两实现同断言;零新错误码。
 > **更新**(2026-10-14,对账):过期阻塞销项——F13(player.md:5,11 红线「进度不经 Courier」)、F58/F59/F60/F61/F63(features.md §10 定性「玩法系统非服务递送」)决策已落,由「待议」移「不做」;F33 仓内面已全落(批次 62/65/66),余保留策略与查询面归接入方存储(audit.go:3 已注);F14/F15 注明当前契约面无适用面。待议 9→3、不做 7→13。
+> **更新**(2026-10-14,批次 67):player 域第二实现 archivist-alt(事件日志模型:变更追加事件、读=投影重放,与 archivist 状态表同契约异构)落地——单测含追加只读/投影重放/注销弃历史异构面,e2e 一致性(两实现同 wire 场景同断言),main 同源接线;零新错误码。
 > **更新**(2026-10-13,批次 56):F45 由 ❌ → ✅(support.md v1.1 举报与处罚申诉节 Frozen → 网关 → SDK 六端 → e2e 分批落地,证据 commit 见行内);F11 错误码表 v7→v8(+SUPPORT 举报/申诉 2 码,42 码)。
 > **核对方法**:「已有」声称引用批次号+commit(来自 todo 各批验收记录);「缺口」声称以 grep 机器核对为准(零命中/命中行注明;批次 45 时点 announcement.md `filter` 0 命中、support.md `context` 0 命中、全契约 `language/locale` 0 命中,已分别于批次 51/57 落地);auth.md:10 与 realname.md:100 为契约明示的边界预留。
 > **图例**:✅ 已落地(仓库内有契约+实现+测试/e2e 证据,部署面残留另行注明)· ◑ 部分(核心面已落,剩余明示)· ❌ 缺口(仓库内未立项/未实现)· 🔌 Provider(不进核心契约)· ⏸ 待议 · ⛔ 不做。
@@ -31,7 +32,7 @@
 | F10 | scope 隔离 | ✅ | scope.md Frozen+网关 scope 中间件;批次 2(`cdd391d`) |
 | F11 | 统一错误码 | ✅ | errors.md v8 42 码六端生成对差零漂移(v8 举报/申诉 2 码);批次 1/29/51/56(`5317802`/`d02ddcc`) |
 | F12 | 凭据管理 | ✅ | 客户端零 Provider 凭证(architecture.md 安全边界) |
-| F16 | 玩家档案 | ✅ | player.md Frozen+archivist;批次 8(`72bf15c`) |
+| F16 | 玩家档案 | ✅ | player.md Frozen+archivist;批次 8(`72bf15c`);第二实现 archivist-alt(事件日志,同契约可换 + 一致性 e2e)批次 67 |
 | F18 | 服务端权威写入 | ✅ | Gateway 唯一入口(批次 2)+支付服务端定价(批次 10) |
 | F19 | 商品列表/渠道拉起 | ✅ | payment.md SKUs+payToken 归渠道 SDK;批次 10;真实渠道随部署面 |
 | F20 | 收据验真 | ✅ | 回调签名先于 body 解析 fail-closed;批次 10;商店 API 真核验随部署面 |

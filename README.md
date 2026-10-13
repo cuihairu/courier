@@ -87,7 +87,8 @@ Game Client (Unity / UE / Cocos / Mini Program / Layabox / Godot)
                              second impl warden-alt (managed verification, same contract)
      - ConfigProvider        default: scribe (remote config, built-in pipeline)
      - BrandingProvider      default: scribe (same pipeline as Config)
-     - PlayerProvider        default: archivist (profile + account-player mapping)
+     - PlayerProvider        default: archivist (profile + account-player mapping);
+                             second impl archivist-alt (event log, same contract)
      - AssistantProvider     default: sage (FAQ search Q&A)
      - PaymentsProvider      default: teller (order-callback-delivery)
      - DiagnosticsProvider   direct-to-endpoint, not via gateway (contract red line;

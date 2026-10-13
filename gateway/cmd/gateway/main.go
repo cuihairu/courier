@@ -17,6 +17,7 @@ import (
 	"github.com/cuihairu/courier/gateway/providers/account"
 	"github.com/cuihairu/courier/gateway/providers/accountalt"
 	"github.com/cuihairu/courier/gateway/providers/archivist"
+	"github.com/cuihairu/courier/gateway/providers/archivistalt"
 	"github.com/cuihairu/courier/gateway/providers/chirp"
 	"github.com/cuihairu/courier/gateway/providers/croupier"
 	"github.com/cuihairu/courier/gateway/providers/herald"
@@ -110,6 +111,11 @@ func main() {
 	// 注销级联钩子(契约 auth.md v1.1 注册制):网关不认识下游存储,各 Provider
 	// 自行订阅清理(archivist 清档案与角色绑定);新 Provider 接入 = 注册钩子。
 	hooks.Register(hooks.AccountDeleted, archivistP.DeleteAccount)
+	// 玩家档案第二实现(批次 67):archivist-alt(事件日志模型——变更追加事件、
+	// 读=投影重放)与 archivist(状态表)同契约异构;注销级联各自订阅
+	// (弃历史=清档案与绑定);切换 = {"player":{"primary":"archivist-alt"}}。
+	archivistAltP := archivistalt.New(archivistalt.Options{RequireAuth: reqAuth})
+	hooks.Register(hooks.AccountDeleted, archivistAltP.DeleteAccount)
 	// 小助手(M4,批次 9):sage(自建 FAQ 检索)——命中即答,答不出引导转人工
 	// (复用 support 域提单链路,经客户端组装;LLM 供应商按同一接口替换,默认不依赖)。
 	sageP := sage.New(sage.Options{RequireAuth: reqAuth})
@@ -122,7 +128,7 @@ func main() {
 		ChannelSecret: os.Getenv("COURIER_PAYMENTS_CHANNEL_SECRET"),
 		Notify:        chirpP.Hub().Publish,
 	})
-	for _, h := range []providers.Handler{acc, accAlt, heraldP, croupierP, chirpP, wardenP, wardenAltP, scribeP, archivistP, sageP, tellerP} {
+	for _, h := range []providers.Handler{acc, accAlt, heraldP, croupierP, chirpP, wardenP, wardenAltP, scribeP, archivistP, archivistAltP, sageP, tellerP} {
 		if err := reg.Register(h); err != nil {
 			log.Fatalf("courier gateway: 注册 %s 失败: %v", h.Name(), err)
 		}
