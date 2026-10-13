@@ -10,6 +10,7 @@
 > **更新**(2026-10-13,批次 62):F33 维持 ❌ 但事件面半边已落(网关 `warden.AuditSink` 注入 + `LogSink` 日志半边 + 红线测试,零新错误码);剩余 = 落库 sink 随部署面。
 > **更新**(2026-10-13,批次 65):F33 直写半边已落(网关 `warden.HTTPSink`,SIEM 摄取端 / 自建落库代理按 `COURIER_REALNAME_AUDIT_WEBHOOK`(+ `_TOKEN`)注入;尽力交付不阻断实名请求;e2e 经完整装配面实证,零新错误码);剩余 = 保留策略与查询面,归接入方存储实现。
 > **更新**(2026-10-13,批次 66):F33 审计面扩到第二实现——接缝抽到共享包 `gateway/audit`(Provider 互不 import,不能挂任一 Provider 下),warden 与 warden-alt 同形状注入 `AuditSink`、同事件序列(verify/curfew/charge_check/playtime_report,status 纯读不留痕);main.go 同源接线,e2e 两实现同断言;零新错误码。
+> **更新**(2026-10-14,对账):过期阻塞销项——F13(player.md:5,11 红线「进度不经 Courier」)、F58/F59/F60/F61/F63(features.md §10 定性「玩法系统非服务递送」)决策已落,由「待议」移「不做」;F33 仓内面已全落(批次 62/65/66),余保留策略与查询面归接入方存储(audit.go:3 已注);F14/F15 注明当前契约面无适用面。待议 9→3、不做 7→13。
 > **更新**(2026-10-13,批次 56):F45 由 ❌ → ✅(support.md v1.1 举报与处罚申诉节 Frozen → 网关 → SDK 六端 → e2e 分批落地,证据 commit 见行内);F11 错误码表 v7→v8(+SUPPORT 举报/申诉 2 码,42 码)。
 > **核对方法**:「已有」声称引用批次号+commit(来自 todo 各批验收记录);「缺口」声称以 grep 机器核对为准(零命中/命中行注明;批次 45 时点 announcement.md `filter` 0 命中、support.md `context` 0 命中、全契约 `language/locale` 0 命中,已分别于批次 51/57 落地);auth.md:10 与 realname.md:100 为契约明示的边界预留。
 > **图例**:✅ 已落地(仓库内有契约+实现+测试/e2e 证据,部署面残留另行注明)· ◑ 部分(核心面已落,剩余明示)· ❌ 缺口(仓库内未立项/未实现)· 🔌 Provider(不进核心契约)· ⏸ 待议 · ⛔ 不做。
@@ -44,7 +45,7 @@
 | F29 | 充值限额 | ✅ | charge-check F29 分龄限额;批次 7 |
 | F30 | 防沉迷上报 | ✅ | playtime-report S2S 幂等月累计;批次 7 |
 | F31 | 年龄门/同意(海外) | ❌ | realname.md:100 明示 v1.1 预留 consent 组(出海需求触发再冻结);未立项 |
-| F33 | 审计留痕 | ❌ | trace 贯穿已有(layers.md L5);事件面已落(共享接缝 `gateway/audit.AuditSink` 注入,nil = 不产出;事件只含账号维度元数据,身份输入红线不进事件,批次 62);内置两个接收面:`LogSink`(`COURIER_REALNAME_AUDIT=log`)+ `HTTPSink`(`COURIER_REALNAME_AUDIT_WEBHOOK`(+ `_TOKEN`),SIEM/自建落库代理,尽力交付不阻断请求,批次 65);两实现(warden / warden-alt)同形状注入、同事件序列(批次 66);保留策略与查询面归接入方存储实现 |
+| F33 | 审计留痕 | ❌(仓内面 ✅) | trace 贯穿已有(layers.md L5);事件面已落(共享接缝 `gateway/audit.AuditSink` 注入,nil = 不产出;事件只含账号维度元数据,身份输入红线不进事件,批次 62);内置两个接收面:`LogSink`(`COURIER_REALNAME_AUDIT=log`)+ `HTTPSink`(`COURIER_REALNAME_AUDIT_WEBHOOK`(+ `_TOKEN`),SIEM/自建落库代理,尽力交付不阻断请求,批次 65);两实现(warden / warden-alt)同形状注入、同事件序列(批次 66);保留策略与查询面归接入方存储实现(audit.go:3 已注)——仓内面已全落,余归接入方 |
 | F34 | 公告系统 | ✅ | announcement.md Frozen+herald;批次 6(`38fe759`) |
 | F35 | 公告定向过滤 | ✅ | announcement.md Frozen v1.1 `filters` 开集 map + 四查询维度;herald 匹配 + SDK list 参数(`53eaa7c`)+ e2e 命中/未命中/详情 404;批次 51(`5317802`/`f20e9ab`) |
 | F36 | 跑马灯 | ✅ | 数据面零新契约(severity 字段 announcement.md:32);跑马灯呈现随批次 54 落 UI 包(TS 三端 `onMarqueeRendered`/`formatMarquee` + Unity `MarqueeRendered`/`AnnouncementText`,packcheck 结构守卫,`8127ba9`) |
@@ -85,12 +86,13 @@
 | F55 | 崩溃与性能监控 | diagnostics 可选包直发自托管端点(Sentry/GlitchTip/OTLP) |
 | F57 | 数据导出 | Provider |
 
-## 待议(9 项)与不做(7 项)
+## 待议(3 项)与不做(13 项)
 
 | ID | 功能 | 处置 |
 | --- | --- | --- |
-| F13/F14/F15 | 云存档/分级权限/写锁合并 | ⏸ 待议——存档面留 Provider,不做统一钱包式假设 |
-| F58/F59/F60/F61/F63 | 排行榜/成就/Stats/赛季/活动 | ⏸ 待议——玩法非服务,防范围失控(features.md §13 结论⑤) |
+| F14/F15 | 分级权限/写锁合并 | ⏸ 待议——当前契约面无适用面(档案仅 displayName/avatarUrl 无分层;唯一写 PATCH displayName 无并发冲突面),边界待议 |
+| F13 | 云存档/进度同步 | ⛔ 不做——player.md:5,11 红线「进度不经 Courier,角色数据归各游戏服」,边界已定 |
+| F58/F59/F60/F61/F63 | 排行榜/成就/Stats/赛季/活动 | ⛔ 不做——features.md §10 定性「玩法系统非服务递送」,防范围失控(§10 结论⑤),边界已定 |
 | F62 | 邮件/礼包码 | ⏸ 待议优先评估——与消息面相邻 |
 | F51 | GM/运营工具界面 | ⛔ 不做界面——croupier API 面保留,界面归 Provider 管理面 |
 | F54 | 买量归因 | ⛔ 不做——垂直领域 |
@@ -101,4 +103,4 @@
 | ID | 缺口 | 建议落点 |
 | --- | --- | --- |
 | F31 | 年龄门/家长同意(海外) | realname v1.1 consent 组(realname.md:100 已预留) |
-| F33 | 审计落库 | 部署面;事件面 + 直写半边已落(批次 62/65/66:`gateway/audit.AuditSink` + `LogSink` + `HTTPSink`,两实现同形状);剩保留策略与查询面,归接入方存储实现 |
+| F33 | 审计落库 | 仓内面已全落(批次 62/65/66:`gateway/audit.AuditSink` + `LogSink` + `HTTPSink`,两实现同形状);剩保留策略与查询面,归接入方存储实现(audit.go:3 已注)——卡接入方存储形态拍板 |
