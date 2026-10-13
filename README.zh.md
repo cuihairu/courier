@@ -184,7 +184,22 @@ node --test tests/*.test.ts        # 在 sdks/cocos、sdks/miniprogram、sdks/la
 sh sdks/ue/run_tests.sh            # UE 无引擎独立编译(ISO C++17)
 ```
 
-Unity 纯逻辑测试为 4 个 dotnet 测试工程(`dotnet test`,免引擎);引擎内 Test Runner 实跑属部署面。文档站:`npm install && npm run docs:build`(vitepress)。CI 在 push(main)/PR 跑同一套门禁,另有 unity-dotnet 与 examples e2e 两道门禁:[.github/workflows/tests.yml](.github/workflows/tests.yml)。
+Unity 纯逻辑测试为 4 个 dotnet 测试工程(`dotnet test`,免引擎);引擎内 Test Runner 实跑属部署面。文档站:`npm install && npm run docs:build`(vitepress)。CI 在 push(main)/PR 跑同一套门禁(文档改动除外,见下节),另有 unity-dotnet 与 examples e2e 两道门禁:[.github/workflows/tests.yml](.github/workflows/tests.yml)。
+
+## 本地测试口径
+
+CI 与本地开发按改动面三路分流——改一行文档不该全量编译。
+
+1. **文档改动**(`*.md` + 图片扩展名):不编译。主 CI workflow 的
+   `paths-ignore` 已按扩展名跳过(`**/*.md`、`**/*.{svg,png,jpg,jpeg,gif,webp}`)。
+   **不按 `docs/**` 整树排除**——`docs/contract/fixtures/*.json` 是 contractgen
+   的测试输入(契约漂移守卫),改动它必须跑测试;文档站的构建与发布另由
+   deploy-docs.yml 的 `paths: docs/**` 覆盖。
+2. **代码改动**:只跑改动子集,不全量。
+   - `go test ./<改动包>/...`
+   - `dotnet test <改动 csproj>`
+3. **全量**(`go test ./... + dotnet test`):仅以下情形触发——go.mod / go.sum / *.csproj、
+   `.github/**`、Docker/Compose 配置、发布前。
 
 ## License
 
