@@ -198,6 +198,19 @@ sh sdks/ue/run_tests.sh            # UE headless (ISO C++17, no engine needed)
 
 Unity pure-logic tests run as 4 dotnet test projects (`dotnet test`, engine-free); in-engine Test Runner runs are a deployment concern. Docs site: `npm install && npm run docs:build` (vitepress). CI runs the same gates on push (main) / PR, plus the unity-dotnet and examples e2e gates: [.github/workflows/tests.yml](.github/workflows/tests.yml).
 
+
+## 本地测试口径
+
+CI 与本地开发按改动面三路分流——改一行文档不该全量编译。
+
+1. **文档改动**（`*.md`、`docs/**`、图片）：不编译。主 CI workflow 的
+   `paths-ignore` 已跳过这些路径。
+2. **代码改动**：只跑改动子集，不全量。
+   - `go test ./<改动包>/...`
+   - `dotnet test <改动 csproj>`
+3. **全量**（`go test ./... + dotnet test`）：仅以下情形触发——go.mod / go.sum / *.csproj、
+   `.github/**`、Docker/Compose 配置、发布前。
+
 ## License
 
 Apache-2.0
