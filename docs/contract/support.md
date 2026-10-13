@@ -31,6 +31,7 @@
 | --- | --- | --- |
 | `id` | id | 服务端生成,UUIDv7,前缀 `tkt_` |
 | `title` | string | 1–120 字符 |
+| `category` | string? | 工单分类(大写下划线枚举,接入方自定义集合,未知值容忍不拒;缺省 `OTHER`) |
 | `status` | 枚举 | `OPEN` / `REPLIED` / `CLOSED`(大写;提单 = `OPEN`,坐席回复 = `REPLIED`,任一侧关单 = `CLOSED`) |
 | `context` | object? | 工单上下文(v1.1):扁平**开集** map,仅原始值;服务端零解释透传,提单时写入、详情 `ticket.context` 原样回显;缺省 = 无上下文 |
 | `createdAt` / `updatedAt` | timestamp | RFC 3339 毫秒 UTC |
@@ -89,7 +90,7 @@
 
 | 参数 | 说明 |
 | --- | --- |
-| `keyword` | 关键词,1–64 字符,命中 = question/answer/keywords 包含(不区分大小写);缺省 = 返回全部 |
+| `keyword` | 关键词,命中 = question/answer/keywords 包含(不区分大小写);契约口径 1–64 字符,网关侧未强制长度上限(超长按原文匹配);缺省 = 返回全部 |
 | `limit` | 默认 20,最大 50 |
 
 `data` = `{ "items": [faq...], "nextCursor": "" }`;无命中返回空 `items`(不是错误)。

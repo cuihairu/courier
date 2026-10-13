@@ -77,7 +77,7 @@ RealName
 
 ### playtime-report(F30,S2S)
 
-请求 `{ "date": "YYYY-MM-DD", "playMinutes": int, "chargeAmountCents": int }`;响应 `data: {}`。
+请求 `{ "accountId": "acc_...", "date": "YYYY-MM-DD", "playMinutes": int, "chargeAmountCents": int }`(裸对象信封外);响应 `data: {}`。
 
 - 优先服务端 S2S 上报,避免客户端重复上报;幂等键 = `accountId + date`(同日重报取最新)。
 
@@ -127,9 +127,10 @@ HealthCheck() → bool
 **降级链与熔断:**
 
 - 主 Provider 失败/超时 → 依序尝试 fallback;全部失败 → 返回 `PENDING_REVIEW`(安全态:不通过也不拒绝放量,转人工/延迟复核)。
-- 熔断:连续 N 次(默认 5)失败开路 T 秒(默认 30s),半开放行探测;熔断期间直接走 fallback。
+- 熔断:连续 N 次(默认 5)失败开路,开路后 **30 次调用**半开放行探测(实现按调用次数驱动,无定时器);熔断期间直接走 fallback。
 - 业务性「不匹配」(核验结果 `REJECTED`)是**有效结果**,不计入熔断失败;熔断只统计调用失败(网络/超时/5xx)。
 - HealthCheck 供路由表剔除不健康实例。
+- 审计留痕:关键动作(verify / curfew / charge_check / playtime_report)已落结构化审计事件面,接收面为接入方注入点(缺省 = 不产出;日志半边可按需开启);事件只含账号维度元数据,身份输入不入事件;落库 sink 与保留策略随部署面(契约面不变)。
 
 以上热插拔/降级/熔断规则为通用 Provider 治理规则(见 [architecture.md](../architecture.md)「Provider 治理」),RealName 是第一个完整适用方。
 

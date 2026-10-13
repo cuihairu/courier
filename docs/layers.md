@@ -36,7 +36,7 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 
 **接口形状**
 
-- 基元:primitives / errors / scope / versioning / events;域:auth(Frozen v1)、announcement/support/messages(Frozen v1)、realname(Frozen v1)、config/app/branding/player/diagnostics(Frozen v1 · M3)、assistant(Frozen v1 · M4)、payment(Frozen v1 · M5)。
+- 基元:primitives / errors / scope / versioning / events;域:auth(Frozen v1.1)、announcement/support/messages(Frozen v1.1)、realname(Frozen v1)、config/app/branding/player/diagnostics(Frozen v1 · M3)、assistant(Frozen v1 · M4)、payment(Frozen v1.1 · M5)、oauth(Frozen v1,批次 52)。
 
 **现仓映射**:`docs/contract/`(本仓)+ `docs/contract/fixtures/` + `tools/contractgen`(契约测试骨架:fixture 生成六端契约源,漂移即测试红)。
 
@@ -47,7 +47,7 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 **职责**
 
 - 可单测纯逻辑:DTO 解析与校验、**生命周期状态机**(Uninitialized→…→PlayerReady、Suspended/Resuming)、token 存储接口、transport 接口、重试与超时、错误归一(错误码→本端枚举)。
-- `CourierClient` 门面按能力树组域:Identity / Session / Player / App / Communication / Support / Payment / RealName / Diagnostics 接入点。
+- `CourierClient` 门面仅组 Identity / Session 两接入点;能力树九域接入点归 Service 包 `CourierServices` 门面(各端同构)。
 
 **边界**
 
@@ -65,8 +65,8 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 
 **职责**
 
-- 平台翻译四件事:网络(原生 HTTP / SSE 流式读)、存储(ITokenStore 安全存储实现)、生命周期(前后台/进程信号→状态机事件)、线程(主线程回调调度);打包形态(UPM / UE 插件 / npm;Godot 以项目形态落位,插件化打包随引擎集成面)。
-- **可选 UI 包挂在平台侧**:CourierLoginPanel / AnnouncementPanel / SupportPanel,消费 Branding 下发(见 L2 边界:Core 无品牌逻辑)。
+- 平台翻译四件事:网络(原生 HTTP / SSE 流式读)、存储(ITokenStore 安全存储实现)、生命周期(前后台/进程信号→状态机事件)、线程(主线程回调调度);打包形态(UPM / npm 已落;UE 插件化与 Godot 插件化打包随引擎集成面,仓内 UE 为引擎无关 C++ 头文件树、Godot 为项目形态)。
+- **可选 UI 包挂在平台侧**:AnnouncementPanel / CustomerServicePanel / AssistantPanel / RealNamePanel,消费 Branding 下发(见 L2 边界:Core 无品牌逻辑)。
 
 **边界**
 
@@ -75,7 +75,7 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 
 **接口形状**
 
-- ITokenStore:Unity 加密存储 / UE 平台凭证 / Cocos localStorage / 微信 storage / Layabox LocalStorage / Godot user:// 持久文件;ITransport:各平台网络栈。
+- ITokenStore:Unity 加密存储 / 微信 storage / Layabox LocalStorage / Godot user:// 持久文件已落地;UE 平台凭证与 Cocos localStorage 未落仓(仓内仅 MemoryTokenStore,平台持久化随接入方/引擎面提供);ITransport:各平台网络栈。
 
 **现仓映射**:Unity——`sdks/unity/packages/com.courier.core/Runtime/Adapter`(UnityWebRequest 传输 / SecureTokenStore 加密存储 / ApplicationLifecycleMonitor 前后台 / UnityWebRequestSseSource messages SSE 流读,批次 37 落位),`tools/packcheck` 结构验收,UPM 四包(core/service/ui/diagnostics)落位;TS 三端 adapter——cocos 与 miniprogram 的 `platform/wechat`、laybox 的 `platform/laya`(wx.request / wx storage / LayaAir 可见性与 onLine 信号;微信端 sseSource.ts——wx.request enableChunked 分块流读 + 增量 UTF-8 解码,批次 39 落位;laybox 端 sseSource.ts——XHR 流读 onprogress 增量 + onload 净关流重连,批次 40 落位);UE C++ header-only 批次 14 落位(引擎集成面 HttpModule 待引擎环境);Godot `src/platform`(httpTransport——HTTPClient poll 真传输、fileTokenStore——user:// 持久令牌存储、sseStreamTransport——messages SSE 流读 chunked 分框+退避重连、lifecycleMonitor——前后台信号→状态机事件,批次 34/35/36 落位,八套 headless 全绿)。
 
@@ -94,7 +94,7 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 | SupportProvider | 工单/FAQ 投影 | croupier |
 | MessageProvider | 推送通道/会话复用 | chirp |
 | RealNameProvider | 实名核验(热插拔/降级链/熔断) | warden(自建核验;第二实现 warden-alt 托管核验,判定经注入 CloudVerifier;阿里云/腾讯云慧眼/易盾/Webhook 同形状可接) |
-| ConfigProvider | 远程配置下发 | scribe(条件投影 + 灰度分桶) |
+| ConfigProvider | 远程配置下发 | scribe(条件投影 + 灰度分桶;config/branding/app 同由 scribe.AppProvider 单接口覆盖) |
 | BrandingProvider | 品牌素材下发 | scribe(与 config 同管道) |
 | PlayerProvider | 账号档案 + 账号↔角色映射 | archivist(scope 隔离) |
 | AssistantProvider | FAQ 检索问答(命中原样快照不生成) | sage(转人工复用 support 域;LLM 预留默认不依赖) |
@@ -104,11 +104,11 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 **边界**
 
 - 不做入口治理(鉴权/限流归 L5);不做 UI;Provider 未配置 = 能力降级(`COMMON_CAPABILITY_DISABLED`),不报错、不拖垮其他能力。
-- 治理规则全 Provider 通用:配置驱动路由表(`primary`+`fallbacks[]`)、运行时热重载、降级链、熔断、HealthCheck(详见 architecture.md「Provider 治理」)。
+- 治理规则:配置驱动路由表(`primary`+`fallbacks[]`)、降级链、HealthCheck 全 Provider 通用;运行时热重载与熔断实名域已落地(`providers/router`),其余域为预留接缝(详见 architecture.md「Provider 治理」)。
 
 **接口形状**
 
-- 每域一个 Provider 接口 + `Register(registry)` 注册;接口与实现分离,默认实现可整体替换。
+- 每域一个 Provider 接口;实现 `providers.Handler` 后由装配方 `reg.Register(h)` 注册(接口与实现分离,默认实现可整体替换)。
 
 **现仓映射**:`gateway/providers/`(接口形状批次 2 冻结;`account/` AccountProvider 批次 3;`herald/` `croupier/` `chirp/` 三域默认实现批次 6,Notify 钩子装配解耦——发布/回复事件经注入的 `Publish` 进 chirp Hub,Provider 互不 import;`router/` 治理引擎 + `warden/` 实名自建核验批次 7——降级链/熔断/热重载首个完整落地,后续域复用;`scribe/` config/app/branding 同管道 + `archivist/` 玩家档案批次 8——M3 热生效/维护门/品牌热切换 e2e 验收;`sage/` 小助手批次 9——M4 检索问答/命中率统计/转人工 e2e 验收;`teller/` 支付批次 10——M5 服务端定价/回调 HMAC 签名面/断单对账 e2e 验收;`accountalt/` 第二 identity 实现(同契约异构,HMAC 自验证令牌)批次 18——装配期读 COURIER_GATEWAY_CONFIG 随 identity primary 重指;`wardenalt/` 第二 realname 实现(托管核验,判定经注入 CloudVerifier,网关侧只存判定态)批次 64——同 wire 场景一致性 e2e(批次 18 先例同构))。
 
@@ -119,7 +119,7 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 **职责**
 
 - 唯一入口:auth / session / scope / routing / aggregation / middleware(限流、trace、恢复、scope、维护门);审计依赖 trace 贯穿,实名域已落结构化审计事件面(`warden.AuditSink` 注入,nil = 不产出;`COURIER_REALNAME_AUDIT=log` 开日志半边),落库随部署面。
-- Provider 注册表管理:路由按「已配置的 Provider」动态挂载;未配置能力的路由不注册。
+- Provider 注册表管理:已知能力域的路由全量挂载;未配置能力的路由在分发期返回 `COMMON_CAPABILITY_DISABLED`(501),非路由缺位。
 
 **边界**
 
@@ -155,9 +155,9 @@ Go `http.ServeMux` + 中间件链(trace → 结构化错误 → 限流 → scope
 
 | 层 | 现仓落点 | 状态 |
 | --- | --- | --- |
-| L1 SDK Contract | `docs/contract/` + `tools/contractgen` | 基元五件 Frozen v1 + auth v1 + M2 三域 v1 + realname v1 + M3 五域(config/app/branding/player/diagnostics)v1 + assistant(M4)v1 + payment(M5)v1.1;错误码 v4 |
+| L1 SDK Contract | `docs/contract/` + `tools/contractgen` | 基元五件 Frozen v1 + auth v1.1 + M2 三域 v1.1 + realname v1 + M3 五域(config/app/branding/player/diagnostics)v1 + assistant(M4)v1 + payment(M5)v1.1 + oauth v1(批次 52);错误码 v8 |
 | L2 Core | `sdks/unity/packages/com.courier.core/Runtime/{Core,Identity,Session}`;`sdks/cocos/src/core`;`sdks/ue/core` | Unity 批次 4 落位(状态机+auth 域,48 用例;批次 37 SseStream 接缝+退避);cocos TS 批次 12-13 落位(core+service 全域);批次 38 messages 流客户端落位(TS 三端 node:test 111 例,真 chunked 服务器 e2e);批次 39 增量 UTF-8 解码器落位(跨块多字节不撕裂,node:test 123 例);UE C++ 批次 14 落位(core+service 全域,纯 ISO C++17 header-only);批次 38 流编排落位(g++ 七套全绿) |
-| L3 Platform Adapter | `sdks/unity/packages/com.courier.core/Runtime/Adapter`(+UPM 包;`tools/packcheck`);TS 三端 adapter(`sdks/cocos`、`sdks/miniprogram` 的 platform/wechat,`sdks/laybox` 的 platform/laya) | Unity 批次 5 落位(传输/安全存储/前后台);批次 6 service 域服务+SSE 解析、ui 面板;批次 8 App/Config/Branding/Player 域服务 + diagnostics 可选包(默认全关 no-op);批次 9 Assistant 域服务 + 助手面板(转人工);批次 10 Payment 域服务(下单/轮询);批次 37 SSE 流读接线(`UnityWebRequestSseSource`,编排退避/重连/解析在 Core+Service 纯逻辑 dotnet 77 例,引擎内 Test Runner 实跑随部署面);TS 三端批次 12-17 落位(wechat/laya 绑定;ui 包批次 17、diagnostics 包批次 20);批次 38 TS 三端 FetchSseSource(fetch 流读默认实现)+ UE SseSource 接缝落位;批次 39 微信 enableChunked 流源落位(cocos/miniprogram,头到回填连接 + 手写 UTF-8 解码);批次 40 laya XHR 流源落位(onprogress 增量 + onload 净关流重连;UE 引擎接线随引擎环境);ui 包批次 17、diagnostics 包批次 20 落位(cocos 首落,批次 41 三端对齐——TS 三端 node:test 各 123 例);Godot 批次 34/35/36 落位(HTTPClient 传输 + user:// 存储 + messages SSE 流读 + 前后台信号,真 socket 验证) |
+| L3 Platform Adapter | `sdks/unity/packages/com.courier.core/Runtime/Adapter`(+UPM 包;`tools/packcheck`);TS 三端 adapter(`sdks/cocos`、`sdks/miniprogram` 的 platform/wechat,`sdks/laybox` 的 platform/laya) | Unity 批次 5 落位(传输/安全存储/前后台);批次 6 service 域服务+SSE 解析、ui 面板;批次 8 App/Config/Branding/Player 域服务 + diagnostics 可选包(默认全关 no-op);批次 9 Assistant 域服务 + 助手面板(转人工);批次 10 Payment 域服务(下单/轮询);批次 37 SSE 流读接线(`UnityWebRequestSseSource`,编排退避/重连/解析在 Core+Service 纯逻辑,dotnet 77 例 [Fact] 覆盖——SSE 专属仅 16 例,引擎内 Test Runner 实跑随部署面);TS 三端批次 12-17 落位(wechat/laya 绑定;ui 包批次 17、diagnostics 包批次 20);批次 38 TS 三端 FetchSseSource(fetch 流读默认实现)+ UE SseSource 接缝落位;批次 39 微信 enableChunked 流源落位(cocos/miniprogram,头到回填连接 + 手写 UTF-8 解码);批次 40 laya XHR 流源落位(onprogress 增量 + onload 净关流重连;UE 引擎接线随引擎环境);ui 包批次 17、diagnostics 包批次 20 落位(cocos 首落,批次 41 三端对齐——TS 三端 node:test 各 123 例);Godot 批次 34/35/36 落位(HTTPClient 传输 + user:// 存储 + messages SSE 流读 + 前后台信号,真 socket 验证) |
 | L4 Service Provider | `gateway/providers/*` | 接口形状批次 2 冻结;account 批次 3;herald/croupier/chirp 批次 6(M2 三域,e2e 验收);router 治理引擎 + warden 实名批次 7;scribe + archivist 批次 8(M3,e2e 验收);sage 批次 9(M4,e2e 验收);teller 批次 10(M5,e2e 验收);accountalt 第二 identity 实现(同契约异构)批次 18;wardenalt 第二 realname 实现(托管核验)批次 64 |
 | L5 Gateway | `gateway/{cmd,routing,middleware,scope,aggregation,auth,session,e2e}` | 批次 2 骨架;auth/session 批次 3;能力驱动路由+SSE 通道+e2e 批次 6;维护门批次 8 |
 

@@ -18,7 +18,7 @@ hero:
 
 features:
   - title: 账号与会话
-    details: 注册/登录、token 轮换、设备绑定;一个账号登录所有游戏
+    details: 注册/登录(含第三方 OAuth 登录,可选)、token 轮换、设备绑定;一个账号登录所有游戏
   - title: 玩家
     details: 账号 ↔ 游戏角色映射与档案接口,角色数据归各游戏
   - title: 消息与公告
@@ -29,8 +29,10 @@ features:
     details: Provider 热插拔(降级链+熔断);默认关闭,开启明示数据范围
   - title: 远程配置与品牌
     details: 按 game_id/env/platform/version/region 匹配;品牌素材下发,UI 包消费
+  - title: 助手
+    details: FAQ 检索问答(可选),命中原样快照不生成,答不出引导转人工
   - title: 诊断(可选)
-    details: 崩溃/错误追踪、OTel Trace、性能指标、埋点;默认全关,未配置即 no-op
-  - title: 支付(仅契约)
-    details: Order/Purchase/Receipt;账号钱包/游戏钱包/直购/外部支付四形态可选
+    details: 崩溃、OTel Trace、性能指标、埋点;默认全关,未配置即 no-op
+  - title: 支付(契约+沙箱渠道)
+    details: Order/Purchase/Receipt;内置沙箱渠道(teller)全链已实现,真实渠道随部署面;四形态可选
 ---

@@ -89,6 +89,8 @@
 
 各域业务错误码随该域契约冻结;本表 code 一经冻结不得改语义。
 
+> **注册保留码(当前无触发点)**:`REALNAME_REQUIRED` / `REALNAME_REJECTED` / `REALNAME_PENDING_REVIEW` / `REALNAME_CURFEW_BLOCKED` / `REALNAME_CHARGE_BLOCKED` 与 `SESSION_CONFLICT` 已注册,但当前网关无触发点——实名域判定经 200 判定态载荷表达(见 [realname.md](./realname.md)),会话冲突语义未实现;错误化触发待设计拍板,客户端按未知码兜底分支处理。
+
 > **messages 域(推送通道,M2 [messages.md](./messages.md))不设专属前缀**:通道层
 > 错误全部复用通用码(关闭 `COMMON_CAPABILITY_DISABLED`、未认证 `COMMON_UNAUTHENTICATED`、
 > 限流 `RATE_LIMITED`);推送事件的业务语义由事件 `type` 与 data 承载,不是错误。

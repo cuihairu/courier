@@ -2,7 +2,7 @@ import { defineConfig } from 'vitepress'
 
 export default defineConfig({
   title: 'Courier — Universal Game SDK',
-  description: 'Universal Game SDK — 为 Unity / Unreal / Cocos / Godot 等引擎提供统一的账号、认证、公告、客服、支付、实名、远程配置、品牌与诊断等游戏服务接口',
+  description: 'Universal Game SDK — 为 Unity / Unreal / Cocos / Godot / 微信小游戏 / LayaBox 提供统一的账号、认证、公告、客服、推送、支付、实名、远程配置、品牌与诊断等游戏服务接口',
   base: '/courier/',
   head: [['link', { rel: 'icon', type: 'image/svg+xml', href: '/courier/logo.svg' }]],
   markdown: {

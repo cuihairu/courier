@@ -13,7 +13,7 @@
 
 > **A universal SDK for integrating common game services across engines and platforms.**
 >
-> Courier is a universal SDK for games. It exposes one set of interfaces for account, authentication, player, messaging, announcements, customer support, payments, real-name verification, remote configuration, branding, and diagnostics across game engines such as Unity, Unreal, Cocos, and Godot.
+> Courier is a universal SDK for games. It exposes one set of interfaces for account, authentication, player, messaging, announcements, customer support, payments, real-name verification, remote configuration, branding, and diagnostics across game engines and platforms such as Unity, Unreal, Cocos, Godot, WeChat Mini Program, and LayaBox.
 
 Courier means messenger: it is not any single business feature. It delivers service capabilities to the game client on the game's behalf.
 
@@ -78,11 +78,13 @@ Game Client (Unity / UE / Cocos / Mini Program / Layabox / Godot)
   -> Backend Providers (provided by default, replaceable, disableable):
      - AccountProvider       default: courier-account (built-in accounts/sessions;
                              second impl courier-account-alt, same contract)
+     - OAuthProvider         third-party login (optional; provider registry, no built-in vendor)
      - AnnouncementProvider  default: herald (event-driven notification delivery)
      - SupportProvider       default: croupier support / ticket / faq
      - MessageProvider       default: chirp (gateway + session)
      - RealNameProvider      default: warden (built-in verification; Alibaba Cloud /
-                             Tencent Cloud Huiyan / Yidun / Webhook adapters share one shape)
+                             Tencent Cloud Huiyan / Yidun / Webhook adapters share one shape);
+                             second impl warden-alt (managed verification, same contract)
      - ConfigProvider        default: scribe (remote config, built-in pipeline)
      - BrandingProvider      default: scribe (same pipeline as Config)
      - PlayerProvider        default: archivist (profile + account-player mapping)
@@ -106,7 +108,7 @@ One company-wide account
 - **One account signs in to every game**: a player registers once and enters any game under the company with the same credentials.
 - **Characters stay per-game**: the same account has independent character data, inventory, and level in each game.
 - **Payment shapes stay open**: the contract only defines Order/Purchase/Receipt. Account wallet, per-game wallet, direct purchase, or external payment is each game's choice; no unified-wallet assumption.
-- **Unified support**: tickets and FAQ are isolated by game_id, while the same account's ticket history is visible across games.
+- **Unified support**: tickets and FAQ are account-scoped (the provider has no game dimension; per-game isolation is a deployment concern), and the same account's ticket history is visible across games.
 
 Scope model: `game_id + env` isolates globally. It is specified once at initialization and must not appear in URLs or payloads (see [contract scope.md](docs/contract/scope.md)).
 
@@ -115,33 +117,33 @@ Scope model: `game_id + env` isolates globally. It is specified once at initiali
 ```text
 Courier
 ├── Core          Lifecycle / Network / Error / Retry / Cache / Telemetry hooks
-├── Identity      Login / Logout / Bind / Device / RealName (optional, compliance)
+├── Identity      Login / Logout / Bind / Device / OAuth (optional, third-party) / RealName (optional, compliance)
 ├── Session       AccessToken / RefreshToken / Session
 ├── Player        Profile / Game Player
 ├── App           Version / Maintenance / Remote Config / Branding
 ├── Communication Announcement / Message / Push
 ├── Support       FAQ / Ticket (core) + Panel (optional UI package)
 ├── Payment       Order / Purchase / Receipt (contract only; four shapes optional)
-├── Diagnostics   Crash / Error Tracking / OTel Trace / Perf / Analytics (optional package)
+├── Diagnostics   Crash / OTel Trace / Perf / Analytics (optional package)
 └── Platform      Unity / Unreal / Cocos / Godot / Layabox / MiniProgram
 ```
 
-SDK packages: **Core (required) / Service (as needed) / UI (optional)**. `CreateTicket()` lives in the core; `CourierSupportPanel` lives in the optional UI package. Diagnostics is likewise an optional package, disabled by default and a zero-cost no-op when unconfigured.
+SDK packages: **Core (required) / Service (as needed) / UI (optional)**. `CreateTicket()` lives in the core; `CustomerServicePanel` lives in the optional UI package. Diagnostics is likewise an optional package, disabled by default and a zero-cost no-op when unconfigured.
 
 | Capability | Description | Default Provider (replaceable/disableable) | Milestone |
 | --- | --- | --- | --- |
 | Identity / Session | Register/sign in (email+password, guest device), token rotation, device binding; one account for all games | Built-in accounts/sessions | M1 |
-| Announcements | Fetch/subscribe to announcements, events, maintenance notices (isolated per game) | herald + croupier message | M2 |
+| Announcements | Fetch/subscribe to announcements, events, maintenance notices (per-game scope; no game dimension inside the provider) | herald + croupier message | M2 |
 | Support | Ticket submission/query, FAQ search (account-scoped, visible across games) | croupier support/ticket/faq | M2 |
 | Messages (push channel) | SSE event stream, one connection for all domain events; capability off → pull-only fallback (announcement polling, manual support refresh) — features never break | chirp; off = pull-only fallback | M2 |
 | Real-name (optional) | Real-name verification + anti-addiction hook interface; hot-swappable provider (degradation chain + circuit breaker); disabled by default, explicit data-scope notice when enabled | Self-hosted / Alibaba Cloud / Tencent Cloud Huiyan / Yidun / Webhook | late M2 |
-| Remote Config | Condition matching on game_id/env/platform/version/region, hot effect | Built-in (publishable via croupier) | M3 |
+| Remote Config | Condition matching on platform/version/region (game_id/env are admin-audience dimensions), hot effect | Built-in (publishable via croupier) | M3 |
 | Player Profile | Account↔character mapping and profile interfaces; character data belongs to each game | Built-in (lightweight) + each game server | M3 |
-| App | GetVersion / CheckUpdate / CheckMaintenance / GetEnvironment | Built-in | M3 |
+| App | CheckUpdate / CheckMaintenance / GetEnvironment | Built-in | M3 |
 | Branding | Company name/logo/theme color/about page/support entry, delivered per game_id+env; consumed by the UI package, Core has no branding logic, Courier-branded fallback by default | Built-in (same pipeline as Config) | M3 |
 | Diagnostics (optional) | Crash/error tracking, OTel Trace, performance metrics, analytics events; all off by default | Sentry/GlitchTip/self-hosted OTLP | M3+ |
 | Assistant | FAQ bot, in-game guide | Can connect to croupier faq | M4 |
-| Payment | Contract only: Order/Purchase/Receipt; the four shapes are each game's choice | Channel abstraction; optional risk pre-check (off by default) | M5 |
+| Payment | Contract + built-in sandbox channel (teller); the four shapes are each game's choice | Channel abstraction; optional risk pre-check (off by default) | M5 |
 
 ## Repository Layout
 
@@ -150,13 +152,17 @@ gateway/    Courier API gateway (Go): auth, session, scope, routing, aggregation
             middleware, providers
 sdks/
   unity/    Unity SDK (C#, UPM packages)
-  ue/       Unreal Engine SDK (C++ plugin)
+  ue/       Unreal Engine SDK (engine-agnostic C++, header-only + standalone tests;
+            engine plugin surface not landed)
   cocos/    Cocos Creator SDK (TypeScript)
-  miniprogram/  WeChat Mini Program SDK (JavaScript)
+  miniprogram/  WeChat Mini Program SDK (TypeScript/JavaScript)
   laybox/   Layabox SDK (TypeScript/JavaScript)
   godot/    Godot SDK (GDScript)
 docs/       Contracts (contract/), architecture, five-layer design, competitive
             research (research/), roadmap, TODO
+examples/   Six-end runnable examples (unity / ue / cocos / miniprogram / laybox / godot)
+tools/      Repo gates: contractgen (contract test skeleton), packcheck (UPM structure),
+            tsync (TS three-end parity)
 ```
 
 ## Design Boundaries
@@ -165,7 +171,7 @@ docs/       Contracts (contract/), architecture, five-layer design, competitive
 2. **The gateway is the single entry point**: clients never talk to backend providers directly; the gateway handles authentication, rate limiting, and aggregation.
 3. **Providers live only in providers/**: the gateway contains no business directories; business logic always connects through provider interfaces. A capability that is not connected degrades (`COMMON_CAPABILITY_DISABLED`) instead of erroring.
 4. **One account, many games**: the account is the top-level entity across games; characters (players) are per-game and created independently by each game.
-5. **Payments define contract only**: the four shapes stay open, and the unified-wallet assumption stays out of the contract; the sandbox channel runs the full chain first, and callbacks trust channel signatures only.
+5. **Payments define contract only**: the four shapes stay open, and the unified-wallet assumption stays out of the contract; the built-in teller channel runs the full chain (order-callback-delivery), and callbacks trust channel signatures only.
 6. **Collection/compliance off by default**: the red lines of Diagnostics and Real-name are built into the contract — disabled by default, enabled explicitly, with the data scope stated when enabled.
 7. **UI is always optional**: Core/Service/UI packages are separate; Core has no UI and no branding logic.
 8. **No any/unknown hand-waving**: public types in every SDK align with the contract; inventing fields per client is forbidden.
@@ -173,7 +179,7 @@ docs/       Contracts (contract/), architecture, five-layer design, competitive
 
 ## Documentation Index
 
-- Contract constitution (M0): [docs/contract/](docs/contract/index.md) — primitives/errors/scope/versioning/events base contracts + all domain contracts frozen: auth (M1), announcement/support/messages (M2), realname (M2), config/app/branding/player/diagnostics (M3), assistant (M4), payment (M5); diagnostics is a client-only optional package, direct-to-endpoint, not via gateway
+- Contract constitution (M0): [docs/contract/](docs/contract/index.md) — primitives/errors/scope/versioning/events base contracts + all domain contracts frozen: auth (M1), oauth (third-party login, optional), announcement/support/messages (M2), realname (M2), config/app/branding/player/diagnostics (M3), assistant (M4), payment (M5); diagnostics is a client-only optional package, direct-to-endpoint, not via gateway
 - Architecture: [docs/architecture.md](docs/architecture.md) · Five layers: [docs/layers.md](docs/layers.md)
 - Competitive research: [docs/research/competitive.md](docs/research/competitive.md)
 - Roadmap: [docs/roadmap.md](docs/roadmap.md) · Batch TODO: [docs/todo.md](docs/todo.md)
@@ -183,14 +189,14 @@ docs/       Contracts (contract/), architecture, five-layer design, competitive
 Local gates (run all green before commit):
 
 ```text
-go test ./...                      # root module: contractgen + packcheck
+go test ./...                      # root module: contractgen + packcheck + tsync
 (cd gateway && go test ./...)      # gateway module: all providers + e2e
 (cd gateway && go vet ./...)       # copylocks etc. beyond go test's default vet
 node --test tests/*.test.ts        # in each of: sdks/cocos, sdks/miniprogram, sdks/laybox
 sh sdks/ue/run_tests.sh            # UE headless (ISO C++17, no engine needed)
 ```
 
-Unity tests run in Unity Test Runner (needs the engine). Docs site: `npm install && npm run docs:build` (vitepress). CI runs the same gates on every push/PR: [.github/workflows/tests.yml](.github/workflows/tests.yml).
+Unity pure-logic tests run as 4 dotnet test projects (`dotnet test`, engine-free); in-engine Test Runner runs are a deployment concern. Docs site: `npm install && npm run docs:build` (vitepress). CI runs the same gates on push (main) / PR, plus the unity-dotnet and examples e2e gates: [.github/workflows/tests.yml](.github/workflows/tests.yml).
 
 ## License
 

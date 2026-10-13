@@ -1,840 +1,108 @@
-# Courier TODO — 分批落地
-
-> 原则:**不堆业务,先立骨架;契约先行**。每批交付「接口形状 + 最小实现 + 验收」;批次映射五层([layers.md](./layers.md)),里程碑映射 [roadmap](./roadmap.md)。
-
-## 批次 0 — 更名与定位(已完成,2026-10)
-
-- [x] Concierge → Courier 全量更名(标识符、包名、环境变量、文档、站点、二进制)
-- [x] 定位重写:Universal Game SDK + 信使隐喻 + 站点同步
-- [x] 五层架构设计文档([docs/layers.md](./layers.md))与本分批 todo(本文档)
-
-## 批次 1 — M0 Contract 立宪(已完成,2026-10)
-
-- [x] 基元契约初稿:[primitives](./contract/primitives.md) / [errors](./contract/errors.md) / [scope](./contract/scope.md) / [versioning](./contract/versioning.md) / [events](./contract/events.md)
-- [x] 域契约初稿:[realname](./contract/realname.md) / [branding](./contract/branding.md) / [diagnostics](./contract/diagnostics.md)(红线与 Provider 口径内建)
-- [x] 跨端评审(≥ Unity + 一个非 C# 端)→ 冻结升 v1(四端视角过读,6 项修订;记录见 [contract/index.md](./contract/index.md))
-- [x] 契约测试骨架(各端错误枚举/DTO 对齐断言)([fixtures](./contract/fixtures/) + `tools/contractgen` 生成六端契约源,漂移即测试红)
-- **验收**:依契约手写 DTO 无歧义(roadmap M0)——unity(dotnet 8 用例)/ cocos / miniprogram / laybox(node:test 6×3)/ ue(g++)全绿;godot 为引擎侧卡点;gateway 服务端 codeTable↔fixture 同步测试并入
-- **落地**:commit `d5dbebf`(评审+冻结 v1)/ `a60d8ed`(测试骨架);realname / branding / diagnostics 仍 Draft 初稿,实现前冻结
-
-## 批次 2 — Gateway 瘦身骨架(M1 前置工程,已完成,2026-10)
-
-- [x] 目录重构:auth / session / scope / routing / aggregation / middleware / providers(业务目录不存在,业务一律 Provider)
-- [x] Provider 注册表接口形状冻结:`Register(registry)` + 配置驱动路由表(`primary`+`fallbacks[]`)
-- [x] 能力降级语义:未配置 Provider → 路由不注册 / `COMMON_CAPABILITY_DISABLED`
-- [x] 保留 `/healthz`;中间件链:trace → 结构化错误 → 限流 → scope
-- **验收**:go test(含 -race)覆盖注册/降级/中间件行为;`accounts` 等业务名不出现在 gateway 一级目录
-- **落地**:commit `cdd391d`;auth/session 为 M1 占位,热重载与熔断留批次 7
-
-## 批次 3 — M1:AccountProvider(自建)+ auth 契约(已完成,2026-10)
-
-- [x] `docs/contract/auth.md` 冻结(Frozen v1)
-- [x] accounts / sessions:邮箱+密码、游客设备、access/refresh 轮换、吊销、设备绑定
-- [x] 数据表:accounts、account_credentials、sessions、devices;基础限流
-- **验收**:roadmap M1 服务端项——go test(含 -race)覆盖结构化错误全码路径与登录限流(429 + Retry-After);e2e 全链路(游客→绑定→登出→轮换→重放吊销→拒绝)
-- **落地**:commit `3c24cfc`(契约)/ `39b5007`(实装);持久化与多实例限流协同随 M1 后续
-
-## 批次 4 — M1:Unity Core(L2)(已完成,2026-10)
-
-- [x] `CourierClient` 门面 + Identity/Session 域
-- [x] 生命周期状态机(Uninitialized→…→PlayerReady、Suspended/Resuming)+ 生命周期事件
-- [x] ITransport / ITokenStore / IClock 注入接口;重试与超时
-- [x] 纯逻辑单测(不依赖 Unity 运行时)
-- **验收**:状态机全事件单测;与 auth 契约字段 100% 对齐——xunit 45 用例:转移表逐行断言+8 非法转移、契约事件仅 6 个、guest 请求体逐字段/会话 DTO 全字段 wire 对齐、bind Bearer、失败信封 typed 枚举回 Ready、TOKEN_EXPIRED 自动 refresh 轮换重放、REUSED 吊销清场+signed_out、Init 恢复三态(有效被动/expired refresh 清场/expired access 轮换)
-- **落地**:commit `8b9ed8a`;Newtonsoft(DateParseHandling.None 保 RFC3339 原文)入 Runtime,平台实现留批次 5
-
-## 批次 5 — M1:Unity Adapter + 三包骨架(L3)(已完成,2026-10)
-
-- [x] UPM 包骨架:Core / Service / UI 三包目录(UI 包可空,结构就位)
-- [x] 安全存储实现 ITokenStore(非明文 PlayerPrefs);UnityWebRequest 实现 ITransport
-- [x] 前后台/进程信号 → 状态机事件
-- **验收**:M1 全链路(游客→绑定→登出→refresh 轮换→吊销拒绝)Core 层 45+ 用例与 gateway e2e 双覆盖;切后台恢复状态正确由状态机转移表用例保证(Resuming 回挂起前态)。UPM 骨架、asmdef 隔离、L2 零平台引用、Adapter 符号、测试工程 include 防漂移由 `tools/packcheck` 结构验收守
-- **落地**:commit `516c1a0`;L2 迁入 com.courier.core 包,asmdef 隔离纯内核与 Adapter;TryFire 平台幂等;硬件级安全存储(Keychain/Keystore)与真机链路留引擎侧卡点
-
-## 批次 6 — M2:公告/客服/推送 Provider + UI 包(已完成,2026-10)
-
-- [x] AnnouncementProvider / SupportProvider / MessageProvider(herald、croupier、chirp 为默认供应商,均可配置替换或关闭)
-- [x] 推送通道:chirp 会话复用;关闭 = 仅拉取兜底
-- [x] 可选 UI 包首发(公告栏/客服页),消费 Branding(默认标)
-- **验收**:roadmap M2 前两项——网关 e2e 四例:运营发布→SSE 5s 内推送+拉取历史一致;messages 关闭→501 COMMON_CAPABILITY_DISABLED 且拉取兜底可用;提单→坐席回复→SSE 实时可见+详情 REPLIED;匿名 stream 401。契约层:错误码 v2(26 码)三端同步(dotnet 8 / TS 6×3 / UE 26 枚举)。Unity 侧:service 包 wire 断言 17 例(路由/请求体/typed 404·409·429 不重试)+ SSE 解析 9 例;packcheck 守 service 纯净/ui 引擎件/asmdef 依赖链
-- **落地**:契约 commit `8ec5702`;网关 commit `38fe759`;客户端 commit `a4ce1eb`;SSE 流式传输与 TokenStore 真机验证留引擎侧卡点;herald/croupier 与 chirp 经 Notify 钩子装配解耦(不互相 import)
-
-## 批次 7 — M2 后段:实名(合规)(已完成,2026-10)
-
-- [x] RealNameProvider 热插拔:路由表热重载、降级链、熔断(首个实现:自建核验;云厂商按需)
-- [x] 默认关闭;开启即数据范围明示;脱敏口径落 UI
-- **验收**:roadmap M2 实名验收项——契约 realname.md Frozen v1(F27–F30 端点表 + 错误码 v3,调研「可参考分析」落点兑现);治理引擎 `providers/router`(降级链保序、熔断开路/半开探测、路由表原子热重载在途按旧表完成,业务结果不计失败,9 例 -race);warden 自建核验(SHA-256 指纹不存明文、幂等、F28 窗口、F29 分龄限额、S2S 上报幂等月累计,14 例);e2e 6 例含「主熔断→fallback 接管→全挂 PENDING_REVIEW」经 HTTP 与热重载不中断;默认关闭经 main 注册但不配路由表(接入方显式开启);Unity 侧 RealNameService(501 转 null 不报错)+ RealNameMask 统一脱敏 + 五态面板(ServiceTests 36 例)
-- **落地**:契约 `e835ff2`;网关 `e926626`;客户端 `a3dc311`;云厂商适配(阿里云/慧眼/易盾/Webhook)按接入方需要接同一 `router.RealNameProvider` 形状;进程级配置热重载触发(SIGHUP 等)留部署面
-
-## 批次 8 — M3:Config / Player / App / Branding / Diagnostics(已完成,2026-10)
-
-- [x] ConfigProvider(条件匹配 + 热生效);Player Profile;Courier.App
-- [x] BrandingProvider(config 同管道);UI 包消费品牌;构建期物料指引
-- [x] Diagnostics 可选包(四类 Provider 适配;默认全关,no-op 零开销)
-- **验收**:roadmap M3 验收项——契约 config/app/branding/player/diagnostics 五件 Frozen v1(player 零新增错误码,复用通用码;diagnostics 红线内建:默认全关/开启明示/关闭即零上报/永不反噬)。网关 scribe(config/app/branding 同管道,条件投影缺省维度跳过 + fnv64 灰度分桶 + 版本全局单调、branding 键值透传 + version 保留键、维护门白名单内建)+ archivist(档案懒建/修剪校验、角色绑定幂等 + scope 隔离 + ≤50/账号/游戏、fail-closed);e2e 五例:配置热生效(命中端 items 变化/未命中端不变)、维护拦新会话不拦既有流与 app 域、版本/环境端点、品牌热切换。Unity:AppService/AppConfigService/BrandingService/PlayerService(501 → 空结果或 null 不进报错路径)+ UI BrandingCatalog 兜底链(远端 productName > 宿主 BrandTitle > 内置默认)双面板标题热切换;diagnostics 可选包 `com.courier.diagnostics`(四类接口 + 自有端点直发,DiagnosticsTests 11 例:默认零上报/逐类开启逐类生效/关闭立即归零/≤1KB 与原始类型校验/失败静默不反噬),核心三包不依赖它(packcheck 双向守卫)
-- **落地**:契约 `569fc8b`(config+app)/ `60adb4c`(branding+事件登记)/ `a91c179`(player)/ `164e9e4`(diagnostics);网关 `33c5c18`(scribe+维护门+config e2e)/ `a3be6f7`(branding 端点+e2e)/ `72bf15c`(archivist);客户端 `c7fdf63`(App/Config)/ `cbaa42d`(Branding+UI)/ `43118be`(Player)/ `43ed745`(diagnostics 包);Sentry/OTLP 生态适配与构建期物料模板随各端模板工程落档
-
-## 批次 9 — M4:Assistant;批次 10 — M5:Payment
-
-- [x] FAQ 检索问答 + 转人工(M4)(已完成,2026-10)
-- [x] Payment Contract 冻结(订单/回调 + 四形态)+ 沙箱渠道全链路(M5)(已完成,2026-10)
-
-### 批次 9 落地(M4,2026-10)
-
-- [x] assistant.md Frozen v1:检索式问答(命中返回知识条目**原样快照**,答不生成——可审计不幻觉);未命中不是错误(200 + suggestTransfer);零新增错误码;LLM 接口预留但默认不依赖(接入方换供应商,契约语义不变)
-- [x] sage 默认供应商:知识库管理面登记(AddEntry,自带库不反向依赖 support 域)、检索评分、QueryStats 命中率统计(进程内);e2e 两例:命中/未命中/400 校验 + 转人工链路端到端(未命中 → support 提单 → 坐席回复 REPLIED → 玩家详情可见)
-- [x] Unity AssistantService(未命中即结果对象、501→null 隐藏入口)+ AssistantPanel(AskAsync 渲染 + TransferToHumanAsync 一键提单,标题 `[助手]` 前缀);packcheck 守三面板
-- **验收**:roadmap M4——常见问题命中率可统计(QueryStats + 单测/e2e 断言);转人工链路端到端(e2e)
-- **落地**:契约 `1104081`;网关 `2481383`(sage+e2e)/ `786b14b`(stats);客户端 `9b45f9e`(service)/ `1047bb1`(UI 面板);持久化知识库与跨实例统计聚合、LLM 供应商接入随部署面
-
-### 批次 10 落地(M5,2026-10)
-
-- [x] payment.md Frozen v1:订单-回调模型(下单只收 skuId 服务端定价;渠道回调签名即认证——X-Payment-Signature = hex HMAC-SHA256(secret, rawBody),验证先于 body 解析,伪造/错钥/未配密钥一律 403 fail-closed);四形态(DIRECT_PURCHASE/ACCOUNT_WALLET/GAME_WALLET/EXTERNAL_PAYMENT)只是订单标注不产生不同状态机;状态机 CREATED→PAID→DELIVERED / CREATED|PAID→CLOSED;发货失败订单停 PAID 不丢单,管理面对账重发(断单可对账恢复);回调幂等不二次发货;归属 404 不泄露存在性;PAYMENT 域 5 码入 errors.md v4(全端 contractgen 同步)
-- [x] teller 默认供应商:价格表管理面(AddSku 改价不影响已建订单)、下单(风控前置 RiskCheck→403)、S2S 回调(恒时比较、幂等受理、paidAt 透传)、Reconcile 对账(停 PAID 枚举重发)、CloseOrder(DELIVERED 不可关→409 PAYMENT_ORDER_STATE);e2e 四例:全链(价格表投影/服务端定价防伪造金额字段/发货指令含定价事实/详情列表无 payToken)、签名面(缺头/错钥/篡改全部 403 订单停 CREATED)、断单对账恢复、风控拒绝+未知订单回调 404
-- [x] Unity PaymentService(SKU 投影/下单/列表/详情轮询,501→null 隐藏商城 UI;payToken 只在下单响应出现,消费归渠道 SDK,契约不解释;金额原样渲染不做客户端计算)+ ServiceTests 6 例;packcheck 守 service 包新件
-- **验收**:roadmap M5——服务端定价(客户端无法改价)、回调签名面 fail-closed(单测+e2e 三伪造形态)、断单对账恢复(e2e)、回调幂等不二次发货(单测+e2e)
-- **落地**:契约 `9df7ba7`(payment v1 + errors v4);网关 `ddcbd03`(teller+e2e);客户端 `fff7125`(service);真实渠道接入、订单持久化与定时对账随部署面
-
-## 批次 11 — M5 后段:支付推送事件(v1.1)
-
-- [x] payment.md v1.1:推送事件 `payment.paid` / `payment.delivered`(广播提示,载荷只含 orderId——金额/SKU 归拉取端点按归属过滤;幂等重复回调不重发,只报状态转移;发货感知升级「推送为提示、轮询为准」);events.md / messages.md 事件登记同步
-- [x] teller Notify 钩子(接 chirp.Hub,同 herald/croupier 装配;CREATED→PAID 发 paid、转 DELIVERED 发 delivered 含对账恢复重发);e2e:SSE 断言 paid/delivered 5s 内送达、断单只发 paid、Reconcile 补发 delivered、幂等回调与伪造签名静默不推送
-- **落地**:契约 `60b5d22`;网关 `79c5bce`;客户端注释同步随 docs 提交;订单持久化、定时对账与离线推送(APNs/FCM)随部署面
-
-## 批次 12 — cocos(TS)core + service 层
-
-- [x] core(`315717c`):FetchTransport(超时/网络错误归一 UNAVAILABLE)、ApiClient(scope 头恒发、匿名本地预检不发包、信封解析、空/非 JSON 体按状态码兜底、Retry-After 优先退避、AUTH_TOKEN_EXPIRED 刷新重放一次不计重试)、SessionService(单飞刷新、REUSED/REVOKED 清库、尽力而为登出)、IdentityService(guest/register/login 匿名 + bind Bearer 不采纳会话)
-- [x] service(`09be3a9` + `db69d8e`,unity CourierServices 同构,501→null 隐藏入口):announcements/support(SSE 帧解析器:注释/多行 data/未知字段容忍)、app(三端点匿名;503 APP_MAINTENANCE / 426 typed 抛,SDK 不自动跳转)、config(缓存 + needsRefetch version 判据;501→v0 空结果用内建默认值)、branding(匿名透传零解释)、player(PATCH undefined 键不下发)、assistant(未命中非错误 matched=false+suggestTransfer)、payments(下单只收 skuId 服务端定价;payToken 仅下单响应;发货感知=轮询 DELIVERED)、realname(姓名/证件号只传输一次不缓存不落盘;curfew/charge-check 前置校验)
-- [x] 测试:零依赖 `node --test` 41 例全绿(契约 6 / core 18 / service 17),对齐 unity CoreTests 形态(FakeTransport 脚本化)
-- **落地**:core `315717c`、announcements/support `09be3a9`、八域 service `db69d8e`;平台适配器(微信小游戏 storage/原生存储)、生命周期状态机、UI 包随部署面
-
-## 批次 13 — 生命周期状态机 + 微信小游戏适配器
-
-- [x] 生命周期状态机(`ce974f7`,L2 core,unity Lifecycle.cs 同构):九态十触发严格迁移表(architecture.md 状态图全表;Resuming→ResumeCompleted 回挂起前稳定态)、fire 非法抛 / tryFire 幂等否决(平台信号处理器不许崩)、契约事件面:lifecycle.initialized/suspended/resumed/signed_out + 会话域发 token_expired(自动 refresh 开始)/account_switched(切号检测,首登与同号重登不发);CourierClient 接线:init()、guestLoginAsync/loginAsync/registerAsync 认证流(守卫 Ready/SignedOut,失败 AuthFailed 回退 Ready 可重试)、session adopt→切号、refresh→token_expired、REUSED/REVOKED 与登出→signed_out(tryFire,状态机未推进时静默)
-- [x] 微信小游戏适配器(`e6cf491`,`src/platform/wechat/`,wx 最小结构类型零外部依赖):TokenStore(wx storage,JSON 落盘,损坏数据按未认证清场)、Transport(wx.request,请求头透传/响应头小写归一/对象响应重序列化/失败归一 TransportError 走 core 既有重试口径——重连策略归 core)、WechatLifecycleMonitor(onShow/onHide/onNetworkStatusChange → tryFire 幂等挂起恢复,unity ApplicationLifecycleMonitor 同构;Ready 态挂起被状态机否决不粘死)
-- [x] 测试:零依赖 `node --test` 83 例全绿(契约 6 / core+lifecycle 53 / service 17 / wechat 7;fake wx 结构类型注入)+ 全链组合例(wechat 适配器 × CourierClient:登录落盘、切后台挂起、冷启动恢复)
-- **落地**:core `ce974f7`、适配器 `e6cf491`;UE/Godot 适配器、真机联调随部署面
-
-## 批次 14 — UE(C++)core + service 层
-
-- [x] json 基础(`13aab75`):手写 RFC 8259 解析器(深度限制/代理对/前导零拒绝)+ dump,零依赖;`json_test.cpp` 覆盖转义/Unicode/边界
-- [x] core(`225ad01` + `1377e60`,unity Core 同构,纯 ISO C++17 header-only 零外部依赖):Transport/TokenStore 注入接口、ApiClient(scope 头恒发、匿名本地预检不发包、信封解析、空/非 JSON 体按状态码兜底、Retry-After 优先退避、AUTH_TOKEN_EXPIRED 刷新重放一次不计重试)、SessionService(重入保护刷新、REUSED/REVOKED 清库、尽力而为登出)、IdentityService(guest/register/login 匿名 + bind Bearer 采纳会话)、LifecycleMachine(九态十触发严格迁移表 + 契约事件面)、CourierClient 门面(认证流守卫 Ready/SignedOut、失败 AuthFailed 回退可重试);`url_encode` 入共享 types
-- [x] service M2(`f5b160e`,unity CourierServices 同构):SSE 帧解析器(注释/多行 data/未知字段容忍/reset 断线重连)、announcements(list/get wire 形状 + typed 404 不重试)、support(提单 category 缺省不下发、详情 ticket+messages、追加 CLOSED 409 不重试、FAQ 关键词 URL 编码)
-- [x] service M3/M4/M5(`3cc859a`):app(三端点匿名;503 APP_MAINTENANCE typed 返,501→null 跳过检查)、config(缓存 + needs_refetch version 判据;501→v0 空结果用内建默认值)、branding(匿名透传零解释 + version 判据)、player(PATCH 空串键不下发;501→null)、assistant(未命中非错误 matched=false+suggestTransfer;501→null)、payments(下单只收 skuId 服务端定价;payToken 仅下单响应;发货感知=轮询 DELIVERED;归属 404 typed 不重试)、realname(姓名/证件号只传输一次不缓存不落盘;curfew/charge-check 前置校验;501→null)
-- [x] 测试:`sdks/ue/run_tests.sh` 全绿(contract/json/core/lifecycle/service/service2 六套,g++ -std=c++17 -Wall -Wextra 独立编译,零外部依赖)
-- **落地**:json `13aab75`、core `225ad01` + `1377e60`、service M2 `f5b160e`、service M3/M4/M5 `3cc859a`;UE 引擎集成面(HttpModule 适配、UObject 包装、.uplugin)无编译链未验证——如实报,不假装
-
-## 批次 15 — miniprogram(TS)core + service + wx 适配
-
-- [x] core + service(`33325e8`,cocos 批次 12+13 全量对齐):transport/apiClient/session/identity/lifecycle/courierClient 门面 + 九域 service(CourierServices 门面)+ SSE 解析器;平台差异收敛在注入接口
-- [x] 微信小程序适配器(`src/platform/wechat/`):wx storage TokenStore(损坏数据清场)、wx.request Transport(响应头小写归一/对象响应重序列化)、LifecycleMonitor(**小程序信号面 `wx.onAppShow/onAppHide`** + onNetworkStatusChange,与小游戏端 onShow/onHide 的真实 API 差异在此分叉)
-- [x] 测试:`node --test` 83 例全绿(契约 6 / core+lifecycle 53 / service 17 / wechat 7,fake wx 结构类型注入)
-- **落地**:单增量 `33325e8`;真机联调(真 wx 环境)随部署面
-
-## 批次 16 — laybox(TS)core + service + laya 适配
-
-- [x] core + service(`59a8e02`,cocos/miniprogram 全量对齐):同构九域 + lifecycle + 门面
-- [x] Layabox 适配器(`src/platform/laya/`):LocalStorage TokenStore、XMLHttpRequest Transport(响应头小写归一)、LifecycleMonitor(文档可见性 + navigator onLine → `LayaboxAppHooks` 结构面,引擎版本差异收敛在接入方绑定侧)
-- [x] 测试:`node --test` 82 例全绿(契约 6 / core+lifecycle 53 / service 17 / laya 6,fake XHR/storage 注入)
-- **落地**:单增量 `59a8e02`;真机联调随部署面
-
-## 批次 17 — cocos UI 可选包
-
-- [x] ui 可选包(`1fb4790`,unity com.courier.ui 同构):brandingCatalog(模块级当前品牌 + 热切换/同 version 忽略/reset;字段缺失回落内置默认 `Courier`/`#4C8DFF`/`联系客服`)+ 三面板:
-- 公告栏 `AnnouncementPanel`:refreshAsync 列表渲染 / openAsync 详情渲染(详情=全文视图,不带标题头——unity 双标题瑕疵有意未复制)+ 品牌兜底链标题 + typed 错误出 `onError(wireOf(e))` 出口 + 未装配服务静默不抛
-- 客服 `CustomerServicePanel`:openTicketAsync(提单即开详情,create+get 两跳)/ sendMessageAsync(追加后重拉)/ notifyTicketReplied(只认当前工单)/ searchFaqAsync(空结果兜底「无匹配问题」);CLOSED 409 出错误口
-- 助手 `AssistantPanel`:askAsync(命中原样渲染 / 未命中 suggestTransfer / 501→COMMON_CAPABILITY_DISABLED 隐藏入口)+ transferToHumanAsync(`[助手]` 前缀标题截 120,经 support 域提单)
-- [x] 测试:`node --test` 91 例全绿(+ui 8:品牌兜底链/公告三例/客服两例/助手两例,FakeTransport + fake services 注入,与 service.test.ts 同形态)
-- **落地**:单增量 `1fb4790`;UI 框架绑定(Cocos Creator UIRichText/Label 挂载渲染回调)随部署面
-
-## 批次 18 — 可换性证明(AccountProvider 第二实现 e2e)+ 契约 v1.1(取消/并发)
-
-- [x] `auth.SwitchableVerifier`(`d0936eb`):可重定向会话验证器——原 main.go 把 reqAuth 钉死在自建账号 store 上,换 identity Provider 后 M2+ 域验不了新令牌(「可换」名存实亡的架构缺口);现装配期读 COURIER_GATEWAY_CONFIG,identity primary 换到第二实现即重指(跟随 primary,fallbacks 不参与;nil 忽略不残废)
-- [x] `providers/accountalt`(`d0936eb`,identity 第二实现,courier-account-alt):与自建同一冻结契约(auth.md Frozen v1)但内部架构刻意不同——自建「不透明随机令牌 + 会话表全查」vs 本实现「HMAC-SHA256 签名自验证令牌,claim 内嵌会话事实 + 服务端只留吊销态/refresh 代际/access nonce」;轮换即换 access nonce(旧 access 立即失效,语义同自建 map 键删除);nonce 保证同秒轮换也产出新令牌; PBKDF2 同族凭证;防枚举/限流/设备上限/解绑吊销逐项对齐
-- [x] 一致性 e2e(`e2e/identity_conformance_test.go`):**同一 wire 场景对两实现各跑一遍、同一断言**——注册/登录/会话信息、防枚举、校验 400、EMAIL_TAKEN 409、游客幂等、bind 链、refresh 轮换+旧 access 失效+重放吊销、refresh 未知/过期、access 过期、logout、设备上限、解绑、设备列表、scope 不符、路由兜底、跨域认证(身份源 token 经 SwitchableVerifier 供 herald)+ 限流口径(429+Retry-After)——全绿 = 「账号 Provider 可换」有行为证明而非仅接口冻结
-- [x] 契约 primitives.md **v1.1**(兼容追加「取消与超时」「并发纪律」两节):取消是客户端行为服务端不感知、取消统一表现为传输失败(COMMON_UNAVAILABLE retryable)非域错误;重试对写类同样生效(双发由服务端幂等面承接,事实以拉取为准)、会话刷新单飞+重放至多一次不计预算、REUSED/REVOKED 清场、多会话合法、并发无顺序保证——全部为各端 SDK 既有实现口径(冻结不是发明)
-- [x] 测试:gateway 全套 17 包绿(accountalt 单测:codec 编解码/篡改拒绝/签名密钥校验/代际重放;switchable 重定向;-race 干净)
-- **落地**:`d0936eb`(第二实现+e2e);契约 v1.1 随 docs 提交;接入方启用第二实现 = `{"identity":{"primary":"courier-account-alt"}}` 一行配置
-
-## 批次 19 — CI 测试门禁
-
-- [x] `.github/workflows/tests.yml`(`d44e23a`):push(main)/PR 全仓门禁——Go(contractgen 根模块 + gateway 模块)/ Node 24 原生 TS(cocos/miniprogram/laybox 矩阵,零依赖 node --test)/ UE(ISO C++17 g++ headless);unity 诚实排除(需引擎本体,本地 Unity Test Runner 跑,注释写明);并发组防叠跑;首跑(run 37975643056)全绿
-- **落地**:单增量 `d44e23a`;此前只有 deploy-docs.yml,测试只有本地跑——门禁补齐后每增量三栈自动回归
-
-## 批次 20 — cocos 诊断可选包
-
-- [x] `src/diagnostics/`(unity com.courier.diagnostics 同构,契约 diagnostics.md Frozen v1):diagnosticsTypes(四类 enabled+endpoint,默认全关;resource 宿主注入缺省不下发)/ httpReporters(自有端点直发单条一请求,失败静默不重试不缓存;crash breadcrumb 环形 20 随报清空;trace 去 query + resource 固定属性集 service.name=courier.sdk;performance 三注册指标维度仅 platform+appVersion;analytics 名称 1-64、props 原始类型运行时校验、单条 ≤1KB 违例抛使用方错不静默截断)/ diagnosticsHub(Disabled 共享零实例;reporter 懒建;setEnabled 关立即生效并清上下文,开需端点已配)
-- [x] 测试:11 例与 unity DiagnosticsTests 一一对应(默认零上报/Disabled 共享/没端点即关/逐类生效+wire 形状/breadcrumb 环+清/trace 去 query+固定集/指标注册表+两维度/校验违例零发送/失败静默不反噬/运行时关+清/运行时开需端点);`node --test` 102 例全绿(+11)
-- **落地**:单增量(本批);Sentry/OTLP 适配与直发端点联调随部署面
-
-## 批次 21 — 维护态自定位(告警/漂移/脆弱点)
-
-- [x] 依赖安全告警清零(`7bd102a`):Dependabot 五条告警(vite ×3 / esbuild / katex)——vitepress 1.x 钉 vite ^5.4.14 够不到 6.4.3 修复版致其自更新失败;npm overrides 钉 vite 6.4.4 / esbuild 0.25.12 / katex 0.18.10,告警全部自动关闭;docs 本地构建验证
-- [x] 站点导航补缺(`3dca0c4`):config/app/player/assistant/payment 五个 Frozen 契约页未入侧边栏(站点浏览不可达)
-- [x] 路线图状态补记(`92c64aa`):M1–M5 按 M0 惯例补「已完成」标记;M4 过时的「后移」清除(助手批次 9 已全量交付);M5 注明真实渠道沙箱随部署面
-- [x] e2e 脆弱点(`9d24f7d`):m2 推送时序 50ms sleep 删除(chirp 在 WriteHeader 前同步注册订阅者,openStream 返回即订阅建立,sleep 防的是不可能竞态);realname rnStub 按值拷贝锁(go vet copylocks;go test 默认 vet 子集不含故 CI 漏网)改指针语义
-- [x] CI vet 门禁(`160b047`):go job 增根模块 + gateway 两步 go vet(堵 copylocks 类盲区)
-- [x] Provider 文档漂移(`621c5dc`):`oddsmaker`(代码零存在)全仓清除,architecture/layers/README 双语/contract 总纲统一对齐真实注册名——courier-account(+courier-account-alt 第二实现)、warden(实名,原「默认关闭」口径过时)、scribe/archivist/sage/teller 入表;风控行删除(无此能力域,支付沙箱期前置风控随部署面);诊断行改为「直发不经网关(契约红线)」
-- **落地**:六增量全绿推送;维护态残留项 = 部署面(需真实凭据/环境)+ Godot(已拍板停靠),环境内告警/漂移/脆弱点已清零
-
-## 批次 22 — 巡检续批(只读审计节奏:workflow 结论 × 文档声称)
-
-- [x] README 双语文档缺口(`d979b08`):补「开发」本地门禁章节(四端此前仅三端有);文档索引的契约清单从 M0 口径补到全域(M1 auth / M2 三域 / M3 五域 / M4 / M5);诊断注明直发不经网关
-- [x] 工作流一致性(`d979b08`):deploy-docs node 22 → 24,与 tests.yml 统一
-- [x] Godot 停靠口径(`fe7328f`、`1dd70ad`):README 布局行与架构文档 binding 枚举标注「规划中;仅契约生成骨架」;删除「网关做风控前置」边界声称(风控非网关职责;PAYMENT_RISK_REJECTED 为冻结契约的可选钩子,「缺省不拦」口径保留)
-- [x] 测试数声称刷新(`d9e61cf`):layers.md 现仓映射行 cocos 41 例 → 102(带分布)、Unity CoreTests 48 → 29(本地数 xunit 属性核实;ServiceTests 60 / DiagnosticsTests 11 / ContractTests 8)
-- [x] Unity README 重写(`67edbce`):「计划结构」→ 已交付四包结构(补 com.courier.diagnostics)+ 测试章节(Unity Test Runner 口径)+ 当前约定
-- [x] cocos README 补「运行测试」章节(`2ee4c8c`,对齐其余三端)
-- [x] 审计证据:全量本地门禁在当前树重跑——cocos 102 / miniprogram 83 / laybox 82 / UE 六套 / gateway 17 包(+vet +race)/ 根模块 2 包;workflow 最新 run 全绿;Dependabot 告警 0
-- **落地**:六增量全绿推送;环境内可推进项仍为零,残留 = 部署面 + Godot(停靠)
-
-## 批次 23 — 巡检续批(上轮被打断后重派,同节奏)
-
-- [x] 复核基线(`e0ac63c` 前置):本地=origin、批次 22 全部 run 绿、无并行改动
-- [x] 文档漂移两处(`e0ac63c`):layers.md L1 行错误码 v3→v4 + 域清单补 payment v1.1、L3 现仓映射补 TS 三端 adapter(platform/wechat、platform/laya)与批次 12-17/20 历史、L4 补 accountalt 第二 identity 实现(批次 18);README 双语能力表补「推送(messages 通道)」行——M2 三域此前只列公告/客服,SSE 单连接/关闭=拉取兜底口径按 messages.md 对齐
-- [x] 核对项全部当前:十域契约 Frozen 头、契约索引文件表 17 文件全覆盖、fixtures 引用(layers L1/todo)、供应商八家+account/accountalt 与 gateway/providers 实目录一致、三端 TS README 结构树、UE 约定(引擎集成面未验证口径诚实)、cocos 树 ui/diagnostics 行、tools/ = contractgen+packcheck、zh/en 表行对等、Oddsmaker 两处生态概念引用为批次 18 清除口径的刻意保留(非漂移)
-- [x] 判定不扩范围:三 TS SDK 无 package.json(历史从未有、无文档声称、node --test 直跑不受影响)——非漂移,维护态不补
-- [x] CI:e0ac63c Tests + Deploy Docs 全绿
-- **落地**:单增量全绿推送;残留 = 部署面(真实渠道/持久化凭据/真机/引擎环境)+ Godot(停靠)
-
-## 批次 24 — 巡检续批(通读 architecture/roadmap 全文)
-
-- [x] 契约间自相矛盾修复(`9823261`):architecture.md 总体形态图 + 关键决策 #3、layers.md 分层图 + L3 翻译行,四处声称推送走 WebSocket——与冻结契约 messages.md 的 **SSE** 选型矛盾(M0 冻结时暂定 WebSocket,M2 冻结 messages.md 改 SSE 未回改);全部对齐 SSE 口径,WebSocket 标「留后续扩展,需写时升版本」
-- [x] events.md(冻结契约)加注更正(2026-10-10):传输选型以 messages.md 为准——**冻结行原文未动**(只加不改纪律),加注行承载更正
-- [x] architecture.md 状态行 Draft → Current(M0 已立宪冻结、M1–M5 全落地,「Draft」声称过期)
-- [x] 通读核对无漂移:roadmap.md 全文(M5 的 RiskProvider 前置为部署面计划项 + 契约预留钩子名,口径一致)、competitive.md 快照、tests.yml 三 job 结构与本地门禁一致、gateway 目录 vs L5 行、fixtures/errors.json 33 码 = errors.md 表 33 行(v4 含 5 PAYMENT + 5 REALNAME)、README 双语协议声称(SSE 行为批次 23 所加,无 WebSocket 残留)
-- [x] CI:9823261 Deploy Docs 绿,Tests 排队(runner 积压,同形 docs-only 已连绿六次)
-- **落地**:单增量全绿推送;残留 = 部署面 + Godot(停靠)
-
-## 批次 25 — 巡检续批(通读 layers/research 全文,上批指定目标)
-
-- [x] layers.md 九处同步(`0eb1503`):状态行 Draft→Current;L2/L3「下一步」从 M1 口径刷新到当前(UE 引擎集成面待引擎环境、Godot 停靠、真机随部署面);L3 现仓映射从「UPM 三包+其余五端规划」刷到已交付态(UPM 四包 + TS 三端 adapter + UE C++ header-only);L4 映射补 accountalt 批次 18;L5 映射补批次 9/10 M4/M5 e2e;L3 两处 Godot 枚举标规划中
-- [x] **审计声称修正**(`0eb1503`,同一 commit):layers.md L5 职责与接口形状、architecture.md 目录树与安全边界,四处把「审计」列为已实现中间件——代码实况为 trace → 结构化错误 → 限流 → scope(冻结顺序,chain.go 注释),认证按能力路由内挂载,无 audit 中间件;全部改为「审计依赖 trace 贯穿,落库随部署面」;中间件链声称按代码实况改写
-- [x] research/features.md(`055bd29`):第 12 节「这六条」→「这八条」(F69–F76 实为八项,与第 202 行「八条全是核心」矛盾);统计口径 47/13/9/7 = 76 逐行解析核验一致
-- [x] research/competitive.md(`8785dc9`):「落到本仓」列两处现时声称刷新——UPM 三包→四包、「支付收据验真留 M5 契约落点」→已随 M5 冻结;调研快照正文(2026-10-08 口径)不动
-- [x] CI:三增量 Tests + Deploy Docs 全绿(runner 积压已恢复,~35s)
-- **落地**:三增量全绿推送;残留 = 部署面 + Godot(停靠)
-
-## 批次 26 — 声称二次抽查(契约端点表 vs 路由、DTO 字段 vs 生成物)
-
-- [x] 契约端点表 vs gateway 路由:33 个契约端点全实装(herald detail、croupier faq、archivist 四路径逐一核对);e2e 对差发现 `/v1/announcements/{id}` 与 `/v1/support/faq` 零覆盖(herald/croupier 无单测文件,e2e 也未打)→ **补 e2e 覆盖**(`ad5bac4`:详情命中 + 404 不泄露存在性 + FAQ 关键词命中,gateway 17 包 + -race 绿);`/v1/player/*` 已由 archivist 单测覆盖,非缺口
-- [x] DTO 字段 vs 生成物:contractgen `TestGeneratedFilesInSync` 机器强制六端生成物与 fixtures 逐字节一致(本地复跑绿);fixtures ↔ 契约文档核对——errors.json 33 码 = errors.md、scope.json 头名/环境 = scope.md、dto.json 信封键/规则 = primitives.md;域 DTO 采样 payment(12 字段)与 realname 与 UE 生成物逐一吻合
-- [x] Provider 单测盘点:11 个中 8 个有单测,chirp/croupier/herald 无(薄 HTTP 处理器,e2e 已覆盖 stream/tickets/faq/list/detail);剩余缺口属风格而非风险,维护态不扩
-- [x] CI:ad5bac4 Tests 绿(Deploy Docs 因 docs 路径过滤未触发,符合预期)
-- **落地**:单增量全绿推送;残留 = 部署面 + Godot(停靠)
-
-## 批次 27 — 声称二次抽查(事件表 vs SDK 发射点、域端点表 vs SDK 方法)
-
-- [x] 生命周期事件表 vs SDK 发射点:**零漂移**——events.md 六个 `lifecycle.*` 事件与 cocos/miniprogram/laybox/unity/ue 五端核心实现精确一致(逐事件名核对,非子串)
-- [x] 域端点表 vs SDK 客户端方法:**零漂移**——33 端点中 31 个客户端面端点在三端样本(cocos/UE/unity)全有对应方法(announcements list/get、support 五方法、realname 四方法、player 四方法、payment 四方法、app 四方法、assistant、identity 八方法);2 个非客户端端点按契约有意不封装(payments/callback 服务端、realname/playtime-report S2S,SDK 源码有明文注释)
-- [x] 附核:业务事件(announcement.published 等)SDK 按契约容忍规则泛型透传(sseParser「未知 event type 原样吐出」),非缺口;样本事件名在五端 SseParser 测试中均有覆盖
-- [x] 本批零修复:环境内声称面已无漂移项
-- **落地**:仅归档增量;残留 = 部署面 + Godot(停靠)
-
-## 批次 28 — 巡检续批(README 双语对等性 + 站点导航完整性)
-
-- [x] ① README 中英逐段对等:**零漂移**——11 节骨架一一对应、结构元素计数完全一致(表行 14 / 代码栅栏 16 / 清单项 17)、关键声称 token(供应商九家/SSE/测试数)分布一致;计数微差为英文子串噪音("Mes**sage**Provider"),非内容缺失
-- [x] ② docs 站导航完整性:一处缺口修复(`6aff436`)——`contract/fixtures/index.md` 不在任何导航(其余 26 个 md 文件全被 nav+sidebar 覆盖);补 sidebar「Fixtures(机器可读快照)」项,构建通过、页面产出
-- [x] nav 6 项 + sidebar 25 项目标全部存在,无死链(vitepress 构建含死链检查,绿)
-- [x] CI:6aff436 Tests + Deploy Docs 绿
-- **落地**:单增量全绿推送;残留 = 部署面 + Godot(停靠)
-
-## 批次 29 — 代码级冷点复核(错误码 v4 ↔ 六端枚举、e2e 覆盖矩阵)
-
-- [x] 错误码表 v4 ↔ 六端生成枚举:**零漂移**——errors.md 33 码逐端集合对差,cocos/miniprogram/laybox(errors.ts)、unity(ErrorCode.cs)、ue(errors.hpp)、godot(errors.gd)六端 **missing=0**(「多出」项均为域前缀常量/头保护/辅助 map,非漂移)
-- [x] e2e 覆盖矩阵维护:**33/33 契约端点全部有测试覆盖**——31 端点在 e2e(批次 26 补齐公告详情 + FAQ 后;含 payments/callback 与 playtime-report 这两个服务端面端点),player profile/characters 四方法路径由 archivist 单测覆盖(21 处断言);对差工具字符串匹配需注意拼接/查询串形态(公告详情经 `+a.ID` 拼接、FAQ 带查询串),人工核实无缺
-- [x] 附修(`aa436ec`):gateway `envelope_sync_test.go` 注释「错误码表 v1」→「v4」——与自身 `f.Version != 4` 断言矛盾;同步测试本身为双向对齐 + 版本闸,机器强制在位(fixtures/index.md「网关 codeTable 同步测试」声称属实)
-- [x] CI:aa436ec Tests 绿(gateway 17 包 + vet 本地先行)
-- **落地**:单增量全绿推送;残留 = 部署面 + Godot(停靠)
-
-## 批次 30 — 巡检续批(DTO/错误枚举六端跨端一致性对照 + 冷点扫描)
-
-- [x] 错误枚举前置复核仍零漂移:errors.md v4 33 码 × 六端(errors.ts ×3 / ErrorCode.cs / errors.hpp / errors.gd)逐码集合对差 + http/retryable 映射 + 13 域前缀,全对齐
-- [x] DTO 跨端对照(十域 announcement/support/player/payment/realname/assistant/config/branding/app/auth × 五端 DTO vs 契约 vs 网关 wire 权威 `gateway/providers/account/account.go`),**六处不一致全修**(`469e809`,37 文件):
-  - AnnouncementDto `startAt`/`endAt` TS 三端误为必填 → 可选(契约 `timestamp?`,缺省 = 发布即可见/不过期;UE/Unity 原本就对)
-  - SessionInfoDto 缺 `account` → TS 三端 + UE 补(契约 auth.md GET /session;Unity 原有)
-  - DeviceDto 缺 `id`/`platform` → TS 三端 + UE 补(契约 GET /devices item;Unity 原有)
-  - SessionDto `accountId` 幻影字段移除(TS 三端 + UE):网关 sessionDTO 从不下发该键,TS/UE 切号检测原读幻影字段 → **检测失效 bug**;改为取 `account.id`(Unity 原本就对)
-  - DeviceListDto 缺 `nextCursor` → Unity 补(与其余分页 DTO 及 TS/UE 对齐)
-  - AppVersionDto `updateUrl` TS/UE/Unity 三端误为必填 → 可选(契约 `string?` + 网关 `omitempty`,共同漂移)
-- [x] 测试 mock 同步网关真实 wire:TS 六套 + UE 四套会话 JSON 删 accountId / 补 account 对象,断言改走 `account.id`;全矩阵绿:cocos 102 / miniprogram 83 / laybox 82 / UE 六套 / Unity dotnet 48+69+11+8 / gateway 全包 / contractgen + packcheck
-- [x] 附修:gateway `e2e/realname_test.go` 注释「响应即含 accountId」→「account.id 即账号 ID」(同批语义修正)
-- [x] 冷点扫描:工作树无非忽略未跟踪文件;忽略面完整(vitepress dist / node_modules / unity 四工程 bin+obj);最大被跟踪文件为批次 2 误入库的过时 gateway 二进制 9.9MB → `git rm --cached` + `.gitignore` 补 `gateway/gateway`(`b250622`)
-- [x] 文档计数漂移附修:layers.md / unity README 「CoreTests 29 例」→ 48、「ServiceTests 60 例」→ 69(实测 dotnet 口径);「本地不可验」说法废除(四 `Tests~/` 纯逻辑 dotnet 工程本地可验,README 补运行方式);tests.yml 跳过理由注释同步
-- [x] 观察项(记录不扩范围,冻结契约面留契约通道):auth.md GET /session 示例含 `accessExpiresAt` 但网关不下发且 SDK 未建模;support.md ticket 响应未列 `category` 但三端 SDK 均有(请求字段回显,跨端一致);assistant.md transferTicket 预留字段各端均未建模(一致);Unity README 中文版无对应英文对等节(批次 28 双语结论维持)
-- **落地**:三增量全绿推送(`469e809` DTO 对齐、`b250622` 二进制卫生、本 docs 收尾);残留 = 部署面 + Godot(停靠)
-
-## 批次 31 — 巡检续批(三端 TS 守同工具化 + CI 工具面补全)
-
-- [x] 缺口定位:三端 TS(cocos/laybox/miniprogram)共享面(src/{contract,core,service} 与同名 tests)是同构复制,此前**无任何守同机制**——批次 30 的 sed 漏同步 laybox/miniprogram 正是此失效模式;且 CI 只跑 `tools/contractgen/...`,**packcheck 从未进 CI**(本地绿但无门禁)
-- [x] 新增 `tools/tsync`(packcheck 同构:Go 测试即结构检查,repoRoot 相对定位):共享目录文件集合三端一致 + 内容逐字节一致;同名 tests 出现于 ≥2 端时逐字节一致;平台/可选包专属 tests(laya/wechat/ui/diagnostics)豁免——生命周期信号随端实现不同(小游戏 `wx.onShow` vs 小程序 `wx.onAppShow`),测试随端走
-- [x] 首跑即抓到一个真实差异:`tests/wechat.test.ts` cocos≠miniprogram——核实为**合理差异**(两端 monitor 调用的 wx API 本就不同),按豁免规则收编,未误改代码
-- [x] CI:`go test ./tools/contractgen/...` → `go test ./tools/...`(contractgen+packcheck+tsync 同门禁),步骤改名 root module tools,头部覆盖说明同步
-- [x] 三端 README 各补一条约定:共享面由 tools/tsync 守同,改一处须三端同步(cp)
-- [x] 验证:tools 三件套 + `go vet ./...` 绿;三端套件 102/83/82 全绿(wechat.test.ts 还原后 miniprogram 83/83)
-- **落地**:双增量推送(工具+CI、docs 收尾);残留 = 部署面 + Godot(停靠)
-
-## 批次 32 — Godot 引擎落位(M1 core:生命周期 + Identity/Session)
-
-- [x] 卡点解除:Godot 4.3-stable 可 headless 运行;装机首跑即命中真 bug——contractgen 生成的 `.gd` 头部用 `//`(Go/C 风格),GDScript 判为语法错误(`Unexpected "/" in class body`),`tests/test_contract.gd` 根本跑不起来。修:新增 `#` 风格 `gdBanner` 供 genGdErrors/genGdEnvelope 使用,重新生成(与临时 sed 结果一致),补回归断言(`.gd` 输出不得含行首 `//`)
-- [x] 补 `project.godot` + `--import` 生成 `.godot/` 类缓存:`class_name` 全局解析依赖该缓存,缺失时 `--script` 报 `Identifier not declared`(contract 测试当时靠 `preload` 绕过,src 交叉引用无法绕);`.godot/` 已 gitignore
-- [x] M1 core 落位(`sdks/godot/src/core`,零平台引用,与 cocos/ue/unity core 同构):`lifecycle`(9 态/10 触发 + 契约事件面 + 挂起回跳 + 切号检测)、`transport`/`tokenStore`(抽象 + Memory 实现)、`courierError`(wire 优先、未知码容忍)、`apiClient`(scope 头、信封解析、retryable 退避、`AUTH_TOKEN_EXPIRED` refresh 后重放)、`identity`/`session`(单飞 refresh、安全事件清场、登出尽力而为)、`courierClient`(两段装配 + auth_flow 状态守卫)
-- [x] 测试(与 cocos `core.test.ts`/`lifecycle.test.ts` 同构,SceneTree 脚本 headless 跑):`test_lifecycle.gd`(迁移全表 13 行 + 非法迁移拒绝 + 事件面 + tryFire)、`test_core.gd`(20 例:wire 形状、Bearer、未认证预检、typed 信封、兜底 wire、退避重试与耗尽、网络失败映射、TOKEN_EXPIRED 重放、refresh 失败返原 401、安全事件清场、单飞、登出、bind 不落会话、501 降级、配置校验、未知码容忍、会话 DTO 全字段、门面状态流与失败回退)
-- [x] GDScript 与 TS 的语义差实测入档(均写成代码注释,非口头约定):无异常→结果字典;`var x := await` 是解析错误(须显式类型);协程调用必须 `await`(Callable.call 也不行,`call_deferred` 可点火);`while true`+`continue` 的返回路径不判穷尽(须兜底 return);`--script` 下 `Engine.get_main_loop()` 为 null;`Dictionary ==` 逐元素按类型严格比较(JSON 数字是 float,与 int 字面量不等);`%` 右侧传 Array 会被当参数列表;`match` 兜底分支缩进不得差一级
-- [x] 验证:三套 Godot 测试全绿(退出码 0)+ `go test ./tools/...` + `go vet ./...` 绿
-- **落地**:双增量推送(core+tests、docs 收尾);残留 = 部署面(凭据)+ UE 引擎集成面 + Godot 平台 Transport/TokenStore(M2 起随引擎集成面)
-
-## 批次 33 — Godot 服务域落地(M2–M5 契约面:SSE 解析器 + 九域客户端)
-
-- [x] 服务层落位(`sdks/godot/src/service`,与 cocos `src/service` / ue `service` 同构):`sseParser`(增量帧解析:心跳注释忽略、多行 data `\n` 连接、未知字段容忍、reset 复用)+ 九域客户端(announcement/support/app/appConfig/branding/player/assistant/payment/realname)+ `CourierServices` 门面(从 client.api 装配)
-- [x] 降级语义跨端对齐(TS `null` / UE `nullopt` 同构):501 `COMMON_CAPABILITY_DISABLED` → `{ok:true, data:null}`(config 域按契约返 v0 空 items 不进报错路径);其余错误照常 `{ok:false, error}` typed 透传(APP_MAINTENANCE 503 / PAYMENT_ORDER_NOT_FOUND 404 等不进降级);GDScript `String.uri_encode()` 与 `encodeURIComponent` 同形(空格 `%20`)
-- [x] 测试(与 cocos `service.test.ts`/`service2.test.ts` 同构,SceneTree headless):`test_service.gd`(8 例:SSE 三态 + 公告 wire/typed 404 + 客服提单/详情/关单 409/FAQ 编码)、`test_service2.gd`(9 例:app 匿名+501+维护 typed、config 缓存与 needs_refetch 与失败沿用缓存、branding version 判据、player PATCH 缺省键、assistant 未命中非错误、payment 只发 skuId 与 payToken 只在下单、realname 四端点与 501)
-- [x] GDScript 语义差再入档(写成代码注释):**`Callable` 弱引用目标**——client 被回收则 `token_provider` 失效(`null::access_token`),用例须经成员持活 client(接入方持 CourierClient 同构);getter-only 属性(`var x: Variant: get:`)可用;JSON 浮点收窄用 `int()` 逐字段断言;**构造器缺失 = new() 只收 0 参**(漏写 `_init` 时报 "Too many arguments",不在定义处报错)
-- [x] 验证:五套 Godot 测试全绿(contract/lifecycle/core/service/service2,退出码 0)+ `go test ./tools/...` + `go vet` 绿
-- **落地**:双增量推送(service+tests、docs 收尾);残留 = 部署面(凭据)+ UE 引擎集成面 + Godot 平台 Transport/TokenStore(messages 流式读随平台适配面)
-
-## 批次 34 — Godot 平台适配面(真传输 + 持久令牌存储)
-
-- [x] `CourierHTTPTransport`(`src/platform/httpTransport.gd`,extends core `CourierTransport`):HTTPClient poll 增量模型(无 Node 依赖,headless 可跑);url 拆解(scheme/缺省端口)、TLS 走 `TLSOptions.client()`、帧让出经注入 `frame_f`(`--script` 下 `Engine.get_main_loop()` 为 null,用例注入;运行时缺省取主循环)、15s 超时两段(connect/响应各一 deadline)、方法名映射、响应头键小写归一
-- [x] **HTTPClient poll 语义两坑实测入档(代码注释)**:①响应完整性须以 Content-Length 计数,不可看终态——对端发完即断时 EOF 可与末字节同一 poll 到达,状态直接跳 `DISCONNECTED`,`CONNECTED` 未必可观察;②响应头仅在收体期间可读(收完后被引擎清空),须在循环内捕获快照
-- [x] `CourierFileTokenStore`(`src/platform/fileTokenStore.gd`,extends core `CourierTokenStore`):`user://` JSON 整会话落盘(FileAccess/DirAccess,引擎按平台映射应用专属目录),`clear` 即删文件
-- [x] 测试(`tests/test_platform.gd`,本仓首个真传输面,SceneTree headless):`MockServer` 内部类(TCPServer 真监听 + 裸 HTTP/1.1 收发,记录解析后请求,入队响应自动包 200);4 例 = token store user:// 回路跨实例、GET 真往返(自定义头透传/体逐字节/响应头小写)、POST 体+Content-Length+501 原样上抛、全链 e2e(client→api→transport→store:guest scope 头/body 真 socket 落库,第二跳自动带 `Bearer access-1`)
-- [x] 协程点火语义补档:GDScript 协程不能无 `await` 起跑,`call_deferred` 点火 + 用例侧 pump 循环(`pump_until` 900 帧耗尽即 FAIL 不悬挂)收尾结果到成员断言
-- [x] 验证:六套 Godot 测试全绿(contract/lifecycle/core/service/service2/platform,退出码 0)+ `go test ./tools/...` + `go vet` 绿
-- **落地**:双增量推送(platform+tests、docs 收尾);残留 = 部署面(凭据)+ UE 引擎集成面 + Godot TLS 路径与真机验证(随部署面)+ messages SSE 流式传输适配
-
-## 批次 35 — Godot SSE 流式传输(messages 通道真流读)
-
-- [x] `CourierSseStream`(`src/platform/sseStreamTransport.gd`):HTTPClient poll 流读,行缓冲跨 chunk 喂 `CourierSseParser`,完整帧经 on_event 上抛;契约 messages.md 客户端要求全内建——501 → `capability_disabled`(转纯拉取,不重试)、401 → `unauthenticated`(不重试)、断线指数退避重连(1s 起、上限 60s,`Retry-After` 秒头优先)、收过事件的连接断开即重置退避(健康连≠失败连)、stop 回调每圈探查净停;Authorization 每次尝试按 token_provider 现取(契约:新连接按当前 token 校验);退避等待 sleep_f 可注入(缺省主循环 Timer)
-- [x] **HTTPClient 分框硬约束实测入档(类文档代码注释)**:无 Content-Length 的 close 分隔响应体不可读——收完头即判响应完成,永不进 `STATUS_BODY`;SSE 流响应必须 `Transfer-Encoding: chunked`。自建网关(Go net/http 在 Content-Length 缺省时自动补 chunked)天然满足;直连其他无分框 SSE 端点不可用
-- [x] 测试件重构:`MockServer` 抽出 `tests/mock_server.gd` 共享(preload,不占全局类名),新增 `enqueue_stream`/`pushes`/`hangup`(SSE 长连持有、chunked 分框、终止块随挂断发出);`test_platform.gd` 改用共享件(六套回归仍绿)
-- [x] 测试(`tests/test_stream.gd`,4 例):帧上抛+心跳注释不出事件、流内推送第二帧、服务端断流退避重连(重连现取 token,`Bearer tok-2` 断言轮换)且停止后不再连、501 降级收尾不重试、401 收尾不重试、跨 chunk 行缓冲(字段名被切段拼回)
-- [x] 验证:七套 Godot 测试全绿(contract/lifecycle/core/service/service2/platform/stream,退出码 0)+ `go test ./tools/...` + `go vet` 绿
-- **落地**:单增量推送(stream+tests+mock 重构、docs 收尾);残留 = 部署面(凭据)+ UE 引擎集成面 + Godot TLS 路径与真机验证、前后台生命周期信号(随部署面/引擎集成面)
-
-## 批次 36 — Godot 前后台生命周期适配(状态机事件入站)
-
-- [x] `CourierLifecycleMonitor`(`src/platform/lifecycleMonitor.gd`,与 Unity ApplicationLifecycleMonitor 同构):引擎通知(`NOTIFICATION_APPLICATION_PAUSED/RESUMED` 移动端前后台、`FOCUS_OUT/IN` 桌面焦点)+ 每帧可见性探测轮询(`visibility_probe` 注入即启用;无注入视为可见,以通知为准)统一经 `_set_visible` 幂等去重——移动端与桌面端信号常成对触发;`bind` 状态机后 `Suspended` ⇄ `ResumeStarted+ResumeCompleted`,恢复到挂起前稳定态;`on_suspended`/`on_resumed` 回调交通道管理方断流省电/重连(契约 messages.md 语义规则 4,本类不持通道)
-- [x] 语义差实测入档(代码注释):Godot 4.3 无 `DisplayServer.screen_is_visible`、`SceneTree` 无 `visibility_changed` 信号——前后台只走 Node 通知;挂起仅 Authenticated/PlayerReady 合法(READY 不可挂起,与 Unity 同表);**转移被拒不更新基线可见性,下一帧重试**——隐藏启动、状态机稍后才就绪的场景不丢挂起;SceneTree 脚本测试无 `add_child`(用 `root.add_child`);探测与通知打架会互相翻转(测试中两者须同变,真实环境天然一致)
-- [x] 测试(`tests/test_adapter.gd`,7 例):PlayerReady 挂起/恢复原态、幂等去重、未绑定 no-op、隐藏启动留帧重试补挂起、四通知路径(PAUSED/RESUMED/FOCUS_OUT/FOCUS_IN)、缺省探测;用例 monitor 经 `detach`(set_process(false)+queue_free)防跨用例计数污染
-- [x] 验证:八套 Godot 测试全绿(contract/lifecycle/core/service/service2/platform/stream/adapter,退出码 0)+ `go test ./tools/...` + `go vet` 绿
-- **落地**:单增量推送(monitor+tests、docs 收尾);残留 = 部署面(凭据)+ UE 引擎集成面 + Godot TLS 路径与真机验证、UI 可选包
-
-## 批次 37 — Unity SSE 流式传输(messages 通道真流读)
-
-- [x] L2 接缝 + 退避纯函数(`core/Runtime/Core/SseStream.cs`):`ISseSource`(平台接线面)/`SseStreamConnection`(状态码 + 头小写归一 + 逐行读,流尾回 null)/`SseStreamRequest` + `SseBackoff`(base·2^(n-1) 封顶 max,Retry-After 优先)+ 收尾原因四值(capability_disabled/unauthenticated/stopped/disconnected);接缝放 Core 不放 Service——Adapter 实现不引 Service,编排(依赖 SseParser)在 Service
-- [x] 编排(`service/Runtime/SseStreamClient.cs`,纯逻辑):501→`capability_disabled`(降级转纯拉取)、401→`unauthenticated` 终态不重试;断线指数退避重连(1s 起、60s 封顶,`Retry-After` 秒头优先);收过事件的连接断开即重置退避(健康连≠失败连);Authorization 每连现取(轮换);净停经 CancellationToken;逐行喂 SseParser,未知 event 容忍
-- [x] 测试(`ServiceTests~/SseStreamTests.cs`,+8 例 = 77):帧上抛/心跳静默/重连换 token、501/401 终态、Retry-After 优先可观察、建连故障重连+净停、取消先行不建连、退避纯函数(封顶/钳制/全零配置);竞态修正——自旋 fake 会持续计数,断言取事件回调点的建连数
-- [x] L3 接线(`core/Runtime/Adapter/UnityWebRequestSseSource.cs`,packcheck 结构验收;Adapter 引 UnityEngine 不进 dotnet 单测):DownloadHandlerScript 增量收体(锁保护按 \n 字节切行后再 UTF-8 解码,多字节不撕裂);`SendWebRequest` 主线程起跑(Unity 限制);长连不设超时,`CancellationToken.Register(Abort)` 净停(Abort 归一 `TransportException`);头到即回(responseCode 置位),体走 50ms 轮询增量读;服务端必须 chunked 分框(与 Godot/UE 同硬约束,Go net/http 网关缺省满足)
-- [x] CI:`tests.yml` 增 unity-dotnet job,四套纯逻辑 dotnet 工程进门禁(引擎内 Test Runner 用例不进 CI)
-- [x] 验证:四套 dotnet 全绿(8+48+77+11)+ `go test ./tools/packcheck/` + `go vet` 绿
-- **落地**:三增量推送(ci gate、stream client、adapter;docs 收尾);残留 = Unity 引擎内 Test Runner 实跑与真机联调(随部署面)
-
-## 批次 38 — TS 三端 + UE messages SSE 流客户端(六端流编排同构收口)
-
-- [x] cocos 参照实现:`core/sseStream.ts`(接缝 SseSource/SseStreamConnection/SseStreamRequest + 退避纯函数 sseBackoffDelayMs + FetchSseSource fetch 流读默认实现;行切分按 \n 剥尾 \r,多字节经 TextDecoder stream:true 跨 chunk 安全;取消经 AbortSignal,网络失败归一 TransportError)+ `service/sseStreamClient.ts`(编排:501→capability_disabled、401→unauthenticated 终态不重试;断线指数退避重连 1s/60s 封顶、Retry-After 秒头优先;健康连重置退避;Authorization 每连现取;逐行喂 SseParser)——与 unity SseStream/SseStreamClient 全同构
-- [x] 测试(`tests/stream.test.ts`,+9 例 = 111):退避纯函数、帧上抛/心跳静默/重连换 token/净停、501/401 终态、Retry-After 优先且仅对本次响应生效、建连故障重连、取消先行不建连 + **FetchSseSource 真服务器 e2e**(node:http chunked 分框、断流重连现取 token、真 501)
-- [x] **三坑实测入档**:①注入 sleep 立即返回时 `lastDelayMs` 只留最新值,可观察断言须在注入 sleep 捕获实参(unity 用真实 7s 延迟掩盖了此竞态);②client 已按次现取 token 拼头,source 不得再调 tokenProvider(否则首连即取走第二个 token);③测试侧 run 循环未净停即返回会让子进程永不退出(宏任务自旋),每用例 finally abort+settle
-- [x] laybox/miniprogram 同构复制(共享面 core/service 逐字节一致,批次 31 工具已守同):node:test 91/92 例全绿
-- [x] UE C++:`core/sse_stream.hpp`(接缝 SseSource/SseStream/SseReadResult 值语义 + 退避纯函数,与 UE Transport 同口径——引擎接线留 L3 集成面)+ `service/sse_stream_client.hpp`(同构编排,净停靠 should_stop 谓词,sleep 注入;头键小写归一)+ `service/sse_stream_test.cpp`(7 例:退避、帧/心跳/重连换 token/退避序列、501、401、Retry-After、建连故障重连+事件后净停、取消先行),`run_tests.sh` 七套全绿
-- [x] **UE 语义差入档**:should_stop 以"收到事件"为据时,事件后的下一读循环顶即净停(停了不重连)——客户端行为正确,测试预期须按此设;C++ 类作用域名先声明后使用(成员别名置于类首)
-- [x] 验证:cocos 111/111、laybox 91/91、miniprogram 92/92(node:test)、UE 七套 g++ 全绿(exit 0)+ `go vet` 绿
-- **落地**:三增量推送(cocos、laybox+miniprogram、UE;docs 收尾);残留 = 平台特化流源(wx.request enableChunked、laya XHR 流读)与 UE 引擎接线(随平台/引擎环境)
-
-## 批次 39 — 手写 UTF-8 解码器 + 微信 enableChunked 流源(平台特化第一批)
-
-- [x] `core/utf8.ts` 增量 UTF-8 解码器(三端同构):跨块多字节不撕裂、非法输入(超长/代理区/越界/孤立续字节)U+FFFD 降级、流尾截断冲刷——wx 等无 TextDecoder 环境安全;+7 例(全切分点扫描、逐字节、emoji 三块、截断冲刷)
-- [x] 微信流源 `platform/wechat/sseSource.ts`(cocos + miniprogram):`createWechatSseSource`——wx.request enableChunked,success 头到回填连接(statusCode/headers),onChunkReceived 增量解码→行缓冲→阻塞读;fail 按是否已建连分流(建连失败重试 / 已建连归一断流重连);AbortSignal → task.abort() → wx 以 fail 收场
-- [x] 接缝调整:`SseStreamConnection.statusCode/headers` 改非只读(wx 响应头在 success 回调才到,接线须建连后回填;与 unity settable 同口径),三端同步
-- [x] 测试(+5 例,cocos/miniprogram `tests/wechatStream.test.ts`,fake wx 手动 pushTo/hangup 驱动):分块行缓冲、跨块 emoji(🎮 F0 9F 8E AE 拆两块)、心跳静默、头键小写归一(GET/enableChunked/Accept/token 断言)、断流重连现取 token(tok-1→tok-2)、建连失败重试、abort 净停(task.abort 被调)、Retry-After 大写头键生效
-- [x] **三坑实测入档**:①wx chunked 无"服务端净关流"回调——断流只以 fail(或静默)呈现,SDK 按 fail 归一重连,静默靠心跳注释与生命周期兜底,真机待验随部署面;②测试 fake 的 abort 必须触发 fail(真机语义 abort 以 fail 收场),否则连接永不苏醒、run 挂死;③无数据时 run 阻塞在读上——推块前 `waitUntil(事件到)` 永不满足,测试须先等请求落地再驱动块
-- [x] 验证:cocos 123/123、miniprogram 104/104、laybox 98/98(node:test)全绿
-- **落地**:残留 = laya XHR 流读(平台特化)、UE SseSource 引擎接线(引擎环境)、微信真机验证(部署面)
-
-## 批次 40 — laya XHR 流源(平台特化流源全线收口)
-
-- [x] `platform/laya/sseSource.ts`:`createLayaSseSource`——XHR 流读,onprogress 体增量按消费偏移切行(responseText 已含全部已收字节,浏览器内建流式解码跨块多字节不撕裂);**onload = 净关流回调**(与微信相反,XHR 有干净流尾 → 归一流尾走编排层重连);头/状态码 onprogress/onload 首拍回填连接(XHR 无独立"头到"回调);timeout 置 0 长连不禁超时;onerror/ontimeout/onabort 统一按是否已建连分流(建连失败重试 / 已建连断流重连)
-- [x] `layaApi.ts` XhrLike 补面:readyState/onprogress/onabort(流式源所需;真 XHR 天然满足)
-- [x] 同步修 wx 两份 sseSource 的 `settled` 可见性(private → public:建连回调在工厂闭包按它分流,tsc 消费方会拒 private 越界访问)
-- [x] 测试(+6 例,`tests/layaStream.test.ts`,FakeLayaXhr 手动 head/progress/finish/fail 驱动):帧/心跳静默/多字节跨 progress、净关流重连现取 token(tok-1→tok-2)、建连失败重试、abort → xhr.abort 被调 + 净停、429 Retry-After 大写头键生效、无体直收尾(onload 首拍建连 + 流尾 → 重连)
-- [x] 验证:laybox 104/104、cocos 123/123、miniprogram 104/104(node:test)全绿;共享面(sseStream.ts 三端、wx sseSource 双端)逐字节一致
-- **落地**:六端流源全景 = unity WebRequest / godot HTTPClient / TS fetch / wx enableChunked / laya XHR / UE 接缝(引擎接线随引擎环境);真机验证随部署面
-
-## 批次 41 — ui/diagnostics 可选包三端对齐(声称漂移修复)
-
-- [x] 巡检发现 layers.md L3 行声称"TS 三端…ui 包批次 17、diagnostics 包批次 20",实际两包只在 cocos(732 行 + 19 例)——文档声称与现仓漂移
-- [x] 移植:`src/ui`(brandingCatalog + 三面板骨架)+ `src/diagnostics`(diagnosticsHub/Types/httpReporters)逐字节复制到 laybox/miniprogram——两包 import 全为共享面路径(core/service/同包),零改动移植即绿
-- [x] 测试:三端各 123/123(cocos 123、miniprogram +19=123、laybox +19=123,node:test);tsync 同构守同仍绿(共享面不含 ui/diagnostics,批次 31 设计如此)
-- [x] 文档:laybox/miniprogram README 补包结构与计数(104→123);layers.md L3 行改为"ui 包批次 17、diagnostics 包批次 20 落位(cocos 首落,批次 41 三端对齐)"
-- **落地**:TS 三端面全对齐(共享面 + 可选包);剩余差异仅平台绑定(wechat/laya)与端专属测试
-
-## 批次 42 — 声称漂移修复(Godot 绑定"规划中"四处清账)
-
-- [x] 巡检发现:architecture.md 两处 + layers.md 两处仍称 "Godot 规划中"(binding 枚举 / token 存储枚举 / 打包形态 / ITokenStore 接口形状),而批次 34/35/36 已交付真实绑定(HTTPClient poll 真传输、user:// 持久令牌、SSE 流读、前后台信号,八套 headless 全绿)——本机复跑 godot 八套确认仍绿后修文档
-- [x] 修正口径:binding 枚举补 Godot(项目形态已落位,插件化打包随引擎集成面);token 存储枚举补 user:// 持久文件;ITokenStore 接口形状行同步;全仓 grep "Godot 规划中" 清零
-- [x] tsync 守同扩面:ui/diagnostics 目录与同名 tests 从"端专属豁免"收进共享校验(批次 41 三端对齐后的自然收口;laya/wechat 仍豁免——生命周期信号真随端不同)
-- **落地**:文档账面修正 + 守同面扩大;无产品代码变更
-
-## 批次 43 — 巡检续批(只读复核):契约分框缺口补登
-
-- [x] 全仓健康检查(只读):Go tools 3 包 ✓、gateway 17 包 ✓、TS 三端各 123/123 ✓、UE 七套 exit 0 ✓、Unity dotnet 144 例(48/77/8/11)✓、Godot headless 八套 ✓;工作树干净,origin/main 与本地 0/0 同步
-- [x] docs 对账:三端 README 计数(123)与实际一致;unity README 计数(8+48+77+11=144)与实跑一致;ue 七套/godot 八套声称与实际一致;todo 0 未勾、批次 42 条目齐;契约域(11)↔ 网关能力前缀(9)映射一致(config/branding 归 app 域、认证经 scope 中间件、diagnostics SDK 直发不经网关);最近 12 commit 走查——英文短句、无 AI 痕迹、署名唯一
-- [x] **发现并修复契约缺口**:messages.md 流协议节从未写明服务端分框要求,而六端流读实现(fetch / wx.enableChunked / XHR onprogress / UnityWebRequest / HTTPClient poll / UE 接缝)均按增量可读语义实现——定长缓冲响应会破坏流读,契约与实现存在未写明的硬依赖。按 index.md「只加不改」原则补「传输分框(服务端硬要求)」一条;并实测网关 chirp handler 已满足(`Content-Type` 设定后逐帧 `Flusher.Flush()`,Go net/http 在无 Content-Length 时自动 chunked)
-- [x] 版本登记:messages.md Frozen v1 → **Frozen v1.1**(2026-10-11 追加传输分框硬要求,不改变端点/头/DTO/wire 形态),index.md 状态行同步
-- **落地**:契约 v1.1 只增不改登记完成;复核未发现其他漂移或缺陷
-
-## 批次 44 — 竞品调研功能点落地(competitive.md 对齐,2026-10-11)
-
-> 来源:[docs/research/competitive.md](./research/competitive.md) 的 6 条可参考项 + 3 条边界。**已有落点的不重复立项**(见本批末「覆盖对照」),以下只补调研点到任务行的缺口:
-
-- [x] **各端示例齐平**(Nakama 实践第一半:契约跨端一致已由 `tools/contractgen` 六端测试守住,但「示例与文档齐平」缺):现全仓无 `examples/` 目录 —— 为六端(unity / cocos / ue / godot / miniprogram / laybox)各建一个最小可跑示例(接入 → 登录 → 收公告 → 发工单),放 `examples/<端>/`,并给运行方式 ｜ 落地:批次 55,`425fe55` + 网关无斜杠根修复 `c5c4814`;六端对本地网关逐条实测同链路同输出
-- [x] **按需选装指南**(MSDK 启示:「不为用不到的功能付体积」是被验证的付费需求):docs 出一页**选装清单** —— UPM 四包(core/service/ui/diagnostics)× Provider 逐项列出「不装省什么、装了得到什么」,附各包**构建产物实测字节**(非估算);现 docs 对「选装/体积」0 命中 ｜ 落地:批次 55,`docs/sdk-selection.md`(du -sb 实测源码字节;UPM 分发即源码/TS 无 bundler,口径注注明「接入面积≠下载体积」);Provider 维度列九域默认接线与 501 降级后果
-- [x] **每端 quickstart 实测**(Nakama 实践第二半:示例与文档齐平):逐端跑 README 的 quickstart,给出命令与实际预期输出,跑不通的修文档不改契约 ｜ 落地:批次 55,六端 README 各加「快速开始」(实测命令+输出);过程中发现并修 .NET HttpClient 307 丢 Authorization(`c5c4814`)
-- [x] **对标数据时效**(competitive.md 数据口径 2026-10-08):星数/活跃度随巡检批次复核更新;链接失效提 issue ｜ 落地:批次 55,gh api 复核五仓(Nakama 13,478→13,495 其余未变;Rivet toolchain 仍 archived)+ 文内 7 条外链逐一 200,无需提 issue
-
-**覆盖对照(调研 9 项的落点,避免重复立项)**:
-
-| 调研项 | 落点 | 状态 |
-| --- | --- | --- |
-| Nakama 跨端契约一致 | 批次 1 `contractgen` 六端生成 + CI 守 | 已有 |
-| Nakama 示例/文档齐平 | **本批 1、3** | 缺口 → 立项 |
-| MSDK 插件化按需选装(设计) | 批次 2/18 Provider 可换、UPM 四包 | 已有 |
-| MSDK 选装的产品化呈现 | **本批 2** | 缺口 → 立项 |
-| QuickSDK 服务端验签 | 批次 3 auth Frozen + 批次 10 回调只认渠道签名 | 已有 |
-| XDSDK 实名防沉迷 | `realname.md` Frozen v1 + 批次 7 熔断/降级 | 已有 |
-| XDSDK/MSDK 登录 UI 剥离 | `com.courier.ui` 独立可选包,批次 17/41 三端对齐 | 已有 |
-| Playgama 平台差异压进 Adapter | `layers.md` L3 + packcheck 结构验收 | 已有 |
-| 边界(实时/渠道不做) | `roadmap.md` 非目标 + 本文件「明确不做」 | 已有 |
-
-- **验收**:六端示例各一条命令真实跑通(报文附运行输出);选装清单含实测字节;quickstart 逐端实测记录;对标口径更新到当期日期 → **四项全清**(批次 55)
-
-## 批次 45 — 功能清单全量对照(features.md 76 项入账,2026-10-11)
-
-> 来源:[features.md](./research/features.md) §1–§12 全量 76 项。**本节是功能清单不是新任务**:已有落点的条目注明批次、不重复立项;`[ ]` 是仓库内真实缺口(汇总见 [implementation-status.md](./research/implementation-status.md));`[Provider·不进核心]` 与 `[待议]` 不打勾;⬜不做 7 项不入本节,只在 implementation-status 留档。统计:核心 47 = 已落地 37 + 缺口 10;Provider 13;待议 9;不做 7。
-> **接口边界口径**:落点写到契约域的 = 进核心契约(边界内);`[Provider·不进核心]` = 能力存在但接口归 Provider,契约只留红线或钩子;`[待议]` = 边界未定,先不立项;⬜不做 = 边界外。每条目的「落点:契约 xx.md / 端 yy」即该功能的接口边界。
-
-### §1 账号与身份
-
-- [x] **F01 登录方式聚合**(游客/账号密码统一登录入口)｜落点:契约 auth.md / 端 六端 identity——批次 3 已覆盖游客+邮箱密码;第三方 OAuth 已随批次 52 落地(oauth.md Frozen v1);手机号 auth.md:10 明示另提同构域
-- [x] **F02 账号绑定/解绑**(一个账号挂多平台身份,游客升级为正式账号)｜落点:契约 auth.md bind/解绑 / 端 六端(批次 3/18 已覆盖;多正式账号合并不在 v1)
-- [x] **F03 账号注销与数据删除**(完整注销+下游数据级联删除,商店政策要求游戏内可达)｜落点:契约 auth.md v1.1(批次 51 冻结并落地;下游级联经 `OnAccountDeleted` Provider 钩子)
-- [x] **F04 跨平台身份贯通**(同一账号跨设备共享身份,多设备会话+设备管理)｜落点:契约 auth.md devices / 端 六端(批次 3/18 已覆盖;进度共享归游戏后端,player 档案映射角色批次 8)
-- [x] **F05 SDK 不带 UI,游戏自绘**(数据与回调为主,UI 永远可选包)｜落点:UPM 四包 / TS 三端 ui+diagnostics 包(批次 5/17/41 已覆盖)
-- [x] **F06 匿名登录与静默自动登录**(先进游戏后补账号)｜落点:契约 auth.md 游客设备 / 端 六端(批次 3/4 已覆盖,e2e 全链路)
-- [Provider·不进核心] **F07 账号风控与防刷**(设备指纹/异常登录/封号分级)｜落点:无契约域——登录限流已内建(批次 3);支付风控为预留钩子 `PAYMENT_RISK_REJECTED`(缺省不拦)
-
-### §2 会话、令牌与调用安全
-
-- [x] **F08 access/refresh 与自动续期**(过期静默刷新不打断游戏)｜落点:契约 auth.md+primitives v1.1 并发纪律 / 端 六端 session(批次 3/4/12/14/32 已覆盖,单飞刷新+重放一次)
-- [x] **F09 服务端验签**(客户端凭证不可信)｜落点:auth Bearer 校验(批次 3)+payment 回调 HMAC 签名 fail-closed(批次 10)
-- [x] **F10 scope/多环境隔离**(game_id+env 隔离,越权显式报错)｜落点:契约 scope.md / 网关 scope 中间件(批次 2 已覆盖)
-- [x] **F11 统一错误码与可重试语义**(客户端可判定重试/降级/终止)｜落点:契约 errors.md v4 33 码 / 端 contractgen 六端生成(批次 1/29 已覆盖,对差零漂移)
-- [x] **F12 客户端凭据与密钥管理**(SDK 内嵌 key 只做准入,真凭证在服务端)｜落点:architecture.md 安全边界——客户端零 Provider 凭证(批次 2 起架构红线)
-
-### §3 玩家数据与存档
-
-- [待议] **F13 云存档/进度同步**——存档面留 Provider,不做统一钱包式假设(features.md §3 取舍)
-- [待议] **F14 分级读写权限**(本人/公开/仅服务端分层)
-- [待议] **F15 写锁与冲突合并**(乐观锁/版本号)
-- [x] **F16 玩家档案**(昵称/头像/元数据,账号↔角色映射)｜落点:契约 player.md / 网关 archivist(批次 8 已覆盖)
-- [Provider·不进核心] **F17 二进制文件存储**(存档文件/截图/UGC 对象存储)｜落点:Provider 化;support 附件同口径(support.md:11)
-- [x] **F18 服务端权威写入**(数值类数据只由服务端写)｜落点:Gateway 唯一入口(批次 2)+payment 服务端定价(批次 10)
-
-### §4 支付与商业化
-
-- [x] **F19 支付商品列表与渠道拉起**(服务端下发商品,拉起归渠道 SDK)｜落点:契约 payment.md SKUs+payToken / 网关 teller(批次 10 已覆盖;真实渠道沙箱随部署面)
-- [x] **F20 服务端收据验真**(回调签名即认证,先于 body 解析 fail-closed)｜落点:契约 payment.md 回调签名面 / 网关 teller(批次 10 已覆盖;商店 API 真核验随部署面)
-- [x] **F21 幂等与防重放**(同一收据只入账一次)｜落点:网关 teller 回调幂等不二次发货(批次 10 已覆盖,单测+e2e)
-- [x] **F22 商品一致性与订单履约**(校验商品与实付后才发货)｜落点:网关 teller 服务端定价防伪造金额(批次 10 已覆盖,e2e)
-- [Provider·不进核心] **F23 订阅状态管理**(到期/续订/退款跟随商店通知)｜落点:随真实渠道接入(部署面)
-- [x] **F24 跨设备恢复购买**(换设备拉历史订单恢复权益)｜落点:契约 payment.md `GET /orders`(payment.md:64,批次 10 已覆盖)
-- [x] **F25 交易流水与对账**(全量交易可查,补单/对账/审计)｜落点:网关 teller Reconcile(payment.md:91,批次 10/11 已覆盖;持久化与定时对账随部署面)
-- [x] **F26 支付回调与补发/掉单处理**(发货中断查询/补发/恢复)｜落点:断单停 PAID+对账重发(批次 10/11 已覆盖,e2e 断单恢复)
-
-### §5 合规与未成年人保护
-
-- [x] **F27 实名认证**(对接官方实名系统,开发者主体上报)｜落点:契约 realname.md / 网关 warden(批次 7 已覆盖)
-- [x] **F28 游戏时长与时段限制**(未成年人可玩时段云端查询)｜落点:realname curfew(F28 窗口,批次 7 已覆盖)
-- [x] **F29 充值额度限制**(分龄单次/月度限额)｜落点:realname charge-check(F29 分龄限额,批次 7 已覆盖)
-- [x] **F30 防沉迷数据上报**(时长/消费 S2S 上报)｜落点:realname playtime-report S2S(批次 7 已覆盖,幂等月累计)
-- [ ] **F31 年龄门与同意管理(海外)**(首启年龄筛查,VPC 家长同意)｜落点:realname.md:100 明示 v1.1 预留 consent 组(只加不改,出海需求触发再冻结)——未立项
-- [Provider·不进核心] **F32 数据最小化与第三方共享清单**(采集项/目的/权限清单)｜落点:红线内建契约(默认关闭/字段最小化,contract/index.md 宪法 5/6);清单输出归 Provider
-- [ ] **F33 审计与合规留痕**(实名/同意/限额判定可追溯日志)｜落点:trace 贯穿 gateway→Provider 已实现(layers.md L5);**事件面半边已落**(批次 62:`warden.AuditSink` 注入,nil = 不产出;`COURIER_REALNAME_AUDIT=log` 开日志半边;红线测试锁定事件不含姓名/证件号/指纹);剩余半边 = 落库 sink(DB/SIEM 直写与保留策略)随部署面
-
-### §6 消息与触达
-
-- [x] **F34 公告系统**(三形态/起止时间/排序,后台配置下发)｜落点:契约 announcement.md / 网关 herald(批次 6 已覆盖)
-- [x] **F35 公告定向过滤**(按 OS/渠道/版本/大区过滤,客户端只拿命中项)｜落点:announcement.md v1.1 `filters` 对象(批次 51 冻结并落地)
-- [x] **F36 跑马灯/滚服播报**(全服滚动消息,与公告同源不同呈现)｜落点:数据面复用公告契约零新契约(severity 字段 announcement.md:32);跑马灯呈现随批次 54 落 UI 包(`8127ba9`)
-- [Provider·不进核心] **F37 远程推送**(APNs/FCM 厂商通道)｜落点:应用内 SSE 已落(chirp,批次 6/35-40 六端流读);厂商通道随部署面,不自建长连接
-- [Provider·不进核心] **F38 按账号/标签定向推送**
-- [Provider·不进核心] **F39 本地通知/定时提醒**
-- [Provider·不进核心] **F40 触达效果统计**
-
-### §7 客服与玩家反馈
-
-- [x] **F41 游戏内工单**(不离开客户端提问/查进度)｜落点:契约 support.md / 网关 croupier(批次 6 已覆盖)
-- [x] **F42 FAQ/知识库自助**(客户端内检索,命中免工单)｜落点:support FAQ+sage 检索问答(批次 6/9 已覆盖)
-- [x] **F43 上下文自动附带**(自动带 player ID/build/关卡)｜落点:support.md v1.1 可选 `context` 对象(批次 51 冻结并落地)
-- [x] **F44 反馈与日志上传**(一键反馈+截图/日志附件)｜落点:support.md 附件节 v1.1(批次 53 冻结并落地;diagnostics 联动不在契约面)
-- [x] **F45 举报与处罚申诉**(举报/封禁通知/申诉闭环)｜落点:support.md v1.1 举报与处罚申诉节(批次 56 冻结并落地;封禁通知/登录拦截不在 v1,留 v1.2 提案)
-- [x] **F46 客服侧补单/补偿**(按账号查交易/补发)｜落点:支付 Reconcile 补发通道(批次 10/11 已覆盖;工具面归 croupier 管理侧)
-
-### §8 运营配置与实验
-
-- [x] **F47 远程配置/Feature Flag**(不发版改数值,灰度+热生效)｜落点:契约 config.md / 网关 scribe(批次 8 已覆盖)
-- [x] **F48 分群与条件定向**(按版本/设备/自定义条件下发)｜落点:config 条件投影五维(批次 8 已覆盖)
-- [Provider·不进核心] **F49 A/B 实验**(对照组/显著性判定)｜落点:垂直领域不自建,契约不建(features.md §14)
-- [x] **F50 配置版本历史与回滚**(版本单调,回滚=历史内容再发布)｜落点:契约 config.md 版本语义(config.md:11,批次 8 已覆盖)
-
-### §9 数据、崩溃与归因
-
-- [Provider·不进核心] **F52 埋点与行为分析**｜落点:不自建分析产品,归游戏自有分析栈或 Provider
-- [Provider·不进核心] **F53 付费与广告收入统计**
-- [Provider·不进核心] **F55 崩溃与性能监控**｜落点:diagnostics 可选包直发自托管端点(Sentry/GlitchTip/OTLP),不经网关(批次 8/20/41)
-- [x] **F56 SDK 自身遥测**(调用量/延迟/SDK 健康度)｜落点:契约 diagnostics.md / 端 diagnostics 可选包(批次 8/20/41 已覆盖,默认全关)
-- [Provider·不进核心] **F57 数据导出**
-
-### §10 进度、成就与留存玩法
-
-- [待议] **F58 排行榜**——玩法非服务,防范围失控(features.md §13 结论⑤)
-- [待议] **F59 成就/任务**
-- [待议] **F60 数值统计(Stats)**
-- [待议] **F61 赛季/通行证/签到**
-- [待议] **F62 邮件/礼包码**(与消息面相邻,批次 9 后按需优先评估)
-- [待议] **F63 活动与限时运营**
-
-### §12 SDK 工程与交付
-
-- [x] **F69 多引擎一等公民**(契约行为跨端一致)｜落点:contractgen 六端生成+CI 门禁(批次 1/19;六端 unity/cocos/ue/godot/miniprogram/laybox 批次 12-16/32-33)
-- [x] **F70 模块化按需选装**(只引需要的模块)｜落点:UPM 四包+可选包三端对齐(批次 5/17/41);选装产品化呈现=批次 44 已立项
-- [x] **F71 UI 可选/游戏自绘**(无强制 UI)｜落点:UI 永远可选(批次 5/17/41 已覆盖,同 F05)
-- [x] **F72 初始化与生命周期**(单次 Init+确定回调)｜落点:生命周期状态机九态十触发六端同构(批次 4/13/14/32)
-- [x] **F73 弱网重试与离线降级**(退避重试+只读缓存兜底)｜落点:RetryPolicy 退避+config 缓存+公告拉取兜底(批次 4/6/12)
-- [x] **F74 日志与诊断开关**(可调级别+trace ID+可上报)｜落点:diagnostics 开关+traceId(批次 8/20)
-- [x] **F75 沙箱/测试环境**(dev/staging/prod+mock fixtures)｜落点:scope 三环境+contractgen fixtures(批次 1/2)
-- [x] **F76 多语言与本地化**(内容按语种下发,SDK 文案可本地化)｜落点:announcement v1.1 多语内容节 Frozen(批次 57:单语分条契约化 + `CourierConfig.language` 自动附带);UI 包文案本地化口径留 UI 选装包评估
-
-## 批次 46 — 外部架构评审要点归档(2026-10-11)
-
-- [x] Provider 原则补两条:接口统一 ≠ 数据迁移;接入方式两种(服务端 Provider 默认/客户端直连例外)→ [architecture.md](./architecture.md)
-- [x] roadmap 补「验证与交付四阶段」(A 证据审计→B 跨端一致→C 可替换性→D 可交付)与验收七问 → [roadmap.md](./roadmap.md)
-- [x] 实现状态汇总表落档 → [implementation-status.md](./research/implementation-status.md)(批次 45 同产出)
-
-## 批次 47 — 契约扩展性加固:三份 v1.1 提案 + 七份扩展预留补注(Draft,2026-10-11)
-
-> 来源:批次 45 缺口清单 + 外部评审「不要设计太死,每个接口要写明万一扩展怎么处理」。**全部为加法**:提案标 Draft 未冻结,预留节为加注不动冻结行;不动实现、不动 fixtures、不升 Frozen 版本号——冻结升版 + 错误码入 errors.md + contractgen 六端同步随评审通过一批落地。
-
-### v1.1 提案(待评审:≥ Unity + 一非 C# 端过读)
-
-- [x] **F03 账号注销与数据删除** → [auth.md](./contract/auth.md) v1.1 提案:delete/cancel 两端点、宽限期(GUEST 立即删)、受理即吊销会话、匿名化保留外键、`OnAccountDeleted` Provider 钩子承载级联;拟新增 2 错误码(批次 51 随冻结落地)
-- [x] **F35 公告定向过滤** → [announcement.md](./contract/announcement.md) v1.1 提案:复用 config 投影语义(缺省维度跳过 + DSL 不进玩家契约)、`filters` 开集 map 只读回显、零新错误码(批次 51 随冻结落地)
-- [x] **F43 工单上下文** → [support.md](./contract/support.md) v1.1 提案:`context` 开集 map 服务端零解释透传、SDK 自动附带基础事实面且不可覆写、零新错误码(批次 51 随冻结落地)
-
-### 扩展预留补注(每域接口的「万一要扩展怎么处理」)
-
-- [x] [primitives.md](./contract/primitives.md):加字段只可选 / 未知字段容忍 / ID 前缀登记制 / 语义变更升版
-- [x] [errors.md](./contract/errors.md):加码兼容走兜底 / 废弃码保留不重用 / 域前缀登记制
-- [x] [scope.md](./contract/scope.md):env 不得封闭枚举 / orgId 维度预留 / token 跨游戏永不原地放开
-- [x] [branding.md](./contract/branding.md):新素材位加可选字段走管理面 / 缺省走兜底链 / 素材托管归接入方
-- [x] [payment.md](./contract/payment.md):新渠道签名面不变 / 形态加枚举不改状态机 / 订阅·余额·退款扩展位预留
-- [x] [app.md](./contract/app.md):新只读端点兼容 / 合规文案归 Branding / 更新分发预留后续域
-- [x] [diagnostics.md](./contract/diagnostics.md):新类别默认关红线不变 / props 开集 / sampling·consent 预留 / 直发红线不松动
-- [x] [index.md](./contract/index.md) 变更流程第 1 步固化:每条提案必须含「扩展与演进」节,禁止钉死封闭枚举
-
-### 冻结与实现(评审通过后)
-
-- [x] 评审通过 → 三域升 Frozen v1.1 + errors.md v5(仅 AUTH 两码)+ contractgen 六端同步 + 各端 SDK 实现 + e2e(宽限期 / 撤销 / 过滤命中 / 上下文回显)(实际执行:批次 51,`5317802`/`f20e9ab`/`53eaa7c`/`626542f` 前身四批)
-- **下一步缺口**:F45 举报申诉(需新端点组设计)、F76 多语言(与 F35 的 `language` 维度耦合,F35 冻结后并入)、F01 第三方 OAuth(新域契约)、F44 附件、F36 跑马灯 UI 呈现
-
-## 批次 48 — 契约 v1.1 提案续:多语内容 + 举报处罚申诉(Draft,2026-10-11)
-
-> 来源:批次 47「下一步缺口」前两项。同口径:加法提案、不动冻结行 / fixtures / 版本号;每条含「扩展与演进」节;随批次 47 三提案同批评审,冻结前不实现。
-
-- [x] **F76 多语言与本地化** → [announcement.md](./contract/announcement.md) v1.1 提案续:单语分条模型契约化(零破坏,`title`/`body` 类型不动)+ DTO 可选 `language`/`groupKey` + SDK 自动附带 `language` 查询参数(游戏可覆写);多语对象 / 多语并存明示 v2 破坏性,永不原地改;语种回退归管理面兜底(批次 48 已落 Draft;冻结待评审)
-- [x] **F45 举报与处罚申诉** → [support.md](./contract/support.md) v1.1 提案续:reports / penalties / appeal 四端点;**处罚判定与执行全在管理面**,契约只做玩家侧投影 + 申诉入口(网关不执行风控);拟新增 2 错误码(`SUPPORT_PENALTY_NOT_FOUND` / `SUPPORT_APPEAL_EXISTS`);v1 不动 auth 登录语义,拦截联动留 v1.2 提案(批次 48 已落 Draft;冻结待评审)
-- [x] 评审通过与批次 47 同批冻结 → errors.md v5(AUTH 两码 + SUPPORT 两码)+ contractgen 六端同步 + 各端 SDK 实现 + e2e(宽限期 / 撤销 / 过滤命中 / 上下文回显 / 申诉闭环)(同批的 F44 随批次 53、F45 随批次 56、F76 随批次 57 冻结落地)
-- **剩余缺口**:F44 附件(需对象存储面设计,Provider 口径)、F36 跑马灯 UI 呈现(实现非契约)、F01 第三方 OAuth(新域契约)、F31/F33 维持
-
-## 批次 49 — 新域契约草案:第三方身份提供方 OAuth(F01,Draft v0.1,2026-10-11)
-
-> 来源:批次 48 剩余缺口里唯一值得立项的契约面。auth.md:10 明示「第三方 OAuth / 手机号」留后续域契约扩展,本批落位新域文件;同口径:Draft 未冻结,评审(≥ Unity + 一非 C# 端)前不实现。
-
-- [x] **F01 第三方 OAuth 登录** → [oauth.md](./contract/oauth.md) 新域草案:`exchange` / `bind` / 解绑 / 绑定列表四端点;**复用 auth 域账号/会话/token 全套模型,只加 `account_identities` 映射表**;`provider` 开集字符串(管理面注册,契约不枚举);红线:不存第三方凭证原文、`subject` 客户端不得自报、验证全服务端在线;拟新增 3 错误码(`OAUTH_` 前缀预留)(批次 52 随冻结落地)
-- [x] [index.md](./contract/index.md) 域契约(后续)行 + 索引登记 oauth.md;[auth.md](./contract/auth.md) F03 提案扩展表交叉引用新域
-- [x] 评审通过与批次 47/48 五提案同批冻结(实际执行:批次 51 冻结三提案升 v5,批次 52 冻结 OAuth 升 v6——「v5 九码」旧口径作废,SUPPORT 附件两码随 F44 批次升 v7)+ contractgen 六端同步 + SDK 实现 + e2e(exchange 换会话 / bind 冲突 / 解绑幂等)
-- **剩余缺口**:F44 附件(需对象存储面,Provider 口径)、F36 跑马灯 UI 呈现(实现非契约)、F31/F33 维持——**契约面提案全部立项完毕,进入评审与冻结阶段**
-
-## 批次 50 — F44 附件提案 + 全契约扩展预留收口 + 七提案机械核对(2026-10-12)
-
-> 来源:批次 49「契约面提案全部立项完毕」的收尾:最后一个契约面缺口 F44 落 Draft;扩展预留节补齐剩余 7 域(批次 47 已覆盖 7 域);评审门前先做机器核对。同口径:加法提案与加注,不动冻结行 / fixtures / 版本号。
-
-### v1.1 提案(待评审,随批次 47/48 同批)
-
-- [x] **F44 工单附件** → [support.md](./contract/support.md) v1.1 提案(续二)(已随批次 53 冻结):申请直传单端点(返回短时效预签名 URL,客户端 PUT **直传存储,网关二进制零流量**);存储挡在 Provider 后(换 S3/OSS/本地 = 换配置,契约不动);拟新增 2 错误码(`SUPPORT_ATTACHMENT_TOO_LARGE` / `SUPPORT_ATTACHMENT_LIMIT`);附件与 `context` 互斥承载(二进制永不进 context);举报证据附件(F45 承诺)留端点组泛化提案
-
-### 扩展预留收口(剩余 7 域,加注不动冻结行)
-
-- [x] [realname.md](./contract/realname.md):consent v1.1 预留落表 / policyExtension 容忍 / OnRealNameVerified 回调 / 核验生态走已冻结的路由表热切换
-- [x] [player.md](./contract/player.md):解绑端点 v1.1 预留 / 新档案字段加法 / 角色删除对齐 auth F03 语义 / 跨游戏聚合归管理面
-- [x] [messages.md](./contract/messages.md):新事件登记制 / 未知事件容忍兜底 / WebSocket 升版不原地换 / APNs/FCM 归 Provider
-- [x] [events.md](./contract/events.md):事件登记制加行 / 载荷只加字段·语义变更换新名 / 传输载体升版本
-- [x] [config.md](./contract/config.md):`CONFIG_NOT_FOUND` 单键查询预留 / 维度开集走缺省跳过 / 类型化值 v1.2 加字段 / 回滚语义已冻结无需新机制
-- [x] [assistant.md](./contract/assistant.md):LLM 换供应商不动契约 / `transferTicket` 预留 / 多轮加字段提案 / `ASSISTANT` 前缀注册未用
-- [x] [versioning.md](./contract/versioning.md):本身即演进规则,只登记结论(新域 = 新文件 + 前缀随冻结注册;破坏性走矩阵;基元加节先例)
-
-### 机械核对(评审门预检,机器验证)
-
-- [x] 拟新增 **9 错误码**(AUTH 2 + SUPPORT 4 + OAUTH 3)grep errors.md **零冲突**(冻结时随 v5 入表)
-- [x] 拟新增 **11 路由** vs 全契约既有路由**零冲突**(`POST /v1/support/tickets` 双出现 = F43 同端点加可选字段,非冲突)
-- [x] errata:[announcement.md](./contract/announcement.md) 端点总览 `{id}` → `{announcementId}`(与端点契约节记法统一;**wire 不变,不升版**——先例 M0 评审记录 #1/#2 修正冻结文档记法)
-- [x] 扩展与演进/扩展预留节:**16/16 契约全覆盖**(批次 47 七域 + 本批七域 + versioning 登记 + 各 Draft 自带)
-
-### 评审门(用户侧,冻结红线不由 agent 判断)
-
-- [x] 七份 Draft(47 三 + 48 两 + 49 一 + 50 一)同批过读(≥ Unity + 一非 C# 端)→ 冻结升版 + errors.md v5(AUTH 2 + SUPPORT 4 + OAUTH 3)+ contractgen 六端同步 + SDK 实现 + e2e(宽限期 / 撤销 / 过滤命中 / 上下文回显 / 申诉闭环 / exchange 换会话 / 附件直传)(七份已全部随批次 51/52/53/56/57 冻结落地——评审门改由用户授权拍板口径替代)
-- **此后契约面无待立项项**:F36(实现)已随批次 54 落地;剩余 F31/F33(预留/部署面)不产生新契约
-
-## 批次 51 — v1.1 提案落地第 1 批:F03 + F35 + F43 冻结到实现(用户授权拍板,2026-10-12)
-
-> 授权口径:用户授权 agent 拍板决策,需决策处自行决定、后续反馈;从此**不再只写文档不落码**。第 1 批选批次 47 证据链最完整的三份提案(F03 账号注销 / F35 公告定向过滤 / F43 工单上下文),按「契约 → 网关实现 → SDK → e2e」四批提交;第 2 批(不用等)OAuth(oauth.md)先做、F44 附件次之。红线不变:英文短 commit、无 AI 痕迹、pull --rebase 后 push、禁 force push、禁 tag/release。
-
-### 冻结决策(agent 拍板)
-
-- [x] **三份提案按现稿冻结**——契约面按提案落地,不裁剪:delete/cancel + 宽限期 + 受理即吊销会话 + `OnAccountDeleted` Provider 钩子;announcement `filters` 开集 map + 四查询维度;support `context` 开集 map 服务端零解释透传
-- [x] **F03 补齐两个提案未写明、实现必须定死的语义**:`status` 增枚举 `PENDING_DELETE` / `DELETED`;`delete` 重复受理**重签 cancelToken、旧 token 立即失效**(防宽限期内 token 泄露);`delete` 响应 `status` / `cancelToken`(仅 PENDING)/ `pendingDelete` / `deletedAt`(仅 DELETED);游客注销后同设备再进 = **新游客账号**(DELETED 不可恢复)
-- [x] **errors.md 升 v5:仅 AUTH 2 新码**(`AUTH_ACCOUNT_PENDING_DELETE` 403 / `AUTH_DELETE_TOKEN_INVALID` 401)——按本批提案实际计数(批次 49/50 记录的「v5 = 九码」口径失效,余下 SUPPORT 4 / OAUTH 3 随各自批次升 v6/v7);SUPPORT 与上下文零新码
-- [x] [index.md](./contract/index.md) 登记:auth / announcement / support 三域 Frozen v1.1,错误码表 v5
-
-### 落地四批(分批提交)
-
-- [x] **契约**:[auth.md](./contract/auth.md) v1.1 冻结(端点 ×2 + status 枚举 + 错误码节);[announcement.md](./contract/announcement.md) F35 冻结(F76 多语留 Draft);[support.md](./contract/support.md) F43 冻结(F45 / F44 留 Draft);[errors.md](./contract/errors.md) v5 + [fixtures/errors.json](./contract/fixtures/errors.json) version 5;contractgen 六端错误码同步并校验零漂移
-- [x] **网关实现**:aggregation codeTable + auth sentinel + session 状态判定 + account 与 accountalt 双实现 delete/cancel(一致性同口径)+ herald `filters` + croupier `context` + OnAccountDeleted 钩子注册 + main.go 接线(`f20e9ab`)
-- [x] **SDK 六端**:delete / cancel 方法 + 公告过滤参数 + 提单 context(Unity / Cocos / 小程序 / Laybox / UE / Godot)(`53eaa7c`;顺修 UE contract_test kCount 33→35、TS contract.test version 4→5 两处批次 1 漏更的漂移 tripwire)
-- [x] **e2e 四条场景**:宽限期受理与会话吊销 / 宽限期撤销恢复(runIdentityContract 增 4 个 v1.1 子场景,双实现同断言 + GUEST 立即删 + 惰性终态化)/ 公告过滤命中未命中 / 工单上下文回显(TestAnnouncementTargetedFilters_V11、TestTicketContextEcho_V11)
-
-### 门禁
-
-- [x] `go test ./...`(gateway)+ `go test ./tools/...`(contractgen/tsync/packcheck)+ 六端 node/ue/dotnet 测试全绿才 commit(node 128×3 / unity 51+80+8+11 / ue 7 套件全绿)
-- [x] `docs/research/implementation-status.md` 三行状态与证据 commit 随每批同步更新(F03 / F35 / F43)(`f2de30e`)
-
-## 批次 52 — v1.1 提案落地第 2 批:F01 OAuth 冻结到实现(用户授权拍板,2026-10-12)
-
-> 授权口径同批次 51:agent 拍板决策,需决策处自行决定、后续反馈;四批提交(契约 / 网关 / SDK / e2e),门禁全绿才 commit。红线不变:英文短 commit、无 AI 痕迹、pull --rebase 后 push、禁 force push、禁 tag/release。
-
-### 冻结决策(agent 拍板)
-
-- [x] **oauth.md 按现稿冻结**(Draft v0.1 → Frozen v1,批次 52):`exchange` / `bind` / `DELETE bindings/{provider}` / `GET bindings` 四端点;`provider` 开集字符串(管理面注册,契约不枚举);红线:不存第三方凭证原文、`subject` 客户端不得自报、验证全服务端在线;`accounts.type` 加 `OAUTH` 枚举值(加法,随冻结落 auth.md)
-- [x] **补齐提案未写明、实现必须定死的语义**:① exchange 幂等——同 `(provider, subject)` 重复 exchange 登录同账号,每次签发新会话(不复用旧会话);② bind 同 provider 重复绑定 → `COMMON_INVALID_ARGUMENT`(提案明示),bind 到已绑其他账号的 subject → `OAUTH_IDENTITY_TAKEN`;③ OAUTH 账号注销口径——无凭证行、无恢复渠道,**恒立即匿名化(对齐 GUEST)**;已 bind 邮箱转正为 EMAIL 的按 EMAIL 宽限期口径;④ provider 标识格式 `^[a-z0-9-]{1,32}$`,不符 = `OAUTH_PROVIDER_UNKNOWN`(与未注册同码);⑤ bind 响应 `{ provider, createdAt }`(与列表项同形),DELETE 幂等 200 `data: {}`;⑥ 验证实现走 Provider 注册表(接口 `Verify`),默认实现 courier-account 为确定性校验器(测试/联调,管理面可换),契约不描述校验细节
-- [x] **errors.md 升 v6:仅 OAUTH 3 新码**(`OAUTH_PROVIDER_UNKNOWN` 400 / `OAUTH_IDENTITY_INVALID` 401 / `OAUTH_IDENTITY_TAKEN` 409,均不可重试);域前缀 `OAUTH` 注册;fixtures version 6;contractgen 六端同步零漂移
-- [x] [index.md](./contract/index.md) 登记 oauth.md Frozen v1(域契约行 + 索引行)
-
-### 落地四批(分批提交)
-
-- [x] **契约**:oauth.md Frozen v1 + auth.md `type` 加 `OAUTH` + errors.md v6 + fixtures v6 + contractgen 六端(本批)
-- [x] **网关实现**:oauth Provider 注册表 + 验证接口 + account/accountalt 双实现 exchange/bind/unbind/bindings(一致性同口径)+ 能力域开关 + main.go 接线(`689ece9`;默认无校验器 = fail-closed `OAUTH_PROVIDER_UNKNOWN`,e2e/单测以 `SetDefault(DeterministicVerifier{})` 装配)
-- [x] **SDK 六端**:exchange / bind / unbind / bindings 方法(Unity / Cocos / 小程序 / Laybox / UE / Godot)(`e22e3d2`;顺修 UE contract_test kCount 35→38 + 域前缀 13→14 + TS contract.test version 5→6 三处随 fixtures v6 的漂移 tripwire)
-- [x] **e2e 场景**:exchange 换会话(新 OAUTH 账号)/ 重复 exchange 登录同账号 / bind 冲突 `OAUTH_IDENTITY_TAKEN` / 重复 bind `COMMON_INVALID_ARGUMENT` / 解绑幂等 / bindings 列表(升序,无 subject;exchange 建号即写入该身份)/ 凭证无效 `OAUTH_IDENTITY_INVALID` / provider 格式不符 `OAUTH_PROVIDER_UNKNOWN`(runIdentityContract 增 4 个 v1.1 oauth 子场景,双实现同断言;-count=3 防 flake)
-
-### 门禁
-
-- [x] `go test ./...`(gateway)+ `go test ./tools/...` + 六端 node/ue/dotnet 测试全绿才 commit(node 130×3 / unity 55+8+80+11 / ue 7 套件全绿)
-- [x] `docs/research/implementation-status.md` F01 行状态与证据 commit 随每批同步更新(◑ → ✅,缺口汇总 7 → 6 项)
-
-## 批次 53 — F44 工单附件冻结到实现(用户授权拍板,2026-10-12)
-
-> 授权口径同批次 51/52:agent 拍板决策,需决策处自行决定、后续反馈;四批提交(契约 / 网关 / SDK / e2e),门禁全绿才 commit。红线不变:英文短 commit、无 AI 痕迹、pull --rebase 后 push、禁 force push、禁 tag/release。来源:批次 50 写的 support.md「工单附件提案(F44)」Draft。
-
-### 冻结决策(agent 拍板)
-
-- [x] **support.md 附件节按现稿冻结**(Draft · 批次 50 → Frozen,批次 53):单端点 `POST /v1/support/tickets/{ticketId}/attachments` 申请直传,返回短时效预签名 URL;客户端拿 `uploadUrl` 直传存储,**网关二进制零流量**;errors.md 升 v7(+SUPPORT_ATTACHMENT_TOO_LARGE 413 / SUPPORT_ATTACHMENT_LIMIT 409,均不可重试)
-- [x] **补齐提案未写明、实现必须定死的语义**:① **登记即时,无完成确认回调**——附件行在申请端点内创建,详情 `attachments[]` 立即含该附件;`downloadUrl` 与申请同形(短时效预签名 GET 同一对象 key),对象未直传完成前由**存储**返回 404,网关不参与;存储→Provider 回调仅作存储侧内部校验,不进契约;② 限额默认值:每工单 ≤ 3 附件、单文件 ≤ 10 MiB、允许 `contentType` 缺省 5 项(image/png, image/jpeg, text/plain, application/zip, application/pdf)、预签名 TTL 缺省 10 分钟,均管理面可配;超限 → `SUPPORT_ATTACHMENT_LIMIT` 409 / `SUPPORT_ATTACHMENT_TOO_LARGE` 413;`contentType` 不在 allowlist → 400 `COMMON_INVALID_ARGUMENT`;`fileName` 1–255 字符;③ 归属与状态:工单不存在或不属于当前玩家 → 404 `SUPPORT_TICKET_NOT_FOUND`,已关闭 → 409 `SUPPORT_TICKET_CLOSED`;④ 附件与 `context`(F43)互斥承载,二进制永不进 `context`;⑤ 存储挡在 Provider 后:`Signer` 接口(PresignPut/PresignGet),**默认未配置 = fail-closed 501 `COMMON_CAPABILITY_DISABLED`**(同 oauth 校验器注册表口径,不内置假存储到生产 main.go),e2e/单测注入确定性 fake signer,接入方接 S3 / OSS / 本地静态服务器
-- [x] [index.md](./contract/index.md) 顺修:错误码表现已 v5 的旧注记同步到 v7(批次 52 漏更),auth/support 域注记补 OAUTH 与附件两节
-- [x] **契约同步件随冻结一起落**(与 errors v7 强耦合,拆开会让仓库在中间 commit 红灯):contractgen 六端枚举 + Go codeTable 两码 + envelope_sync_test 版本 tripwire 6→7 + UE contract_test kCount 38→40 与 SUPPORT 抽查 + TS contract.test 版本 6→7 ×3 端(门禁:node 130×3 / unity 55+8+80+11 / ue 7 套件 / gateway go vet+test / tools 全绿)
-
-### 落地四批(分批提交)
-
-- [x] **网关实现**:croupier 附件端点 + `Signer` 接口与 fail-closed 缺省 + 限额/allowlist/归属/状态校验 + 详情 `attachments[]` 加法 + main.go 接线(`035125d`)
-- [x] **SDK 六端**:申请直传方法 + 详情 DTO `attachments[]`(Unity / Cocos / 小程序 / Laybox / UE / Godot)(`6dbfca0`)
-- [x] **e2e 场景**:申请直传返回 uploadUrl+headers+expiresAt / 详情 attachments[] 回显 / 第 4 个附件 409 / 超限单文件 413 / 关闭工单 409 / 他人工单 404 / contentType 越界 400 / 未配置 signer 501(`804e93d`)
-
-### 门禁
-
-- [x] `go test ./...`(gateway)+ `go test ./tools/...` + 六端 node/ue/dotnet 测试全绿才 commit(node 131×3 / unity 8+55+11+81 / ue 7 套件 / gateway go vet+test / tools 全绿)
-- [x] `docs/research/implementation-status.md` F44 行状态与证据 commit 随每批同步更新
-
-## 批次 54 — F36 跑马灯 UI 呈现落地(patrol-20261013-A1,2026-10-13)
-
-> 来源:批次 47 起多批「下一步缺口」里最后一条实现项(F36,实现非契约)。零新契约:数据面复用公告契约 `severity` 字段(announcement.md:32)。顺带收口:批次 45 审计清单与批次 47/48 提案勾选状态同步到实际执行结果(F01/F03/F35/F43/F44 落地、F45/F76 Draft 待评审)。
-
-### 决策(agent 拍板)
-
-- [x] **跑马灯内容 = `severity=CRITICAL` 公告**,逐条 `title: body`,多条以 `"  |  "` 连接为单行滚动文本(分隔符取纯 ASCII,零编码歧义);无 CRITICAL **不回调**(游戏侧不闪空跑马灯);仅列表 refresh 触发,详情视图(open)不触发
-- [x] **出口归游戏侧**(包内不绑 UI 框架,同面板既有边界):TS 三端 `onMarqueeRendered` 回调 + `formatMarquee` 纯函数导出;Unity `MarqueeRendered` 事件 + `AnnouncementText.FormatMarquee` 纯 C# 静态件(无 UnityEngine,dotnet 可测,同 BrandingCatalog 口径)
-
-### 落地(分批提交)
-
-- [x] **SDK 四端**(UI 包仅 Unity + TS 三端存在;UE/Godot 无 UI 包,不涉及):TS ×3 `announcementPanel.ts` + `ui.test.ts`( cocos 编辑后同步 miniprogram / laybox)(`8127ba9`)
-- [x] **Unity**:AnnouncementText.cs + AnnouncementPanel 接线 + ServiceTests~ 三测;packcheck 结构守卫补 `AnnouncementText.cs` 符号行与 `MarqueeRendered` 断言(`8127ba9`)
-
-### 门禁
-
-- [x] node 132×3 / unity 84+8+55+11 / ue 7 套件 / gateway go vet+test(-count=1)/ tools 全绿才 commit
-- [x] `docs/research/implementation-status.md` F36 行状态与证据 commit 同步更新
-
-## 批次 55 — 六端示例 + quickstart 实测(批次 44 项 1/3,2026-10-13)
-
-> 来源:批次 44「各端示例齐平」「每端 quickstart 实测」。全部对着本地 gateway(零凭据)逐条实测,六端同链路(接入 → 游客登录 → 拉公告 → 提工单 → 拉工单详情)同输出。
-
-### 落地
-
-- [x] `examples/` 六端示例 + README(网关起法、逐端命令、预期输出、进引擎换传输/存储的说明)(`425fe55`)
-- [x] 网关修复:`/v1/<能力域>` 无斜杠根(契约登记形态)由 307 改为内部补斜杠重派——.NET HttpClient 重定向后实测丢弃 `Authorization`(`c5c4814`,含 routing 单测两断言:命中 Provider 无 Location;未配置域同语义 501)
-- [x] 六端 README 各加「快速开始」(实测命令+输出+cocos/miniprogram/laybox/unity/ue/godot 各自的进引擎换件说明)
-- [x] `docs/sdk-selection.md` 选装清单(批次 44 项 2):UPM 四包/TS 子树/UE+Godot 实测字节 + 九域 Provider 默认接线与降级语义;最小集 Unity 128 KiB / TS 78 KiB
-- [x] 对标数据时效刷新(批次 44 项 4):competitive.md 口径 2026-10-08 → 2026-10-13,Nakama 星数/月份更新,其余复核未变;外链全 200
-
-### 门禁
-
-- [x] gateway go vet + test(-count=1) 全绿 / tools 全绿 / node 132×3 / unity 8+55+84+11 / ue 7 套件全绿才 commit
-- [x] godot 4.3 headless 实跑示例全链路(UE g++ 同);Unity dotnet 实跑;TS ×3 node 实跑
-
-## 批次 56 — F45 举报与处罚申诉冻结到实现(用户授权拍板,2026-10-13)
-
-> 授权口径同批次 51–53:agent 拍板决策;分批提交(契约 / 网关+e2e / SDK / docs),门禁全绿才 commit。红线不变:英文短 commit、无 AI 痕迹、pull --rebase 后 push、禁 force push、禁 tag/release。来源:批次 48 的 support.md「举报与处罚申诉提案(F45)」Draft。
-
-### 冻结决策(agent 拍板)
-
-- [x] **support.md 举报与处罚申诉节按现稿冻结**(Draft · 批次 48 → Frozen,批次 56):`POST /v1/support/reports`、`GET /v1/support/penalties`、`GET /v1/support/penalties/{penaltyId}`、`POST /v1/support/penalties/{penaltyId}/appeal` 四端点;**处罚判定与执行全在管理面**(croupier / GM / 接入方风控),契约只做玩家侧只读投影 + 申诉入口;errors.md 升 v8(+SUPPORT_PENALTY_NOT_FOUND 404 / SUPPORT_APPEAL_EXISTS 409,均不可重试)
-- [x] **举报进展不向举报人反馈**(防骚扰设计):受理即返回 `{id}`,无举报查询端点;举报本身是玩家侧写入,落 Provider 内存登记(与工单同),不依赖投影源
-- [x] **投影源挡在 PenaltyStore 后**(List/Get/Appeal 三方法):实现方接 croupier 管理面或接入方风控系统;**默认未配置 = fail-closed 501 COMMON_CAPABILITY_DISABLED**(同 F44 Signer 口径,不内置假风控数据到生产 main.go);非本人/不存在一律 404 不泄露存在性;每处罚至多一个进行中申诉,重复 → 409
-- [x] v1 **不动 auth 登录语义**(处罚拦截登录留 v1.2 提案,如 `AUTH_ACCOUNT_SUSPENDED` 联动)
-
-### 落地(分批提交)
-
-- [x] **契约**:support.md v1.1(F45 Frozen)+ errors.md v8 + fixtures v8(42 码)+ contractgen 六端同步 + 各端契约测试 tripwire(TS `errors.version` 8 ×3 / UE `kCount` 42 与 SUPPORT 两码抽查)(`d02ddcc`)
-- [x] **网关实现 + e2e**:croupier `penalties.go`(reports 登记 / penalties 投影分页 issuedAt 倒序 / appeal 单例)+ Go codeTable 两码 + `envelope_sync_test` 版本 tripwire 7→8 + e2e(举报受理 / 倒序分页 / 游标翻页 / 申诉 PENDING 回显 / 重复申诉 409 / 缺失与他人 404 / 四组校验 400 / 未配置投影源 501)(`96d8295`)
-- [x] **SDK 六端**:举报 + 处罚列表/详情/申诉方法(DTO ReportRequest/ReportResult/AppealDto/PenaltyDto;TS ×3 同源 / Unity / UE / Godot)+ 各端 typed 错误测试(`de4dc3d`)
-
-### 门禁
-
-- [x] node 134×3 / unity 86+55+8+11 / ue 7 套件 / godot headless service 测试 / gateway go vet+test(-count=1)/ tools 全绿才 commit
-- [x] `docs/research/implementation-status.md` F45 行状态与证据 commit 同步更新
-
-## 批次 57 — F76 多语内容冻结到实现(用户授权拍板,2026-10-13)
-
-> 授权口径同批次 51–56:agent 拍板决策;分批提交(契约 / 网关 / SDK / docs),门禁全绿才 commit。红线不变:英文短 commit、无 AI 痕迹、pull --rebase 后 push、禁 force push、禁 tag/release。来源:批次 48 的 announcement.md「多语内容提案(F76)」Draft——最后一个未冻结 Draft。
-
-### 冻结决策(agent 拍板)
-
-- [x] **announcement.md 多语内容节按现稿冻结**(Draft · 批次 48 → Frozen,批次 57):**一条公告 = 单语内容**,多语 = 管理面分条发布(v1 口径契约化,零破坏);行内加法可选字段 `language`(RFC 5646)/ `groupKey`(同内容多语关联键,客户端不解释);**零新错误码**(errors.md 仍 v8,fixtures/contractgen 不动)
-- [x] **可见性零新机制**:`language` 查询参数复用已冻结的 filters 匹配规则(批次 52 的 F35 language 维度);行内 `language` 字段是语种声明元数据,不参与匹配;未命中详情 404 ANNOUNCEMENT_NOT_FOUND 同码不泄露存在性
-- [x] **SDK 自动附带口径定死**:`CourierConfig.language`(引擎侧系统语言由接入方读入,SDK 本体零引擎 API,测试可注入)→ 列表请求未显式带 `language` 查询参数时自动附带;显式传入 = 覆写;配置缺省 = 不附带(与 v1 行为一致);仅列表,详情不附带
-- [x] 多语同时可见(单条多语对象)= 破坏性走 v2,永不原地改;语种回退归管理面兜底
-
-### 落地(分批提交)
-
-- [x] **契约**:announcement.md Frozen v1.1(多语内容节;头部标注两批追加 F35/F76)(`65d9971`)
-- [x] **网关 + e2e**:herald `Announcement`/DTO `language`/`groupKey`(omitempty,均元数据不参与匹配)+ `Publish` 签名扩展 + e2e `TestAnnouncementLanguages_V11`(回显 / language 维度 hit-miss / ja 全排除 / 404 同码 / 空值字段不出现)(`65d9971`)
-- [x] **SDK 六端**:`CourierConfig.language`(TS ×3 interface / Unity ctor 可选参 / UE 聚合字段 / Godot dict 免校验)+ `AnnouncementService` 默认语种注入(经 CourierServices / UE 接入方手动)+ DTO 两可选字段 ×6 + 各端测试(自动附带 / 显式覆写 / 元数据解析)(`478c194`)
-
-### 门禁
-
-- [x] node 136×3(+2)/ unity 88(+2)+55+8+11 / ue 7 套件(无警告)/ godot headless(+1)/ gateway go vet+test(-count=1)/ tools 全绿才 commit
-- [x] `docs/research/implementation-status.md` F76 行状态与证据 commit 同步更新(统计 ✅ 45 + ❌ 2)
-
-## 批次 58 — 自定义 Provider 接入指南(阶段 D 收尾,2026-10-13)
-
-> 来源:roadmap 阶段 D「自定义 Provider 接入指南仍开放」(批次 55 进度注)——批次 44 四项未含此项,属阶段 D 最后开放项。纯文档批次:全部声称逐条对照仓库证据核验(批次 22 审计口径),零契约/零实现改动。
-
-- [x] **`docs/provider-guide.md`**:四方法 Handler 接口 + 注册 + 路由表最小接入;降级链/熔断/501 语义;九域默认供应商表(realname 默认关闭红线);逐域 Options 注入点表(F44 AttachmentSigner / F45 PenaltyStore / teller ChannelSecret+Deliver / hooks.AccountDeleted,均 fail-closed 缺省);身份源替换一致性测试先例(`e2e/identity_conformance_test.go`,批次 18);明确范围 = 同进程替换,sidecar 形态契约不动
-- [x] **互链收口**:sdk-selection.md Provider 节修正「健康检查逐请求评估」为「含健康缓存与熔断(批次 7)」(registry.go 实况)+ 指向本指南;VitePress 侧栏指南组补「选装清单」(批次 55 遗漏)与「Provider 接入指南」两项
-- [x] **roadmap 阶段 D 进度更新**:四项全闭环(示例/选装/quickstart/Provider 指南)
-
-### 门禁
-
-- [x] 指南内符号与缺省行为逐条对照源码核验(registry.go / capability.go / config.go / main.go / croupier,teller Options / hooks / switchable.go / routing.go);文档间链接全部实存
-
-## 批次 59 — F31/F33 触发条件复核 + 口径一致性只读审计(2026-10-13)
-
-> 来源:巡检推进单(PD1013CRER)。两项门控项不越权启动,本轮只做触发条件复核与文档↔代码一致性核对(批次 22 审计口径:逐条对照仓库证据)。零契约/零实现改动。
-
-- [x] **F31 触发条件复核:未变,维持未立项**——`features.md:105` 分类「必备(**海外**)」、`features.md:253`「主战场优先级在国内合规;按出海需求评估」;`realname.md:100` v1.1 预留 consent 组口径未动;warden 代码 consent/家长同意零命中(grep 实证,预留=未实现);competitive.md 对标口径 2026-10-13 复核未变(批次 55)
-- [x] **F33 触发条件复核:未变,维持随部署面**——部署面凭据未到位;口径与代码逐条一致:`layers.md:121`(审计依赖 trace 贯穿,落库随部署面)/ `layers.md:138`(中间件冻结顺序 trace→结构化错误→限流→scope = chain.go:3)/ `architecture.md:225`(写操作可审计)均与实现相符;**TraceID 消费覆盖 9/9 默认 Provider**(grep `middleware.TraceID` 实证);失败信封必带 traceId、成功信封不带(envelope.go:3/134-148,契约口径如此);无 audit 中间件(批次 22 修正未回退)
-- [x] **依赖欠账**:Dependabot 告警 15 条**全部 state=fixed**(root lockfile 的 VitePress 依赖历史告警:vite/mermaid/dompurify/katex/esbuild 等),**open = 0**
-- [x] **CI**:批次 57/58 推送全绿(`96b3d15` 七 job success 含 examples 六端 e2e);`ad91846`(docs-only)queued 中(runner 排队,先前 `38290127729` 同因排队后全绿)
-- [x] **门禁补验**:批次 58 `config.mjs` 侧栏改动经 `vitepress build` 实跑通过(18.3s 零错误;dist 已 gitignore 不入库)
-
-## 批次 60 — 选装清单字节与测试计数复测(过期口径修正,2026-10-13)
-
-> 来源:巡检推进(PD1013 后续轮)。批次 55 的实测口径在批次 57/58(F45/F76 SDK 面)落地后过期。可自主推进面:实测口径复测 + 现仓计数刷新,零契约/零实现改动。
-
-- [x] **sdk-selection.md 字节复测 + 口径统一**(`d0049d9`):UPM 四包统一取 `packages/*/Runtime/`(原口径混用:core/service 取 Runtime,ui/diagnostics 取包根,差异 README/package.json 非源码);F45+F76 后 core 76,766 / service 58,102(+3,631)/ ui 22,673 / diagnostics 20,495,最小集 134,868(~132 KiB)、四包全装 178,036(~174 KiB);TS core 44,448 / service 38,793(+3,025)/ contract 7,659,最小集 83,241(~81 KiB)、整树 132,490(~129 KiB);UE 239,583(~234 KiB,+13,673)、Godot 61,434(~60 KiB)
-- [x] **口径注补实测证据**:TS 三端 `service/core/contract/ui/diagnostics` 子树**字节全同**(diff 实证),差异只在 `platform/`(miniprogram +24 B、laybox +1,473 B 相对 cocos)——原注「各差几百字节」对 laybox 已过期
-- [x] **layers.md 现仓映射计数刷新**:`CoreTests~` 48 → 55 例 Fact;node:test 123 → 136 例(按当前文件分布:契约 6 / core 22 / lifecycle 35 / utf8 7 / service 16 / service2 9 / stream 9 / wechat 7 / wechatStream 5 / ui 9 / diagnostics 11);批次 39/41 段落里的 123 例属批次历史快照,不改
-- [x] **standing 声称实证**:godot 八套 headless 全绿(实跑八套;`test_core.gd` 的 `Parse JSON failed` / `push_error` 输出为负路径用例预期,退出码 0)
-
-### 门禁
-
-- [x] tools 三包 `go test -count=1` 全绿 / `vitepress build docs` 实跑通过(17.6s 零错误)
-
-## 批次 61 — 阶段 C 敏感域切换策略 + 账号侧换源在途测试(2026-10-13)
-
-> 来源:巡检推进单 r1——两项门控(F31/F33)确认用户侧后按 roadmap 定位可推进面:阶段 C 三项子项中「账号/实名/支付定义独立安全切换策略」与「禁用/热重载不破坏在途请求」的账号侧测试为开放项。
-
-- [x] **治理四条声称逐条对码核验**:`providers/router`(批次 7)熔断 5 次开路 + 30 次调用半开探测(`BreakerConfig` 默认值)、全链失败安全态(`PENDING_REVIEW` = warden 状态机 + `REALNAME_PENDING_REVIEW` 码)、原子快照在途按旧表(`TestReloadAtomic_InFlightCompletesOnOldTable` + e2e `HotReloadFallbacks`)均**有实现有测试**;唯一缺口 = 热重载无管理面端点(`main.go` 仅启动读一次配置)→ 已补边界注
-- [x] **新增测试(实现前先补测试)**:`gateway/auth/switchable_test.go` + `TestSwitchableSetTarget_ConcurrentInFlightCompletes`——8 协程持续验证 + 切换方 200 次重指并发,-race 下每个在途调用只返回旧/新目标身份、无中间态(补上 realname 侧 `router` 已覆盖、identity 侧缺失的对偶证明)
-- [x] **architecture.md「敏感域独立切换策略」**新节:账号(验证器随 primary 原子重指;令牌语义不跨实现,旧令牌重登)/ 实名(默认关闭 + 安全态 + 身份输入不落库)/ 支付(换渠道签名密钥 + Deliver 钩子;台账不随渠道)三行的配置切换面 + 不迁什么 + 实证索引;治理节补热重载现状边界注
-- [x] **roadmap 阶段 C 进度注**:切换策略已定义 + 在途测试覆盖已齐;剩余开放项 = 每域第二实现(仅账号域兑现,其余未立项)
-
-### 门禁
-
-- [x] gateway `go vet ./...` + `go test -count=1 ./...` 全绿 / tools 三包全绿才 commit
-- [x] **race 卫生补验**(本批后加跑):gateway 全仓 `go test -count=1 -race ./...` exit 0、18 包 ok、零 DATA RACE(含新并发换源单测);根模块 `./tools/...` -race 同绿——本轮首次全量 race 实跑(批次 22 曾局部验)
-
-## 批次 62 — F33 审计事件面半边 + 054a59e CI 收口(2026-10-13)
-
-> 来源:巡检点火 r20261013b——F33 复核「trace 贯穿之外是否有不需要新凭据就能先落的日志/留痕半边;能先落代码半边就先落并写明剩余半边的依赖」。
-
-- [x] **F33 事件面半边落地**(F33 todo 行维持未勾——落库半边仍在):`gateway/providers/warden/audit.go` 新增 `AuditSink` 接口 + `AuditEvent`(TraceID/AccountID/Action/Outcome/At,**只含账号维度元数据**)+ `LogSink`(标准日志一行 JSON);`Options.AuditSink` 注入(nil = 不产出,同 hooks.Notify 口径);四发射位 verify/curfew/charge_check/playtime_report——纯读 status 不留痕,S2S 鉴权失败与入参非法 400 不留痕(动作未发生)
-- [x] **红线测试**:`audit_test.go` 六测——关键动作产出与结果值、纯读零事件、nil sink 零产出零 panic、失败路径零事件、**`TestAudit_RedLine_NeverCarriesIdentityInput`**(事件序列化形状断言不含姓名/证件号/指纹,realname.md 红线)、LogSink 行 JSON 回读
-- [x] **main.go 装配**:`COURIER_REALNAME_AUDIT=log` 开日志半边(stdout 结构化行,容器侧采集即用,**无需新凭据**);剩余半边 = 落库 sink(DB/SIEM 直写 + 保留策略)随部署面注入 `Options.AuditSink`,依赖:部署面凭据/存储未到位
-- [x] **文档对齐**:layers.md L5 审计句 / architecture.md 安全边界「写操作可审计」/ provider-guide.md 注入表 realname 行 / implementation-status.md F33 行与更新行(维持 ❌,事件面注记)/ todo F33 落点注
-- [x] **054a59e CI 收口**:两 run 结论 = **cancelled(非红)**——排队期被 161c246 推送顶替取消(run_started 22:52:30Z、cancelled 22:55:20Z,jobs 为空 = 从未拿到 runner);同因清扫了 d0049d9/4db37de/71170e1 的排队 run(下次 push 顶替排队 run 的机制,`cancel-in-progress: false` 只保护 in-progress);代码面验证由最新 tree 的 run 承担(161c246 ⊇ 054a59e,本批推送后同理)
-
-### 门禁
-
-- [x] warden 包 `-race` 全绿;gateway 全仓 `go test -count=1 -race ./...` exit 0(18 包)+ `go vet` + `gofmt` 干净;vitepress build 过(docs 改动)
-
-## 批次 63 — 阶段 B 跨引擎一致性:并发刷新与切号补齐(2026-10-13)
-
-> 来源:巡检派单 R1——todo 仅剩 F31/F33 双门控项(F31 出海需求、F33 落库随部署面),按 roadmap 阶段 B(唯一无进度注记的开放阶段)开工:五行为场景六端覆盖审计 → 缺口补测。
-
-- [x] **六端 × 五场景覆盖审计**(生命周期/取消/并发刷新/切号/SSE 重连):TS 三端(core 22 / lifecycle 35 / stream 9 行拷同构)、Godot(八套)、UE(七套)覆盖齐;缺口 = 并发刷新 Unity/UE 零覆盖、切号 client-level Unity/Godot 缺(仅状态机级);取消六端均 SSE-only(一致口径,非跨引擎不一致)
-- [x] **Unity 单飞修复(实现变更,测试先行)**:审计发现 `SessionService.TryRefreshAsync` 串行不共享——后到者拿已轮换 token **再刷一次**(与 TS/Godot「并发共享一次轮换」跨引擎不一致);先写 `ConcurrentRefresh_SingleFlight_SharesOneRotation`(`Fakes.EnqueuePending` 挂起响应构造真实并发重叠,断言两路并发只发一次 refresh 请求)→ 红(第二路二次刷、脚本耗尽异常)→ 改为在途任务共享(`_refreshInFlight`,仅所有者清空、跟随者零二次轮换)→ 绿
-- [x] **UE 重入防护测试(同步核心的单飞对应物)**:UE 核心同步单线程,对应语义 = 轮换中重入即拒绝;`core_test.cpp` 新增嵌套刷新场景(传输 `on_send` 钩子内再调 refresh → 拒绝、一次轮换只发一次请求)
-- [x] **切号 client-level 补齐**:Unity `LogoutThenLoginAnotherAccount_RaisesAccountSwitched`(登出→换账号登录→恰好多发一次 `lifecycle.account_switched`)/ Godot `t_facade_account_switch`(事件序列 initialized→signed_out→account_switched,首登不算切号)——UE/TS 三端原有同场景
-- [x] **计数与字节复测**:CoreTests~ 55→57 例(layers.md);sdk-selection 字节复测(core 76,766→77,851 B 含单飞实现;min 135,953 B;四包 179,121 B;UE 241,095 B 含新测试 cpp;TS 三端零变动)
-
-### 门禁
-
-- [x] Unity 四工程 dotnet test 全绿(8+57+88+11 = 164);UE 七套 g++ 独立编译全绿;Godot 八套 headless 全绿;vitepress build 过(docs 改动)
-
-## 批次 64 — realname 域第二实现:warden-alt(托管核验)(2026-10-13)
-
-> 来源:巡检派单 R13——todo 未完项(F31 出海需求、F33 落库半边)全为用户侧拍板/部署面阻塞,按 roadmap 阶段 C「每域第二实现」自定位:identity 已双实现(批次 18),realname 为下一域——realname.md Provider 表本就声名三种形态(自建 warden / 托管 warden-alt / 自定义 Webhook),第二实现是契约已有承诺而非造活。
-
-- [x] **warden-alt Provider**(`gateway/providers/wardenalt/`):判定经注入 `CloudVerifier`(契约「自定义 Webhook」形态,`WebhookVerifier` 适配器随包提供)而非本地证件号解析;REJECTED/PENDING_REVIEW 可达(warden 本地校验恒 VERIFIED);证件号 1–64 字符不本地格式校验(格式政策归核验服务);落库只存 {state, isMinor, ageBand, verifiedAt}(不存指纹/出生日期,红线比 warden 更紧);VERIFIED 幂等锁判定不换人重验;REJECTED 是业务结果(可重交,不计熔断);核验服务错误走降级链,全挂 → PENDING_REVIEW 安全态
-- [x] **fail-closed 未配置面**:nil Cloud = HealthCheck 不就绪 → 路由 503 COMMON_UNAVAILABLE(与「默认关闭 501」不同码:配置缺失 ≠ 能力关闭)
-- [x] **监管默认值同口径**:curfew 窗口(周五六日 20–21)与限额分档(5000/20000/10000/40000 分)自含类型、与 warden 同默认;月账本本地记账(accountID+date 幂等,同日重报替换不累加)
-- [x] **一致性 e2e**(批次 18 identity 先例同构):`e2e/realname_conformance_test.go` 两实现 × 成年/未成年链,同一 wire 场景同一断言(状态机/幂等/401/400/F28 下一窗口/F29 单次+月累计/F30 S2S);异构面(判定来源/格式政策/落库内容)只在各自单测断言;no-cloud 503 用例
-- [x] **main.go 装配**:`COURIER_REALNAME_VERIFY_WEBHOOK` 注入核验服务地址(缺省 = 注册但不就绪 → 503);路由表 `{"realname":{"primary":"warden-alt"}}` 即切换
-- [x] **文档对齐**:architecture.md 单实现清单去 warden / roadmap 阶段 C 进度注 / layers.md L4 映射 / provider-guide.md realname 行
-
-### 门禁
-
-- [x] wardenalt 包 `-race` 全绿;gateway 全仓 `go test -count=1 -race ./...` exit 0(19 包)+ `go vet` + `gofmt` 干净;vitepress build 过(docs 改动)
+# Courier TODO — 需求清单
+
+> 只列需求,一行一句;已完成项保留一行证据(commit + 测试)。F01–F76 逐项状态与落点见 [implementation-status.md](./research/implementation-status.md);阶段路线见 [roadmap](./roadmap.md);分层映射见 [layers.md](./layers.md)。
+
+## 未完成
+
+- [ ] F31 年龄门与同意管理(海外):首启年龄筛查 + VPC 家长同意;realname.md 已预留 consent 扩展位,出海需求拍板后立项
+- [ ] F33 审计落库:事件面与日志半边已落(批次 62),剩 DB/SIEM 直写 sink 与保留策略,随部署面凭据到位
+
+## 待议(边界未定,不立项)
+
+- [ ] F13 云存档/进度同步:存档面留 Provider,不做统一钱包式假设
+- [ ] F14 分级读写权限:本人/公开/仅服务端分层待议
+- [ ] F15 写锁与冲突合并:乐观锁/版本号待议
+- [ ] F58 排行榜:玩法非服务,按需评估
+- [ ] F59 成就/任务:玩法非服务,按需评估
+- [ ] F60 数值统计:玩法非服务,按需评估
+- [ ] F61 赛季/通行证/签到:玩法非服务,按需评估
+- [ ] F62 邮件/礼包码:与消息面相邻,按需优先评估
+- [ ] F63 活动与限时运营:玩法非服务,按需评估
+
+## Provider 口径(能力归 Provider,不进核心契约)
+
+- F07 账号风控与防刷(登录限流已内建,支付风控为预留钩子)
+- F17 二进制文件存储(对象存储归 Provider)
+- F23 订阅状态管理(随真实渠道接入)
+- F32 数据最小化与第三方共享清单(清单输出归 Provider)
+- F37 远程推送 APNs/FCM(应用内 SSE 已落,厂商通道不自建)
+- F38 按账号/标签定向推送
+- F39 本地通知/定时提醒
+- F40 触达效果统计
+- F49 A/B 实验(不自建,契约不建)
+- F52 埋点与行为分析(归游戏自有分析栈)
+- F53 付费与广告收入统计
+- F55 崩溃与性能监控(diagnostics 可选包直发,不经网关)
+- F57 数据导出
 
 ## 明确不做
 
-- 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。
+实时多人/匹配/大厅;渠道包聚合联运;运营端界面;自建长连接;统一钱包假设。
+
+## 已完成(批次台账:一句话 | commit | 测试)
+
+- [x] 批次 0 更名 Concierge→Courier、定位 Universal Game SDK、五层架构设计 | 仓库首批 | —
+- [x] 批次 1 M0 契约立宪:五基元 Frozen v1 + realname/branding/diagnostics 初稿 + 契约测试骨架 | d5dbebf a60d8ed | unity 8 / TS 6×3 / ue 绿
+- [x] 批次 2 网关瘦身骨架:Provider 注册表 + 配置路由 + 能力降级 + 中间件链 | cdd391d | go test -race
+- [x] 批次 3 账号域自建实现 + auth 契约冻结:邮箱/游客/轮换/吊销/设备 | 3c24cfc 39b5007 | go test -race + e2e
+- [x] 批次 4 Unity Core:门面 + 生命周期状态机 + 注入接口 | 8b9ed8a | xunit 45
+- [x] 批次 5 Unity Adapter + UPM 三包骨架:安全存储/传输/前后台信号 | 516c1a0 | Core 45+ + packcheck
+- [x] 批次 6 公告/客服/推送 Provider + UI 包:herald/croupier/chirp + SSE | 8ec5702 38fe759 a4ce1eb | e2e 四例 + dotnet 8 + TS 6×3 + UE 枚举
+- [x] 批次 7 实名域:warden 自建核验 + 治理引擎(降级链/熔断/热重载)+ 默认关闭 | e835ff2 e926626 a3dc311 | router 9(-race)+ warden 14 + e2e 6 + ServiceTests 36
+- [x] 批次 8 配置/档案/应用/品牌/诊断五域:scribe/archivist + UI 品牌 + 诊断可选包 | 569fc8b 33c5c18 72bf15c c7fdf63 43ed745 等 | e2e 五例 + DiagnosticsTests 11
+- [x] 批次 9 助手域:sage 检索问答 + 转人工 | 1104081 2481383 9b45f9e 1047bb1 | e2e 两例
+- [x] 批次 10 支付域:teller 沙箱渠道 + 回调 HMAC fail-closed + 对账 | 9df7ba7 ddcbd03 fff7125 | e2e 四例 + ServiceTests 6
+- [x] 批次 11 支付推送事件 v1.1:paid/delivered 经 chirp 广播 | 60b5d22 79c5bce | e2e SSE
+- [x] 批次 12 cocos core + service:FetchTransport + 九域 | 315717c db69d8e | node 41
+- [x] 批次 13 生命周期状态机 + 微信小游戏适配器 | ce974f7 e6cf491 | node 83
+- [x] 批次 14 UE core + service:纯 ISO C++17 header-only | 225ad01 f5b160e 3cc859a | UE 六套
+- [x] 批次 15 miniprogram core + service + wx 适配 | 33325e8 | node 83
+- [x] 批次 16 laybox core + service + laya 适配 | 59a8e02 | node 82
+- [x] 批次 17 cocos UI 可选包:品牌兜底链 + 三面板 | 1fb4790 | node 91
+- [x] 批次 18 账号第二实现 accountalt + SwitchableVerifier + 一致性 e2e + primitives v1.1 | d0936eb | gateway 17 包
+- [x] 批次 19 CI 测试门禁:tests.yml 三栈全仓回归 | d44e23a | 首跑全绿
+- [x] 批次 20 cocos 诊断可选包 | 同上批结构 | node 102
+- [x] 批次 21 维护态自定位:告警清零/导航补缺/漂移修正/vet 门禁 | 7bd102a 621c5dc 等 | 全量门禁绿
+- [x] 批次 22 巡检续批:README 门禁章节/工作流统一/测试数刷新 | d979b08 d9e61cf 67edbce | cocos 102 / miniprogram 83 / laybox 82
+- [x] 批次 23 巡检续批:layers/README 漂移两处 | e0ac63c | CI 绿
+- [x] 批次 24 巡检续批:WebSocket→SSE 四处矛盾修复 | 9823261 | CI 绿
+- [x] 批次 25 巡检续批:layers 九处同步 + 审计中间件声称修正 | 0eb1503 055bd29 | CI 绿
+- [x] 批次 26 声称抽查:33 端点全实装 + 公告详情/FAQ 补 e2e | ad5bac4 | gateway 17 包 -race
+- [x] 批次 27 声称抽查:事件表/端点表 vs SDK 零漂移 | 零修复 | —
+- [x] 批次 28 README 双语对等零漂移 + fixtures 页入导航 | 6aff436 | vitepress 构建绿
+- [x] 批次 29 错误码 v4 六端零漂移 + e2e 覆盖矩阵 33/33 | aa436ec | CI 绿
+- [x] 批次 30 DTO 六端跨端对照:六处不一致全修 + 二进制卫生 | 469e809 b250622 | 六端全矩阵绿
+- [x] 批次 31 tools/tsync 三端守同 + CI 收编 packcheck/tsync | 同批 | 102/83/82 + tools
+- [x] 批次 32 Godot M1 core 落位 + contractgen GDScript 修复 | 同批 | godot 三套
+- [x] 批次 33 Godot 服务域 M2–M5 | 同批 | godot 五套
+- [x] 批次 34 Godot 真传输 + 持久令牌存储 | 同批 | godot 六套
+- [x] 批次 35 Godot SSE 流读 | 同批 | godot 七套
+- [x] 批次 36 Godot 前后台生命周期适配 | 同批 | godot 八套
+- [x] 批次 37 Unity SSE 流读 + CI unity-dotnet job | 同批 | dotnet 8+48+77+11
+- [x] 批次 38 TS 三端 + UE messages SSE 流客户端 | 同批 | cocos 111 / laybox 91 / miniprogram 92 / UE 七套
+- [x] 批次 39 手写 UTF-8 解码器 + 微信 enableChunked 流源 | 同批 | cocos 123 / miniprogram 104 / laybox 98
+- [x] 批次 40 laya XHR 流源(六端流源全景收口) | 同批 | laybox 104 / cocos 123 / miniprogram 104
+- [x] 批次 41 ui/diagnostics 可选包三端对齐 | 同批 | 三端各 123
+- [x] 批次 42 Godot 绑定"规划中"四处清账 + tsync 收编 ui/diagnostics | 文档+工具 | godot 八套
+- [x] 批次 43 契约分框缺口补登:messages.md v1.1 传输分框硬要求 | 契约加注 | 全量健康检查绿
+- [x] 批次 44 竞品调研功能点立项(示例/选装/quickstart/对标) | 归批次 55 落地 | —
+- [x] 批次 45 features.md 76 项全量入账 + implementation-status 落档 | 文档 | —
+- [x] 批次 46 外部架构评审要点归档 | 文档 | —
+- [x] 批次 47 契约 v1.1 三提案(auth 注销/公告过滤/工单上下文)+ 七域扩展预留 | 文档 | —
+- [x] 批次 48 契约 v1.1 两提案(多语内容/举报申诉) | 文档 | —
+- [x] 批次 49 OAuth 域契约草案 | 文档 | —
+- [x] 批次 50 F44 附件提案 + 扩展预留收口 + 机械核对 | 文档 | —
+- [x] 批次 51 F03+F35+F43 冻结到实现(契约/网关/SDK 六端/e2e) | f20e9ab 53eaa7c f2de30e | node 128×3 / unity 51+80+8+11 / ue 7
+- [x] 批次 52 F01 OAuth 冻结到实现(errors v6) | 689ece9 e22e3d2 | node 130×3 / unity 55+8+80+11 / ue 7
+- [x] 批次 53 F44 附件冻结到实现(errors v7,直传零网关流量) | 035125d 6dbfca0 804e93d | node 131×3 / unity 8+55+11+81 / ue 7
+- [x] 批次 54 F36 跑马灯 UI 呈现(severity=CRITICAL 复用) | 8127ba9 | node 132×3 / unity 84+8+55+11
+- [x] 批次 55 六端示例 + quickstart 实测 + 选装清单 + 对标刷新 | 425fe55 c5c4814 | 六端示例实测同输出 + node 132×3 / unity 8+55+84+11 / ue 7
+- [x] 批次 56 F45 举报与处罚申诉冻结到实现(errors v8,42 码) | d02ddcc 96d8295 de4dc3d | node 134×3 / unity 86+55+8+11 / ue 7
+- [x] 批次 57 F76 多语内容冻结到实现(单语分条,零新错误码) | 65d9971 478c194 | node 136×3 / unity 88+55+8+11 / ue 7 / godot +1
+- [x] 批次 58 Provider 接入指南(阶段 D 收尾) | 文档 | 逐条对码核验
+- [x] 批次 59 F31/F33 触发条件复核(只读) | 零增量 | CI 绿
+- [x] 批次 60 选装清单字节与测试计数复测 | d0049d9 | tools + vitepress 绿
+- [x] 批次 61 敏感域切换策略 + 账号侧并发换源测试 | 同批 | gateway -race 18 包
+- [x] 批次 62 F33 审计事件面半边(AuditSink + 日志半边) | 同批 | gateway -race 18 包
+- [x] 批次 63 跨引擎一致性:Unity 并发刷新单飞修复 + UE 重入防护 + 切号补齐 | 同批 | unity 164 / ue 7 / godot 8
+- [x] 批次 64 realname 第二实现 warden-alt(托管核验)+ 一致性 e2e | 53f4194 | gateway -race 19 包

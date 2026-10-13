@@ -63,14 +63,15 @@ Gateway、Provider、生态后端全部是**契约的实现者 / 后端提供者
 ```text
 Courier
 ├── Core          Lifecycle / Network / Error / Retry / Cache / Telemetry 挂钩
-├── Identity      Login / Logout / Bind / Device / RealName(可选,合规)
+├── Identity      Login / Logout / Bind / Device / OAuth(可选,第三方)/ RealName(可选,合规)
 ├── Session       AccessToken / RefreshToken / Session
 ├── Player        Profile / Game Player
 ├── App           Version / Maintenance / Remote Config / Branding
 ├── Communication Announcement / Message / Push
 ├── Support       FAQ / Ticket(核心);Panel(可选 UI 包)
-├── Payment       Order / Purchase / Receipt(仅契约,四形态可选)
-├── Diagnostics   Crash / Error Tracking / OTel Trace / Perf / Analytics(可选包)
+├── Assistant     FAQ 检索问答(可选,LLM 供应商可替换)
+├── Payment       Order / Purchase / Receipt(契约+内置沙箱渠道,四形态可选)
+├── Diagnostics   Crash / OTel Trace / Perf / Analytics(可选包)
 └── Platform      Unity / Unreal / Cocos / Godot / Layabox / MiniProgram
 ```
 
@@ -95,10 +96,10 @@ Uninitialized → Initializing → Ready → Authenticating → Authenticated �
 | --- | --- | --- |
 | Core 包 | 内核 + Identity / Session(初始化、生命周期、token) | 必选 |
 | Service 包 | 各能力服务面:`Support.CreateTicket()`、`Communication.Announcements.list()` 等——**接口在核心/服务包** | 按需 |
-| UI 包 | `CourierLoginPanel` / `CourierAnnouncementPanel` / `CourierSupportPanel` 等组件,**消费 Branding 配置** | 可选 |
+| UI 包 | `AnnouncementPanel` / `CustomerServicePanel` / `AssistantPanel` / `RealNamePanel` 等组件,**消费 Branding 配置** | 可选 |
 
-- `Support.CreateTicket()` 属核心/服务包;`CourierSupportPanel` 属可选 UI 包——SDK 不强制任何 UI。
-- 各引擎各取所需:Unity 有 UPM UI 包,UE 走 UMG,Cocos 自绘;UI 包缺席不影响功能面。
+- `Support.CreateTicket()` 属核心/服务包;`CustomerServicePanel` 属可选 UI 包——SDK 不强制任何 UI。
+- 各引擎各取所需:Unity 有 UPM UI 包,UE 走 UMG(UI 面属引擎集成面,未落仓),Cocos 自绘;UI 包缺席不影响功能面。
 - Diagnostics 同为可选包,与 UI 包同级。
 
 ## Gateway:入口治理,不含业务
@@ -116,12 +117,14 @@ gateway/
 ├── middleware/    限流 / trace / 恢复 / scope / 维护门
 └── providers/     Provider 接口 + 默认实现(能力域 → 注册名)
     ├── account/        AccountProvider(identity)   默认:courier-account(自建
-    │                   accounts/sessions;第二实现 courier-account-alt 同契约可换)
+    │                   accounts/sessions)
+    ├── accountalt/    AccountProvider(identity 第二实现,同契约异构,可换)
     ├── herald/         AnnouncementProvider(announcements)
     ├── croupier/       SupportProvider(support)
     ├── chirp/          MessageProvider(messages,SSE)
     ├── warden/         RealNameProvider(realname)  默认:自建核验;阿里云/腾讯云
     │                   慧眼/易盾/Webhook 按需适配同一形状
+    ├── wardenalt/      RealNameProvider(realname 第二实现,托管核验,同契约可换)
     ├── scribe/         AppProvider(app:config/branding/版本/维护,自建管道,
     │                   可由 croupier 发布)
     ├── archivist/      PlayerProvider(player)
@@ -138,7 +141,7 @@ gateway/
 
 - **配置驱动**:每个 Provider 由配置声明 `primary` + `fallbacks[]`;运行时配置重载即生效,不重启(路由表原子替换,在途请求按旧表完成)。现状边界:原子替换在 `providers/router.Reload` 进程内接缝(实名域已用),管理面重载端点未实现——`main.go` 仍只在启动时读一次 `COURIER_GATEWAY_CONFIG`。
 - **降级链**:主 Provider 失败/超时 → 依序 fallback;全部失败按域定义安全态(如 RealName → `PENDING_REVIEW`)。
-- **熔断**:连续 N 次失败开路 T 秒,半开探测恢复;熔断期直接走 fallback。
+- **熔断**(实名域已落地):按调用次数驱动——连续 N 次失败开路,开路后 30 次调用半开探测恢复(无定时器);熔断期直接走 fallback。
 - **HealthCheck**:注册表剔除不健康实例。
 - RealName([contract/realname.md](./contract/realname.md))是第一个完整适用方;规则对所有 Provider 通用。
 
@@ -208,16 +211,17 @@ Payment
 
 ```text
 CourierClient(门面)
-  .Identity        login / logout / bind / device
+  .Identity        login / logout / bind / device / oauth(可选,第三方)
   .Session         token 状态与轮换
+  .Assistant       faq 检索问答(可选,LLM 供应商可替换)
   .Player          profile / gamePlayer
   .App             version / checkUpdate / checkMaintenance / config / branding
   .Communication   announcements / messages / push
   .Support         createTicket / listTickets / getFaq        ← 核心/服务包
-  .Payment         createOrder / queryOrder(M5,仅契约面)
+  .Payment         createOrder / queryOrder(M5,契约+内置沙箱渠道)
   .RealName        submit / status(可选,合规)
   .Diagnostics     可选包接入点(默认 no-op)
-  UI 包            LoginPanel / AnnouncementPanel / SupportPanel(可选,消费 Branding)
+  UI 包            AnnouncementPanel / CustomerServicePanel / AssistantPanel(可选,消费 Branding)
 ```
 
 - 每端 = 平台无关 Core(DTO、生命周期状态机、token 存储、重试)+ 平台 binding(Unity UPM / UE 插件 / Cocos TS / 微信小程序 / Layabox / Godot——项目形态已落位,插件化打包随引擎集成面)。
@@ -228,7 +232,7 @@ CourierClient(门面)
 ## 安全边界
 
 - 客户端不持有任何 Provider 凭证、内部 URL、管理接口。
-- 登录限流 + 敏感端点限流(网关 middleware;登录/实名等敏感端点更严口径)。支付沙箱期前置风控随部署面(roadmap M5)。
+- 敏感端点限流内建 account Provider(登录/实名等敏感端点更严口径);网关 middleware 仅全局基础限流;实名域无限流。支付沙箱期前置风控随部署面(roadmap M5)。
 - 支付回调只认渠道签名,不认客户端上报金额/状态。
 - 实名:字段最小化、传输加密、SDK 不落盘、日志/trace 禁明文([contract/realname.md](./contract/realname.md))。
 - 诊断:默认关闭、显式开启、开启明示数据范围([contract/diagnostics.md](./contract/diagnostics.md))。

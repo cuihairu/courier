@@ -29,7 +29,7 @@ profile:
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `displayName` | string | 展示名;1–30 字符(修剪首尾空白后) |
-| `avatarUrl` | string? | 头像地址(可选;只存 URL,素材归接入方) |
+| `avatarUrl` | string? | 头像地址(可选;响应恒含该字段,未设置 = 空串;只存 URL,素材归接入方) |
 | `createdAt` / `updatedAt` | timestamp | 档案创建/最近修改 |
 
 character(角色映射):

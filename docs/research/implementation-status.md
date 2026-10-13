@@ -9,7 +9,7 @@
 > **更新**(2026-10-13,批次 57):F76 由 ❌ → ✅(announcement.md Frozen v1.1 多语内容节 → 网关 herald Language/GroupKey → SDK 六端 CourierConfig.language 自动附带 → e2e,证据 commit 见行内);零新错误码(errors.md 仍 v8)。
 > **更新**(2026-10-13,批次 62):F33 维持 ❌ 但事件面半边已落(网关 `warden.AuditSink` 注入 + `LogSink` 日志半边 + 红线测试,零新错误码);剩余 = 落库 sink 随部署面。
 > **更新**(2026-10-13,批次 56):F45 由 ❌ → ✅(support.md v1.1 举报与处罚申诉节 Frozen → 网关 → SDK 六端 → e2e 分批落地,证据 commit 见行内);F11 错误码表 v7→v8(+SUPPORT 举报/申诉 2 码,42 码)。
-> **核对方法**:「已有」声称引用批次号+commit(来自 todo 各批验收记录);「缺口」声称以 grep 机器核对为准(零命中/命中行注明,如 announcement.md `filter` 0 命中、support.md `context` 0 命中、auth.md 仅 `DELETE /devices`、全契约 `language/locale` 0 命中);auth.md:10 与 realname.md:100 为契约明示的边界预留。
+> **核对方法**:「已有」声称引用批次号+commit(来自 todo 各批验收记录);「缺口」声称以 grep 机器核对为准(零命中/命中行注明;批次 45 时点 announcement.md `filter` 0 命中、support.md `context` 0 命中、全契约 `language/locale` 0 命中,已分别于批次 51/57 落地);auth.md:10 与 realname.md:100 为契约明示的边界预留。
 > **图例**:✅ 已落地(仓库内有契约+实现+测试/e2e 证据,部署面残留另行注明)· ◑ 部分(核心面已落,剩余明示)· ❌ 缺口(仓库内未立项/未实现)· 🔌 Provider(不进核心契约)· ⏸ 待议 · ⛔ 不做。
 > **统计**:核心 47 = ✅ 45 + ❌ 2 + ◑ 0(批次 57:F76 落地;批次 54 起◑清零);🔌 13;⏸ 9;⛔ 7。
 

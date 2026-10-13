@@ -13,7 +13,7 @@
 
 > **A universal SDK for integrating common game services across engines and platforms.**
 >
-> Courier 是一个面向游戏的通用 SDK,为 Unity、Unreal、Cocos、Godot 等游戏引擎提供统一的账号、认证、玩家、消息、公告、客服、支付、实名、远程配置、品牌与诊断等能力接口。
+> Courier 是一个面向游戏的通用 SDK,为 Unity、Unreal、Cocos、Godot、微信小游戏、LayaBox 等引擎与平台提供统一的账号、认证、玩家、消息、公告、客服、支付、实名、远程配置、品牌与诊断等能力接口。
 
 Courier 是信使:它不是某一种具体业务,而是替游戏把各种服务能力送到客户端。
 
@@ -71,10 +71,12 @@ Game Client (Unity / UE / Cocos / 小程序 / Layabox / Godot)
   -> 后端 Provider(默认提供,可换可关):
      - AccountProvider       默认:courier-account(自建 accounts/sessions;
                              第二实现 courier-account-alt 同契约可换)
+     - OAuthProvider         第三方登录(可选;Provider 注册表,无内置厂商)
      - AnnouncementProvider  默认:herald(事件驱动通知投递)
      - SupportProvider       默认:croupier support / ticket / faq
      - MessageProvider       默认:chirp(gateway + session)
-     - RealNameProvider      默认:warden(自建核验;阿里云/腾讯云慧眼/易盾/Webhook 同形状可接)
+     - RealNameProvider      默认:warden(自建核验;阿里云/腾讯云慧眼/易盾/Webhook 同形状可接);
+                             第二实现 warden-alt(托管核验,同契约可换)
      - ConfigProvider        默认:scribe(远程配置,自建管道)
      - BrandingProvider      默认:scribe(与 Config 同管道)
      - PlayerProvider        默认:archivist(档案 + 账号↔角色映射)
@@ -97,7 +99,7 @@ Game Client (Unity / UE / Cocos / 小程序 / Layabox / Godot)
 - **一个账号登录所有游戏**:玩家注册一次,凭同一套凭证进入公司旗下任意游戏。
 - **每个游戏角色独立**:同一账号在不同游戏中有独立的角色数据、背包、等级。
 - **支付形态开放**:契约只定 Order/Purchase/Receipt,账号钱包/游戏钱包/直购/外部支付由各游戏选择,不做统一钱包假设。
-- **统一客服**:工单/FAQ 按 game_id 隔离,同一账号的历史工单可跨游戏查看。
+- **统一客服**:工单/FAQ 按账号维度(Provider 内无游戏维度,按游戏隔离属部署面),同一账号的历史工单可跨游戏查看。
 
 scope 模型:`game_id + env` 全局隔离,初始化指定一次,URL 与 payload 不得携带(见 [契约 scope.md](docs/contract/scope.md))。
 
@@ -106,33 +108,33 @@ scope 模型:`game_id + env` 全局隔离,初始化指定一次,URL 与 payload 
 ```text
 Courier
 ├── Core          Lifecycle / Network / Error / Retry / Cache / Telemetry 挂钩
-├── Identity      Login / Logout / Bind / Device / RealName(可选,合规)
+├── Identity      Login / Logout / Bind / Device / OAuth(可选,第三方)/ RealName(可选,合规)
 ├── Session       AccessToken / RefreshToken / Session
 ├── Player        Profile / Game Player
 ├── App           Version / Maintenance / Remote Config / Branding
 ├── Communication Announcement / Message / Push
 ├── Support       FAQ / Ticket(核心)+ Panel(可选 UI 包)
-├── Payment       Order / Purchase / Receipt(仅契约,四形态可选)
-├── Diagnostics   Crash / Error Tracking / OTel Trace / Perf / Analytics(可选包)
+├── Payment       Order / Purchase / Receipt(契约 + 内置沙箱渠道,四形态可选)
+├── Diagnostics   Crash / OTel Trace / Perf / Analytics(可选包)
 └── Platform      Unity / Unreal / Cocos / Godot / Layabox / MiniProgram
 ```
 
-SDK 分包:**Core(必选)/ Service(按需)/ UI(可选包)**——`CreateTicket()` 在核心,`CourierSupportPanel` 在可选 UI 包;Diagnostics 同为可选包,默认全关,未配置即 no-op 零开销。
+SDK 分包:**Core(必选)/ Service(按需)/ UI(可选包)**——`CreateTicket()` 在核心,`CustomerServicePanel` 在可选 UI 包;Diagnostics 同为可选包,默认全关,未配置即 no-op 零开销。
 
 | 能力域 | 说明 | 默认 Provider(可换/可关) | 里程碑 |
 | --- | --- | --- | --- |
 | Identity / Session | 注册/登录(邮箱+密码、游客设备)、token 轮换、设备绑定;一个账号登录所有游戏 | 自建 accounts/sessions | M1 |
-| 公告 | 拉取/订阅公告、活动、维护通知(按游戏隔离) | herald + croupier message | M2 |
+| 公告 | 拉取/订阅公告、活动、维护通知(按游戏 scope 隔离;Provider 内无游戏维度) | herald + croupier message | M2 |
 | 客服 | 工单提交/查询、FAQ 检索(账号维度可跨游戏) | croupier support/ticket/faq | M2 |
 | 推送(messages 通道) | SSE 事件流,单连接承载全部域事件;能力关闭 → 纯拉取兜底(公告轮询、客服手动刷新),功能不残废 | chirp;关闭 = 拉取兜底 | M2 |
 | 实名(可选) | 实名核验 + 防沉迷钩子接口位;Provider 热插拔(降级链+熔断);默认关闭,开启明示数据范围 | 自建/阿里云/腾讯云慧眼/易盾/Webhook | M2 后段 |
-| Remote Config | 按 game_id/env/platform/version/region 条件匹配,热生效 | 自建(可由 croupier 发布) | M3 |
+| Remote Config | 按 platform/version/region 条件匹配(game_id/env 属管理面受众维度),热生效 | 自建(可由 croupier 发布) | M3 |
 | Player Profile | 账号↔角色映射与档案接口,角色数据归各游戏 | 自建(轻量)+ 各游戏服 | M3 |
-| App | GetVersion / CheckUpdate / CheckMaintenance / GetEnvironment | 自建 | M3 |
+| App | CheckUpdate / CheckMaintenance / GetEnvironment | 自建 | M3 |
 | Branding | 公司名/logo/主题色/关于页/客服入口,按 game_id+env 下发;UI 包消费,Core 无品牌逻辑,默认 Courier 标兜底 | 自建(与 Config 同管道) | M3 |
-| Diagnostics(可选) | 崩溃/错误追踪、OTel Trace、性能指标、埋点;默认全关 | Sentry/GlitchTip/自托管 OTLP | M3+ |
+| Diagnostics(可选) | 崩溃、OTel Trace、性能指标、埋点;默认全关 | Sentry/GlitchTip/自托管 OTLP | M3+ |
 | Assistant | FAQ 机器人、游戏内向导 | 可接 croupier faq | M4 |
-| Payment | 仅契约:Order/Purchase/Receipt;四形态由游戏选择 | 渠道抽象;风控前置可选(缺省不拦) | M5 |
+| Payment | 契约 + 内置沙箱渠道(teller);四形态由游戏选择 | 渠道抽象;风控前置可选(缺省不拦) | M5 |
 
 ## 仓库结构
 
@@ -140,12 +142,15 @@ SDK 分包:**Core(必选)/ Service(按需)/ UI(可选包)**——`CreateTicket()
 gateway/    Courier API 网关(Go):auth、session、scope、routing、aggregation、middleware、providers
 sdks/
   unity/    Unity SDK(C#,UPM 包)
-  ue/       Unreal Engine SDK(C++ 插件)
+  ue/       Unreal Engine SDK(引擎无关 C++,header-only + 独立测试;
+            引擎插件面未落地)
   cocos/    Cocos Creator SDK(TypeScript)
-  miniprogram/  微信小程序 SDK(JavaScript)
+  miniprogram/  微信小程序 SDK(TypeScript/JavaScript)
   laybox/    Layabox SDK(TypeScript/JavaScript)
   godot/     Godot SDK(GDScript)
 docs/       契约(contract/)、架构、五层设计、竞品调研(research/)、路线图、TODO
+examples/   六端可运行示例(unity / ue / cocos / miniprogram / laybox / godot)
+tools/      仓库门禁:contractgen(契约测试骨架)、packcheck(UPM 结构)、tsync(TS 三端守同)
 ```
 
 ## 设计边界
@@ -162,7 +167,7 @@ docs/       契约(contract/)、架构、五层设计、竞品调研(research/)�
 
 ## 文档索引
 
-- 契约宪法(M0):[docs/contract/](docs/contract/index.md) — 基元/错误/Scope/版本/事件基元契约 + 全部已冻结域契约:认证(M1)、公告/客服/推送(M2)、实名(M2)、配置/应用/品牌/档案/诊断(M3)、助手(M4)、支付(M5);诊断为客户端可选包,直发不经网关
+- 契约宪法(M0):[docs/contract/](docs/contract/index.md) — 基元/错误/Scope/版本/事件基元契约 + 全部已冻结域契约:认证(M1)、OAuth(第三方登录,可选)、公告/客服/推送(M2)、实名(M2)、配置/应用/品牌/档案/诊断(M3)、助手(M4)、支付(M5);诊断为客户端可选包,直发不经网关
 - 架构:[docs/architecture.md](docs/architecture.md) · 五层:[docs/layers.md](docs/layers.md)
 - 竞品调研:[docs/research/competitive.md](docs/research/competitive.md)
 - 路线图:[docs/roadmap.md](docs/roadmap.md) · 分批 TODO:[docs/todo.md](docs/todo.md)
@@ -172,14 +177,14 @@ docs/       契约(contract/)、架构、五层设计、竞品调研(research/)�
 本地门禁(commit 前全绿):
 
 ```text
-go test ./...                      # 根模块:contractgen + packcheck
+go test ./...                      # 根模块:contractgen + packcheck + tsync
 (cd gateway && go test ./...)      # gateway 模块:全部 Provider + e2e
 (cd gateway && go vet ./...)       # copylocks 等(go test 默认 vet 子集之外)
 node --test tests/*.test.ts        # 在 sdks/cocos、sdks/miniprogram、sdks/laybox 各自目录
 sh sdks/ue/run_tests.sh            # UE 无引擎独立编译(ISO C++17)
 ```
 
-Unity 测试在 Unity Test Runner 跑(需引擎本体)。文档站:`npm install && npm run docs:build`(vitepress)。CI 每次 push/PR 跑同一套门禁:[.github/workflows/tests.yml](.github/workflows/tests.yml)。
+Unity 纯逻辑测试为 4 个 dotnet 测试工程(`dotnet test`,免引擎);引擎内 Test Runner 实跑属部署面。文档站:`npm install && npm run docs:build`(vitepress)。CI 在 push(main)/PR 跑同一套门禁,另有 unity-dotnet 与 examples e2e 两道门禁:[.github/workflows/tests.yml](.github/workflows/tests.yml)。
 
 ## License
 

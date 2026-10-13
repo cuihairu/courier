@@ -57,7 +57,7 @@
 - `token` 必填:第三方颁发的凭证;`tokenType` 可选枚举 `ID_TOKEN` / `ACCESS_TOKEN` / `CODE`,缺省 `ID_TOKEN`——具体校验方式由提供方实现决定(JWKS 验签 / introspection / code 换 token),**契约不描述校验细节**。
 - 校验流程:服务端向第三方在线验证 → 取得 `subject` → 查 `account_identities` → 命中则登录该账号,未命中则创建 `type=OAUTH` 账号并写入映射 → 签发绑定 scope 的会话。
 - 响应 `data` 与 [auth.md](./auth.md) `POST /login` 同构(`tokens` + `account` + `deviceId?`),`account.type = "OAUTH"`。
-- 第三方凭证无效/过期/伪造 → `OAUTH_IDENTITY_INVALID`(401);能力域关闭 → `COMMON_CAPABILITY_DISABLED`(403);已达设备上限 → `AUTH_DEVICE_LIMIT`(403)。
+- 第三方凭证无效/过期/伪造 → `OAUTH_IDENTITY_INVALID`(401);能力域关闭 → `COMMON_CAPABILITY_DISABLED`(501,域级降级统一语义,见 [errors.md](./errors.md));已达设备上限 → `AUTH_DEVICE_LIMIT`(403)。
 
 ### POST /v1/identity/oauth/bind — `{ provider, token }`(Bearer)
 

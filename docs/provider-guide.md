@@ -40,7 +40,7 @@ sidecar 形态契约不动,属部署面演进。
 - 路由表一行 = `CapabilityConfig{primary, fallbacks[], disabled}`
   (`gateway/providers/config.go`);`primary` 空 = 未配置,`disabled: true` = 显式关闭,
   二者同样返回 `501 COMMON_CAPABILITY_DISABLED`。
-- 请求分发沿降级链逐个 `HealthCheck`,失败尝试下一个;健康缓存与熔断自批次 7 实现。
+- 请求分发沿降级链逐个 `HealthCheck`(逐请求探活,无健康缓存),失败尝试下一个;熔断仅实名域已落地(`providers/router`,批次 7),通用降级链为逐请求探活。
 - `fallbacks` 引用未注册的名字**静默跳过**(不残废);配置键拼错(未知能力域)在
   `LoadConfig` 直接报错,不静默失效。
 - 管理语义:能力域 = 路由前缀,业务名不得成为能力域;新能力先在
@@ -78,6 +78,9 @@ sidecar 形态契约不动,属部署面演进。
 
 Provider 的密钥一律**环境变量注入、进程内 fail-closed**(`COURIER_PAYMENTS_CHANNEL_SECRET`、
 `COURIER_REALNAME_S2S_TOKEN` 等,见 main.go);不落配置文件、不进契约。
+网关侧另有三个装配 env:`COURIER_GATEWAY_ADDR`(监听地址,缺省 `:8080`)、
+`COURIER_OAUTH_DISABLED=1`(关闭 oauth 域,501 降级)、`COURIER_GATEWAY_CONFIG`(JSON
+路由表路径,覆盖内置默认)。
 持久化(落库 / 对账 / 审计 / 对象存储)随部署面——trace 贯穿 gateway→Provider 已内建
 ([layers.md](./layers.md) L5),内存实现在单机与测试场景即为完整功能。
 
@@ -90,5 +93,5 @@ Provider 的密钥一律**环境变量注入、进程内 fail-closed**(`COURIER_
 
 - 装配与 main.go 同构(registry + 路由表 + 冻结中间件链:trace → 结构化错误 → 限流 → scope);
 - 场景覆盖含跨域校验(换身份源后 herald 照常认证新令牌);
-- 新 Provider 接入建议给出同构一致性测试;e2e 全绿 + 网关 `go vet` + `go test -count=1`
-  全绿为本仓提交门禁。
+- 新 Provider 接入建议给出同构一致性测试;e2e 全绿 + 网关 `go vet` + `go test`
+  全绿为本仓提交门禁(CI 同命令,见 tests.yml;本地防缓存可加 `-count=1`)。
