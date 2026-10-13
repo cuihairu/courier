@@ -20,6 +20,7 @@ namespace Courier.Session
         readonly IClock _clock;
         readonly LifecycleMachine _lifecycle;
         readonly SemaphoreSlim _refreshLock = new SemaphoreSlim(1, 1);
+        Task<bool> _refreshInFlight;  // 单飞共享:并发跟随同一次轮换(TS/Godot 同语义)
 
         public SessionService(ApiClient api, IdentityService identity, ITokenStore store,
             IClock clock, LifecycleMachine lifecycle)
@@ -92,10 +93,16 @@ namespace Courier.Session
             return Current.AccessToken;
         }
 
-        /// <summary>refresh 轮换(单飞)。安全事件(REUSED/REVOKED)→ 清本地 + signed_out。
+        /// <summary>refresh 轮换(单飞:并发调用共享同一次请求,后到者跟随在途轮换,
+        /// 不二次刷)。安全事件(REUSED/REVOKED)→ 清本地 + signed_out。
         /// 返回是否拿到新凭证。</summary>
         public async Task<bool> TryRefreshAsync(CancellationToken ct)
         {
+            var inFlight = _refreshInFlight;   // 单线程 continuation 路径先读共享,避免空等锁
+            if (inFlight != null)
+            {
+                return await inFlight.ConfigureAwait(false);
+            }
             await _refreshLock.WaitAsync(ct).ConfigureAwait(false);
             try
             {
@@ -103,34 +110,54 @@ namespace Courier.Session
                 {
                     return false;
                 }
+                // 排队等锁期间已有轮换在途:跟随,不二次刷(旧 refresh token 已被上一路轮换)。
+                inFlight = _refreshInFlight;
+                if (inFlight != null)
+                {
+                    return await inFlight.ConfigureAwait(false);
+                }
                 _lifecycle.RaiseTokenExpired();
+                var task = RefreshCoreAsync(ct);
+                _refreshInFlight = task;   // 仅所有者清空,跟随者的 finally 不得清
                 try
                 {
-                    var dto = await _identity.RefreshAsync(
-                        new RefreshRequest { RefreshToken = Current.RefreshToken }, ct).ConfigureAwait(false);
-                    SetSession(dto);
-                    return true;
+                    return await task.ConfigureAwait(false);
                 }
-                catch (CourierException e)
+                finally
                 {
-                    var wire = e.Error == null ? null : e.Error.WireCode;
-                    if (wire == "AUTH_REFRESH_REUSED" || wire == "AUTH_TOKEN_REVOKED")
-                    {
-                        // 安全事件:整个会话已服务端吊销,本地清场(契约 auth.md「重放检测」)。
-                        ClearLocal();
-                        if (_lifecycle.State == LifecycleState.Authenticated ||
-                            _lifecycle.State == LifecycleState.PlayerReady)
-                        {
-                            _lifecycle.Fire(LifecycleTrigger.SignedOut);
-                        }
-                        return false;
-                    }
-                    throw;
+                    _refreshInFlight = null;
                 }
             }
             finally
             {
                 _refreshLock.Release();
+            }
+        }
+
+        async Task<bool> RefreshCoreAsync(CancellationToken ct)
+        {
+            try
+            {
+                var dto = await _identity.RefreshAsync(
+                    new RefreshRequest { RefreshToken = Current.RefreshToken }, ct).ConfigureAwait(false);
+                SetSession(dto);
+                return true;
+            }
+            catch (CourierException e)
+            {
+                var wire = e.Error == null ? null : e.Error.WireCode;
+                if (wire == "AUTH_REFRESH_REUSED" || wire == "AUTH_TOKEN_REVOKED")
+                {
+                    // 安全事件:整个会话已服务端吊销,本地清场(契约 auth.md「重放检测」)。
+                    ClearLocal();
+                    if (_lifecycle.State == LifecycleState.Authenticated ||
+                        _lifecycle.State == LifecycleState.PlayerReady)
+                    {
+                        _lifecycle.Fire(LifecycleTrigger.SignedOut);
+                    }
+                    return false;
+                }
+                throw;
             }
         }
 

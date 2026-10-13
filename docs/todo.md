@@ -806,6 +806,20 @@
 
 - [x] warden 包 `-race` 全绿;gateway 全仓 `go test -count=1 -race ./...` exit 0(18 包)+ `go vet` + `gofmt` 干净;vitepress build 过(docs 改动)
 
+## 批次 63 — 阶段 B 跨引擎一致性:并发刷新与切号补齐(2026-10-13)
+
+> 来源:巡检派单 R1——todo 仅剩 F31/F33 双门控项(F31 出海需求、F33 落库随部署面),按 roadmap 阶段 B(唯一无进度注记的开放阶段)开工:五行为场景六端覆盖审计 → 缺口补测。
+
+- [x] **六端 × 五场景覆盖审计**(生命周期/取消/并发刷新/切号/SSE 重连):TS 三端(core 22 / lifecycle 35 / stream 9 行拷同构)、Godot(八套)、UE(七套)覆盖齐;缺口 = 并发刷新 Unity/UE 零覆盖、切号 client-level Unity/Godot 缺(仅状态机级);取消六端均 SSE-only(一致口径,非跨引擎不一致)
+- [x] **Unity 单飞修复(实现变更,测试先行)**:审计发现 `SessionService.TryRefreshAsync` 串行不共享——后到者拿已轮换 token **再刷一次**(与 TS/Godot「并发共享一次轮换」跨引擎不一致);先写 `ConcurrentRefresh_SingleFlight_SharesOneRotation`(`Fakes.EnqueuePending` 挂起响应构造真实并发重叠,断言两路并发只发一次 refresh 请求)→ 红(第二路二次刷、脚本耗尽异常)→ 改为在途任务共享(`_refreshInFlight`,仅所有者清空、跟随者零二次轮换)→ 绿
+- [x] **UE 重入防护测试(同步核心的单飞对应物)**:UE 核心同步单线程,对应语义 = 轮换中重入即拒绝;`core_test.cpp` 新增嵌套刷新场景(传输 `on_send` 钩子内再调 refresh → 拒绝、一次轮换只发一次请求)
+- [x] **切号 client-level 补齐**:Unity `LogoutThenLoginAnotherAccount_RaisesAccountSwitched`(登出→换账号登录→恰好多发一次 `lifecycle.account_switched`)/ Godot `t_facade_account_switch`(事件序列 initialized→signed_out→account_switched,首登不算切号)——UE/TS 三端原有同场景
+- [x] **计数与字节复测**:CoreTests~ 55→57 例(layers.md);sdk-selection 字节复测(core 76,766→77,851 B 含单飞实现;min 135,953 B;四包 179,121 B;UE 241,095 B 含新测试 cpp;TS 三端零变动)
+
+### 门禁
+
+- [x] Unity 四工程 dotnet test 全绿(8+57+88+11 = 164);UE 七套 g++ 独立编译全绿;Godot 八套 headless 全绿;vitepress build 过(docs 改动)
+
 ## 明确不做
 
 - 实时多人/匹配/大厅(Nakama / Agones 地盘);渠道包聚合联运(MSDK / QuickSDK 地盘);运营端界面(默认供应商 Croupier,可自建);自建长连接(默认 Provider chirp,可换);统一钱包假设。

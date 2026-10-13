@@ -421,6 +421,33 @@ func t_facade_auth_failure() -> void:
 	check(client.lifecycle.state == CourierLifecycle.READY, "认证失败应回退 Ready(实际 %s)" % client.lifecycle.state)
 
 
+# ---- 门面:登出后换账号登录 → account_switched(切号检测;TS lifecycle.test.ts 同场景) ----
+func t_facade_account_switch() -> void:
+	var transport := FakeTransport.new(self)
+	var client := make_client(transport)
+	var rec := Recorder.new()
+	rec.attach(client.lifecycle)
+	client.init()
+	transport.enqueue(200, success(session_json()))  # acc_1
+	var r: Dictionary = await client.guest_login("device-1", "android")
+	check(bool(r.get("ok", false)), "首登应成功")
+	check(rec.types() == ["lifecycle.initialized"], "首登只有 initialized(首登不算切号)")
+
+	transport.enqueue(200, '{"data":null}')
+	await client.session.logout()
+	check(client.lifecycle.state == CourierLifecycle.SIGNED_OUT,
+			"登出应到 SignedOut(实际 %s)" % client.lifecycle.state)
+
+	# acc_2 换账号重登(SignedOut → 重登)。
+	var acc2 := '{"account":{"id":"acc_2","type":"GUEST","status":"ACTIVE","createdAt":"2026-10-09T12:00:00.000Z"},"accessToken":"access-9","accessExpiresAt":"2026-10-09T12:15:00.000Z","refreshToken":"refresh-9","refreshExpiresAt":"2026-10-10T12:00:00.000Z","deviceId":"device-1"}'
+	transport.enqueue(200, success(acc2))
+	var r2: Dictionary = await client.guest_login("device-1", "android")
+	check(bool(r2.get("ok", false)), "换账号重登应成功")
+	check(client.lifecycle.state == CourierLifecycle.PLAYER_READY, "重登应回 PlayerReady")
+	check(rec.types() == ["lifecycle.initialized", "lifecycle.signed_out", "lifecycle.account_switched"],
+			"事件序列应为 initialized→signed_out→account_switched(实际 %s)" % str(rec.types()))
+
+
 func _init() -> void:
 	await t_guest_wire()
 	await t_bearer()
@@ -442,5 +469,6 @@ func _init() -> void:
 	await t_session_dto_shape()
 	await t_facade_auth_flow()
 	await t_facade_auth_failure()
+	await t_facade_account_switch()
 	print("godot core tests: %s (%d failed)" % ["all green" if failed == 0 else "FAILED", failed])
 	quit(1 if failed > 0 else 0)

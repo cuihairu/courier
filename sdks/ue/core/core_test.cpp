@@ -5,6 +5,7 @@
 //   cd sdks/ue/core
 //   g++ -std=c++17 -Wall -Wextra -I. -I../contract -o /tmp/courier_ue_core_test core_test.cpp && /tmp/courier_ue_core_test
 #include <deque>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -33,6 +34,7 @@ class FakeTransport : public Transport {
 public:
     std::vector<TransportRequest> requests;
     std::deque<TransportResult> script;
+    std::function<void(const TransportRequest&)> on_send;  // 测试钩子:send 时回调(重入防护用)
 
     void enqueue(int status, const std::string& body,
                  std::map<std::string, std::string> headers = {}) {
@@ -53,6 +55,9 @@ public:
 
     TransportResult send(const TransportRequest& request) override {
         requests.push_back(request);
+        if (on_send) {
+            on_send(request);
+        }
         if (script.empty()) {
             TransportResult r;
             r.ok = false;
@@ -249,6 +254,30 @@ int main() {
         const RequestOutcome out = h.client->api().request("GET", "/v1/x", nullptr, true);
         CHECK(!out.ok && out.error.wire == "AUTH_TOKEN_EXPIRED", "refresh failure returns original 401");
         CHECK(h.client->session().access_token() == "access-1", "session kept on transient refresh failure");
+    }
+
+    // ---- refresh 重入防护(阶段 B 跨引擎一致性:同步核心的「单飞」对应物)----
+    // 异步端(TS/Unity/Godot)并发共享一次轮换;同步核心无并发,对应语义 =
+    // 轮换进行中重入即拒绝,一次轮换只发一次请求。
+    {
+        Harness h;
+        h.sign_in();
+        int entered = 0;
+        h.transport.on_send = [&](const TransportRequest& req) {
+            if (entered == 0 && req.url.find("/identity/refresh") != std::string::npos) {
+                entered = 1;
+                const bool reentered = h.client->session().refresh();
+                CHECK(!reentered, "reentrant refresh rejected");
+            }
+        };
+        const std::string rotated =
+            "{\"account\":{\"id\":\"acc_1\",\"type\":\"GUEST\",\"status\":\"ACTIVE\",\"createdAt\":\"t\"},\"accessToken\":\"access-2\",\"accessExpiresAt\":\"t\","
+            "\"refreshToken\":\"refresh-2\",\"refreshExpiresAt\":\"t\",\"deviceId\":\"device-1\"}";
+        h.transport.enqueue(200, data_envelope(rotated));
+        const bool ok = h.client->session().refresh();
+        CHECK(ok, "outer refresh ok");
+        CHECK(h.transport.requests.size() == 2, "one rotation only (guest + refresh)");
+        CHECK(h.client->session().access_token() == "access-2", "rotated token adopted");
     }
 
     // ---- 安全事件 REUSED:清场 + signed_out ----

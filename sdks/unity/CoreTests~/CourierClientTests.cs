@@ -251,5 +251,58 @@ namespace Courier.CoreTests
             Assert.Equal("access-2", client.Session.Current.AccessToken);
             Assert.Equal(Courier.Core.LifecycleState.PlayerReady, client.Lifecycle.State);
         }
+
+        // --- 阶段 B 跨引擎一致性:refresh 单飞(TS/Godot 同场景断言并发共享一次轮换) ---
+
+        [Fact]
+        public async Task ConcurrentRefresh_SingleFlight_SharesOneRotation()
+        {
+            var (client, transport, _, _, _) = NewClient();
+            await InitGuestAsync(client, transport);
+            var baseline = transport.Requests.Count;  // guest 登录 1 次
+
+            // 挂起的 refresh 响应:构造真实并发重叠(第一路挂在传输上,第二路此时进入)。
+            var pending = transport.EnqueuePending(new TransportResponse
+            {
+                StatusCode = 200,
+                Headers = new Dictionary<string, string>(),
+                Body = Fixtures.Success(Fixtures.SessionJson(access: "access-9", refresh: "refresh-9"))
+            });
+            var first = client.Session.TryRefreshAsync(CancellationToken.None);
+            Assert.Equal(baseline + 1, transport.Requests.Count);  // 第一路已发出 refresh 并挂起
+
+            var second = client.Session.TryRefreshAsync(CancellationToken.None);
+            Assert.Equal(baseline + 1, transport.Requests.Count);  // 第二路跟随在途轮换,零新请求
+
+            pending.SetResult();  // 放行:轮换完成,两路同享结果
+            Assert.True(await first);
+            Assert.True(await second);
+            Assert.Equal("access-9", client.Session.Current.AccessToken);
+            Assert.Equal("refresh-9", client.Session.Current.RefreshToken);
+            Assert.Equal(baseline + 1, transport.Requests.Count);  // guest + 一次 refresh(串行两刷是 +2)
+        }
+
+        // --- 阶段 B 跨引擎一致性:切号(UE lifecycle_test.cpp / TS lifecycle.test.ts 同场景) ---
+
+        [Fact]
+        public async Task LogoutThenLoginAnotherAccount_RaisesAccountSwitched()
+        {
+            var (client, transport, store, _, events) = NewClient();
+            await InitGuestAsync(client, transport);
+            var switchCount = events.Count(e => e == "lifecycle.account_switched");
+
+            transport.EnqueueJson(200, "{\"data\":null}");
+            await client.SignOutAsync(CancellationToken.None);
+            Assert.Null(store.Saved);
+
+            transport.EnqueueJson(200, Fixtures.Success(Fixtures.SessionJson(
+                accountId: "acc_02K", deviceId: "device-2")));
+            await client.GuestAsync(new GuestRequest { DeviceId = "device-2", Platform = "ios" },
+                CancellationToken.None);
+
+            Assert.Equal("acc_02K", client.Session.Current.AccountId);
+            Assert.Equal(switchCount + 1,
+                events.Count(e => e == "lifecycle.account_switched"));  // 换账号恰好多发一次
+        }
     }
 }

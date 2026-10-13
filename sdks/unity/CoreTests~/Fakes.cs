@@ -22,19 +22,57 @@ namespace Courier.CoreTests
         }
     }
 
+    /// <summary>挂起响应句柄:SetResult 放行挂在传输上的请求(single-flight 等并发重叠场景)。</summary>
+    public sealed class PendingResponse
+    {
+        readonly System.Threading.Tasks.TaskCompletionSource<TransportResponse> _tcs;
+        readonly TransportResponse _response;
+
+        internal PendingResponse(System.Threading.Tasks.TaskCompletionSource<TransportResponse> tcs,
+            TransportResponse response)
+        {
+            _tcs = tcs;
+            _response = response;
+        }
+
+        public System.Threading.Tasks.Task<TransportResponse> Task { get { return _tcs.Task; } }
+
+        public void SetResult() { _tcs.TrySetResult(_response); }
+    }
+
     /// <summary>脚本化传输:按入队顺序响应;耗尽后走 Fallback。</summary>
     public sealed class FakeTransport : ITransport
     {
         public readonly List<TransportRequest> Requests = new List<TransportRequest>();
         readonly Queue<Func<TransportRequest, TransportResponse>> _script =
             new Queue<Func<TransportRequest, TransportResponse>>();
+        readonly Queue<PendingResponse> _pending = new Queue<PendingResponse>();
+        readonly object _gate = new object();
 
         public Func<TransportRequest, TransportResponse> Fallback;
         public bool ThrowOnSend;  // 模拟网络故障(TransportException)
 
         public void Enqueue(Func<TransportRequest, TransportResponse> handler)
         {
-            _script.Enqueue(handler);
+            lock (_gate)
+            {
+                _script.Enqueue(handler);
+            }
+        }
+
+        /// <summary>入队一个挂起响应:下一个请求拿到未完成任务,SetResult 放行。
+        /// 用于构造真实并发重叠(如 refresh 单飞:第二路在第一路挂起期间进入)。</summary>
+        public PendingResponse EnqueuePending(TransportResponse response)
+        {
+            var pending = new PendingResponse(
+                new System.Threading.Tasks.TaskCompletionSource<TransportResponse>(
+                    System.Threading.Tasks.TaskCreationOptions.RunContinuationsAsynchronously),
+                response);
+            lock (_gate)
+            {
+                _pending.Enqueue(pending);
+            }
+            return pending;
         }
 
         /// <summary>入队一个 JSON 响应。</summary>
@@ -53,14 +91,26 @@ namespace Courier.CoreTests
         public System.Threading.Tasks.Task<TransportResponse> SendAsync(
             TransportRequest request, System.Threading.CancellationToken cancellationToken)
         {
-            Requests.Add(request);
+            PendingResponse pending;
+            lock (_gate)
+            {
+                Requests.Add(request);
+                pending = _pending.Count > 0 ? _pending.Dequeue() : null;
+            }
+            if (pending != null)
+            {
+                return pending.Task;
+            }
             if (ThrowOnSend)
             {
                 throw new TransportException("network down", new System.Net.Sockets.SocketException());
             }
-            if (_script.Count > 0)
+            lock (_gate)
             {
-                return System.Threading.Tasks.Task.FromResult(_script.Dequeue()(request));
+                if (_script.Count > 0)
+                {
+                    return System.Threading.Tasks.Task.FromResult(_script.Dequeue()(request));
+                }
             }
             if (Fallback != null)
             {
