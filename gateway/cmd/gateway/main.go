@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/cuihairu/courier/gateway/audit"
 	"github.com/cuihairu/courier/gateway/auth"
 	"github.com/cuihairu/courier/gateway/middleware"
 	"github.com/cuihairu/courier/gateway/providers"
@@ -69,14 +70,14 @@ func main() {
 	//     wardenalt WebhookVerifier;尽力交付,失败不阻断实名请求);
 	//  2) COURIER_REALNAME_AUDIT=log → LogSink 日志半边(stdout,容器侧采集);
 	//  3) 均未配置 → 不产出任何审计事件。
-	var auditSink warden.AuditSink
+	var auditSink audit.AuditSink
 	if ep := os.Getenv("COURIER_REALNAME_AUDIT_WEBHOOK"); ep != "" {
-		auditSink = warden.HTTPSink{
+		auditSink = audit.HTTPSink{
 			Endpoint: ep,
 			Token:    os.Getenv("COURIER_REALNAME_AUDIT_TOKEN"),
 		}
 	} else if os.Getenv("COURIER_REALNAME_AUDIT") == "log" {
-		auditSink = warden.LogSink{}
+		auditSink = audit.LogSink{}
 	}
 	wardenP := warden.New(warden.Options{
 		RequireAuth: reqAuth,
@@ -98,6 +99,7 @@ func main() {
 		RequireAuth: reqAuth,
 		Cloud:       cloud,
 		S2SToken:    os.Getenv("COURIER_REALNAME_S2S_TOKEN"),
+		AuditSink:   auditSink,
 	})
 	// 配置/应用状态(M3,批次 8):scribe(自建),config/branding/app 同管道;
 	// 玩家侧只读投影,发布/版本/维护开关走管理面(Publish/SetVersion/SetMaintenance)。

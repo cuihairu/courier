@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/cuihairu/courier/gateway/aggregation"
+	"github.com/cuihairu/courier/gateway/audit"
 	"github.com/cuihairu/courier/gateway/auth"
 	"github.com/cuihairu/courier/gateway/middleware"
 	"github.com/cuihairu/courier/gateway/providers"
@@ -154,6 +155,9 @@ type Options struct {
 	Limits ChargeLimits
 	// S2SToken 接入方服务端凭证(playtime-report 专用);空 = S2S 端点 fail-closed 401。
 	S2SToken string
+	// AuditSink 审计留痕接收面(F33;nil = 不产出审计事件)。与 warden 同形状
+	// (gateway/audit 共享接缝)——「同契约可换」要求切换实现不静默丢合规留痕。
+	AuditSink audit.AuditSink
 }
 
 func defaultWindows() []Window {
@@ -177,6 +181,8 @@ type Provider struct {
 	rt     *router.Router
 	core   *cloudCore
 	s2s    string
+	// auditSink 审计留痕接收面(F33;nil = 不产出)。
+	auditSink audit.AuditSink
 }
 
 // New 装配;Fallbacks 注入即降级链(托管核验恒为 primary)。
@@ -197,7 +203,18 @@ func New(opts Options) *Provider {
 		limits: opts.Limits, records: make(map[string]*bandRecord), plays: make(map[playKey]playReport)}
 	rt := router.New(router.Config{Primary: c, Fallbacks: opts.Fallbacks, Breaker: opts.Breaker})
 	return &Provider{name: opts.Name, clock: opts.Clock,
-		authMW: opts.RequireAuth, rt: rt, core: c, s2s: opts.S2SToken}
+		authMW: opts.RequireAuth, rt: rt, core: c, s2s: opts.S2SToken,
+		auditSink: opts.AuditSink}
+}
+
+// emitAudit 关键动作留痕(F33):nil sink 零开销;事件只含账号维度元数据,
+// 身份输入(姓名/证件号)到不了这里——红线在 handleVerify 处即已隔离。
+func (p *Provider) emitAudit(action, accountID, outcome, traceID string) {
+	if p.auditSink == nil {
+		return
+	}
+	p.auditSink.Record(audit.AuditEvent{TraceID: traceID, AccountID: accountID,
+		Action: action, Outcome: outcome, At: p.clock()})
 }
 
 // ReloadFallbacks 热重载降级链(契约「热切换」:不重启,路由表原子替换)。
@@ -286,6 +303,7 @@ func (p *Provider) handleVerify(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 	out := p.rt.Verify(id.AccountID, router.IdentityInput{Name: body.Name, IDNumber: body.IDNumber})
+	p.emitAudit(audit.AuditActionVerify, id.AccountID, out.State, middleware.TraceID(req.Context()))
 	d := statusDTO{State: out.State}
 	if out.State == stateVerified {
 		d.IsMinor = &out.IsMinor
@@ -318,6 +336,11 @@ func (p *Provider) handleCurfew(resp http.ResponseWriter, req *http.Request) {
 		return
 	}
 	out := p.rt.Curfew(id.AccountID, p.clock())
+	outcome := audit.AuditOutcomeDenied
+	if out.Playable {
+		outcome = audit.AuditOutcomePlayable
+	}
+	p.emitAudit(audit.AuditActionCurfew, id.AccountID, outcome, middleware.TraceID(req.Context()))
 	d := curfewDTO{Playable: out.Playable}
 	if out.HasNextWindow {
 		at := out.NextWindowAt.UTC().Format("2006-01-02T15:04:05.000Z")
@@ -340,6 +363,11 @@ func (p *Provider) handleChargeCheck(resp http.ResponseWriter, req *http.Request
 		return
 	}
 	out := p.rt.ChargeCheck(id.AccountID, int(body.AmountCents))
+	outcome := audit.AuditOutcomeDenied
+	if out.Allowed {
+		outcome = audit.AuditOutcomeAllowed
+	}
+	p.emitAudit(audit.AuditActionChargeCheck, id.AccountID, outcome, middleware.TraceID(req.Context()))
 	d := chargeDTO{Allowed: out.Allowed}
 	if out.SingleLimitCents > 0 {
 		d.SingleLimitCents = &out.SingleLimitCents
@@ -373,6 +401,7 @@ func (p *Provider) handlePlaytimeReport(resp http.ResponseWriter, req *http.Requ
 		return
 	}
 	p.core.report(body.AccountID, body.Date, int(body.PlayMinutes), int(body.ChargeAmountCents))
+	p.emitAudit(audit.AuditActionPlaytimeReport, body.AccountID, audit.AuditOutcomeOK, middleware.TraceID(req.Context()))
 	aggregation.WriteData(resp, struct{}{})
 }
 

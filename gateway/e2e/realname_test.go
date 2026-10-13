@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/cuihairu/courier/gateway/aggregation"
+	"github.com/cuihairu/courier/gateway/audit"
 	"github.com/cuihairu/courier/gateway/auth"
 	"github.com/cuihairu/courier/gateway/middleware"
 	"github.com/cuihairu/courier/gateway/providers"
@@ -47,7 +48,7 @@ const (
 	rnWardenAlt        // warden-alt(托管核验,批次 64 第二实现)
 )
 
-func newRealNameHarness(t *testing.T, mode int, audit ...warden.AuditSink) *rnHarness {
+func newRealNameHarness(t *testing.T, mode int, sinks ...audit.AuditSink) *rnHarness {
 	t.Helper()
 	reg := providers.NewRegistry()
 	acc := account.New(account.Options{Iterations: 1000})
@@ -59,9 +60,9 @@ func newRealNameHarness(t *testing.T, mode int, audit ...warden.AuditSink) *rnHa
 	h := &rnHarness{}
 	switch mode {
 	case rnWarden:
-		var auditSink warden.AuditSink
-		if len(audit) > 0 {
-			auditSink = audit[0]
+		var auditSink audit.AuditSink
+		if len(sinks) > 0 {
+			auditSink = sinks[0]
 		}
 		h.warden = warden.New(warden.Options{
 			RequireAuth: reqAuth, Clock: rnClock, S2SToken: rnS2SToken, AuditSink: auditSink})
@@ -78,8 +79,13 @@ func newRealNameHarness(t *testing.T, mode int, audit ...warden.AuditSink) *rnHa
 	case rnWardenAlt:
 		// 托管核验脚本:与 warden 本地解析同判定(成人/未成年),判定源不同
 		// (脚本注入 vs 证件号解析)——一致性 e2e 的同断言基础;未登记 = 拒绝。
+		var auditSink audit.AuditSink
+		if len(sinks) > 0 {
+			auditSink = sinks[0]
+		}
 		h.wardenAlt = wardenalt.New(wardenalt.Options{
 			RequireAuth: reqAuth, Clock: rnClock, S2SToken: rnS2SToken,
+			AuditSink: auditSink,
 			Cloud: wardenalt.VerifierFunc(func(_, _ string, idNumber string) (wardenalt.Verdict, error) {
 				switch idNumber {
 				case "110101199001011234":
@@ -452,19 +458,19 @@ func (f *fakeRealName) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // COURIER_REALNAME_AUDIT=log 时为 LogSink)。
 type captureAudit struct {
 	mu     sync.Mutex
-	events []warden.AuditEvent
+	events []audit.AuditEvent
 }
 
-func (s *captureAudit) Record(e warden.AuditEvent) {
+func (s *captureAudit) Record(e audit.AuditEvent) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.events = append(s.events, e)
 }
 
-func (s *captureAudit) snapshot() []warden.AuditEvent {
+func (s *captureAudit) snapshot() []audit.AuditEvent {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return append([]warden.AuditEvent(nil), s.events...)
+	return append([]audit.AuditEvent(nil), s.events...)
 }
 
 // 批次 62 F33 事件面 e2e:审计事件经完整中间件链(trace → 结构化错误 → 限流 →
@@ -500,10 +506,10 @@ func TestRealName_AuditEventsThroughChain_Redaction(t *testing.T) {
 
 	events := sink.snapshot()
 	want := []struct{ action, outcome string }{
-		{warden.AuditActionVerify, "VERIFIED"},
-		{warden.AuditActionCurfew, warden.AuditOutcomeDenied}, // 周四 15:00 未成年 → 不可玩
-		{warden.AuditActionChargeCheck, warden.AuditOutcomeAllowed},
-		{warden.AuditActionPlaytimeReport, warden.AuditOutcomeOK},
+		{audit.AuditActionVerify, "VERIFIED"},
+		{audit.AuditActionCurfew, audit.AuditOutcomeDenied}, // 周四 15:00 未成年 → 不可玩
+		{audit.AuditActionChargeCheck, audit.AuditOutcomeAllowed},
+		{audit.AuditActionPlaytimeReport, audit.AuditOutcomeOK},
 	}
 	if len(events) != len(want) {
 		t.Fatalf("事件数 = %d, want %d: %+v", len(events), len(want), events)
@@ -558,7 +564,7 @@ func TestRealName_AuditHTTPSinkThroughChain(t *testing.T) {
 		if err != nil {
 			t.Errorf("read body: %v", err)
 		}
-		var e warden.AuditEvent
+		var e audit.AuditEvent
 		if err := json.Unmarshal(body, &e); err != nil {
 			t.Errorf("事件非 JSON: %v (%s)", err, body)
 		}
@@ -573,7 +579,7 @@ func TestRealName_AuditHTTPSinkThroughChain(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	sink := warden.HTTPSink{
+	sink := audit.HTTPSink{
 		Endpoint: srv.URL, Token: "siem_token", Logger: log.New(io.Discard, "", 0),
 	}
 	h := newRealNameHarness(t, rnWarden, sink)
@@ -594,8 +600,8 @@ func TestRealName_AuditHTTPSinkThroughChain(t *testing.T) {
 	cap_.mu.Lock()
 	defer cap_.mu.Unlock()
 	// status 为纯读,不留痕。
-	if len(cap_.actions) != 2 || cap_.actions[0] != warden.AuditActionVerify ||
-		cap_.actions[1] != warden.AuditActionChargeCheck {
+	if len(cap_.actions) != 2 || cap_.actions[0] != audit.AuditActionVerify ||
+		cap_.actions[1] != audit.AuditActionChargeCheck {
 		t.Fatalf("SIEM 收到事件 = %v", cap_.actions)
 	}
 	if cap_.authHits != 2 {
@@ -604,6 +610,70 @@ func TestRealName_AuditHTTPSinkThroughChain(t *testing.T) {
 	for _, body := range cap_.bodies {
 		if strings.Contains(body, "张三") || strings.Contains(body, "idNumber") {
 			t.Errorf("SIEM 收到身份输入明文: %s", body)
+		}
+	}
+}
+
+// 批次 66 F33 续:审计事件面是「同契约可换」的行为面之一——两实现(warden 自建
+// / warden-alt 托管)经同一共享接缝(gateway/audit)产出同一事件序列。切换
+// Provider 不得静默丢合规留痕(否则接入方为合规切到 warden-alt 即失举证面)。
+func TestRealName_AuditParity_BothImplementations(t *testing.T) {
+	// 未成年链路:verify → curfew(denied) → charge-check(allowed) →
+	// playtime-report(ok);status 纯读不留痕。
+	auditTrail := func(t *testing.T, mode int) []audit.AuditEvent {
+		t.Helper()
+		sink := &captureAudit{}
+		h := newRealNameHarness(t, mode, sink)
+		token := h.login(t)
+		if code, _ := h.call(t, http.MethodPost, "/v1/realname/verify", token,
+			`{"name":"张三","idNumber":"110101201506201234"}`, nil); code != 200 {
+			t.Fatalf("verify: %d", code)
+		}
+		if code, _ := h.call(t, http.MethodGet, "/v1/realname/curfew", token, "", nil); code != 200 {
+			t.Fatalf("curfew: %d", code)
+		}
+		if code, _ := h.call(t, http.MethodPost, "/v1/realname/charge-check", token,
+			`{"amountCents":100}`, nil); code != 200 {
+			t.Fatalf("charge-check: %d", code)
+		}
+		if code, _ := h.call(t, http.MethodPost, "/v1/realname/playtime-report", rnS2SToken,
+			`{"accountId":"acc_e2e","date":"2026-10-08","playMinutes":30,"chargeAmountCents":0}`, nil); code != 200 {
+			t.Fatalf("playtime-report: %d", code)
+		}
+		if code, _ := h.call(t, http.MethodGet, "/v1/realname/status", token, "", nil); code != 200 {
+			t.Fatalf("status: %d", code)
+		}
+		return sink.snapshot()
+	}
+
+	want := []struct{ action, outcome string }{
+		{audit.AuditActionVerify, "VERIFIED"},
+		{audit.AuditActionCurfew, audit.AuditOutcomeDenied},
+		{audit.AuditActionChargeCheck, audit.AuditOutcomeAllowed},
+		{audit.AuditActionPlaytimeReport, audit.AuditOutcomeOK},
+	}
+	for _, impl := range []struct {
+		name string
+		mode int
+	}{
+		{"warden", rnWarden},
+		{"warden-alt", rnWardenAlt},
+	} {
+		events := auditTrail(t, impl.mode)
+		if len(events) != len(want) {
+			t.Fatalf("%s 事件数 = %d, want %d: %+v", impl.name, len(events), len(want), events)
+		}
+		for i, e := range events {
+			if e.Action != want[i].action || e.Outcome != want[i].outcome {
+				t.Errorf("%s 事件[%d] = %s/%s, want %s/%s",
+					impl.name, i, e.Action, e.Outcome, want[i].action, want[i].outcome)
+			}
+			if e.AccountID == "" {
+				t.Errorf("%s 事件[%d] 账号空", impl.name, i)
+			}
+			if !hex32(e.TraceID) {
+				t.Errorf("%s 事件[%d] TraceID = %q, want 32-hex", impl.name, i, e.TraceID)
+			}
 		}
 	}
 }

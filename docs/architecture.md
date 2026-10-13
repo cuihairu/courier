@@ -236,7 +236,7 @@ CourierClient(门面)
 - 支付回调只认渠道签名,不认客户端上报金额/状态。
 - 实名:字段最小化、传输加密、SDK 不落盘、日志/trace 禁明文([contract/realname.md](./contract/realname.md))。
 - 诊断:默认关闭、显式开启、开启明示数据范围([contract/diagnostics.md](./contract/diagnostics.md))。
-- 写操作可审计:trace 贯穿 gateway → Provider;实名域关键动作(verify/curfew/charge_check/playtime_report)已落结构化审计事件面(`warden.AuditSink` 注入,nil = 不产出;`COURIER_REALNAME_AUDIT=log` 开日志半边),事件只含账号维度元数据(身份输入不进事件,realname.md 红线),落库随部署面。
+- 写操作可审计:trace 贯穿 gateway → Provider;实名域关键动作(verify/curfew/charge_check/playtime_report)已落结构化审计事件面(`gateway/audit` 共享接缝,两个 realname 实现同注入 `AuditSink`,nil = 不产出;`COURIER_REALNAME_AUDIT=log` 开日志半边),事件只含账号维度元数据(身份输入不进事件,realname.md 红线),落库随部署面。
 
 ## 与后端 Provider 的边界
 

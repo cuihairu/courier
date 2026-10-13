@@ -118,7 +118,7 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 
 **职责**
 
-- 唯一入口:auth / session / scope / routing / aggregation / middleware(限流、trace、恢复、scope、维护门);审计依赖 trace 贯穿,实名域已落结构化审计事件面(`warden.AuditSink` 注入,nil = 不产出;`COURIER_REALNAME_AUDIT=log` 开日志半边),落库随部署面。
+- 唯一入口:auth / session / scope / routing / aggregation / middleware(限流、trace、恢复、scope、维护门);审计依赖 trace 贯穿,实名域已落结构化审计事件面(`gateway/audit` 共享接缝:两个 realname 实现同注入 `AuditSink`,nil = 不产出;`COURIER_REALNAME_AUDIT=log` 开日志半边),落库随部署面。
 - Provider 注册表管理:已知能力域的路由全量挂载;未配置能力的路由在分发期返回 `COMMON_CAPABILITY_DISABLED`(501),非路由缺位。
 
 **边界**
