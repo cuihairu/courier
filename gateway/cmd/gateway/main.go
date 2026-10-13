@@ -62,11 +62,20 @@ func main() {
 	// ——契约红线「默认关闭」;接入方在 COURIER_GATEWAY_CONFIG 显式配置
 	// {"realname":{"primary":"warden"}} 开启,S2S 上报凭证经
 	// COURIER_REALNAME_S2S_TOKEN(缺省 = S2S 端点 fail-closed)。
-	// 审计留痕(F33 日志半边):COURIER_REALNAME_AUDIT=log 开启结构化审计行
-	// (stdout,容器侧采集进日志系统);未开启 = 不产出。落库 sink(DB/SIEM 直写,
-	// 保留策略)随部署面注入 warden.Options.AuditSink。
+	// 审计留痕(F33):网关只负责「动作发生时通知」,留什么/存哪/保多久归接入方
+	// 存储实现。两个内置接收面,按 env 择优:
+	//  1) COURIER_REALNAME_AUDIT_WEBHOOK(+ 可选 _TOKEN) → HTTPSink 直写,事件
+	//     经 POST 发往 SIEM 摄取端 / 自建落库代理 / 日志接收端(形状同
+	//     wardenalt WebhookVerifier;尽力交付,失败不阻断实名请求);
+	//  2) COURIER_REALNAME_AUDIT=log → LogSink 日志半边(stdout,容器侧采集);
+	//  3) 均未配置 → 不产出任何审计事件。
 	var auditSink warden.AuditSink
-	if os.Getenv("COURIER_REALNAME_AUDIT") == "log" {
+	if ep := os.Getenv("COURIER_REALNAME_AUDIT_WEBHOOK"); ep != "" {
+		auditSink = warden.HTTPSink{
+			Endpoint: ep,
+			Token:    os.Getenv("COURIER_REALNAME_AUDIT_TOKEN"),
+		}
+	} else if os.Getenv("COURIER_REALNAME_AUDIT") == "log" {
 		auditSink = warden.LogSink{}
 	}
 	wardenP := warden.New(warden.Options{

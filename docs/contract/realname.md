@@ -130,7 +130,7 @@ HealthCheck() → bool
 - 熔断:连续 N 次(默认 5)失败开路,开路后 **30 次调用**半开放行探测(实现按调用次数驱动,无定时器);熔断期间直接走 fallback。
 - 业务性「不匹配」(核验结果 `REJECTED`)是**有效结果**,不计入熔断失败;熔断只统计调用失败(网络/超时/5xx)。
 - HealthCheck 供路由表剔除不健康实例。
-- 审计留痕:关键动作(verify / curfew / charge_check / playtime_report)已落结构化审计事件面,接收面为接入方注入点(缺省 = 不产出;日志半边可按需开启);事件只含账号维度元数据,身份输入不入事件;落库 sink 与保留策略随部署面(契约面不变)。
+- 审计留痕:关键动作(verify / curfew / charge_check / playtime_report)已落结构化审计事件面,接收面为接入方注入点(缺省 = 不产出;内置日志半边与 HTTP 直写半边,见 provider-guide §4);事件只含账号维度元数据,身份输入不入事件;保留策略与查询面归接入方存储实现(契约面不变)。
 
 以上热插拔/降级/熔断规则为通用 Provider 治理规则(见 [architecture.md](../architecture.md)「Provider 治理」),RealName 是第一个完整适用方。
 

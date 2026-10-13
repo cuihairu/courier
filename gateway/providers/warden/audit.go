@@ -8,8 +8,10 @@
 package warden
 
 import (
+	"bytes"
 	"encoding/json"
 	"log"
+	"net/http"
 	"time"
 )
 
@@ -28,6 +30,10 @@ const (
 	AuditOutcomeAllowed  = "allowed"
 	AuditOutcomeOK       = "ok"
 )
+
+// defaultHTTPTimeout HTTPSink 缺省超时:审计在请求路径上必须有界,不拖垮
+// 实名动作本身(与 wardenalt.WebhookVerifier 的 5s 核验超时同思路,更短)。
+const defaultHTTPTimeout = 1 * time.Second
 
 // AuditSink 审计留痕接收面。实现方接接入方审计存储(日志采集 / DB / SIEM)。
 // Record 在请求路径上同步调用:实现方必须自行保证不阻塞(缓冲或异步落库)。
@@ -61,4 +67,60 @@ func (s LogSink) Record(e AuditEvent) {
 		return
 	}
 	l.Printf("courier realname audit %s", b)
+}
+
+// HTTPSink 直写半边:每事件一条 POST 发往接入方端点(SIEM 摄取端 / 自建落库
+// 代理 / 日志接收端),满足 F33「可追溯日志」的举证面——网关仍不持有存储。
+// 端点与 Bearer 凭证均为部署面注入,形状与 wardenalt.WebhookVerifier 同构。
+//
+// 尽力交付(best-effort):超时、网络失败与非 2xx 只记日志,不重试、不阻断、
+// 不影响实名请求结果——审计是旁路留痕,不能反过来打断合规动作本身;失败可见性
+// 由 Logger 承担(接入方监控采集该日志)。同步但有界:请求路径上的耗时上限 =
+// Client 超时,缺省 1s。
+type HTTPSink struct {
+	// Endpoint 接入方端点(空 = 不产出,等价未配置 sink)。
+	Endpoint string
+	// Token 可选 Bearer 凭证。
+	Token string
+	// Client HTTP 客户端;nil = 缺省 1s 超时。
+	Client *http.Client
+	// Logger 失败日志输出目标(nil = 标准日志)。
+	Logger *log.Logger
+}
+
+func (s HTTPSink) Record(e AuditEvent) {
+	l := s.Logger
+	if l == nil {
+		l = log.Default()
+	}
+	if s.Endpoint == "" {
+		return
+	}
+	body, err := json.Marshal(e)
+	if err != nil {
+		l.Printf("courier realname audit sink: marshal %v", err)
+		return
+	}
+	client := s.Client
+	if client == nil {
+		client = &http.Client{Timeout: defaultHTTPTimeout}
+	}
+	req, err := http.NewRequest(http.MethodPost, s.Endpoint, bytes.NewReader(body))
+	if err != nil {
+		l.Printf("courier realname audit sink: endpoint %v", err)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if s.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+s.Token)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		l.Printf("courier realname audit sink: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < http.StatusOK || resp.StatusCode > 299 {
+		l.Printf("courier realname audit sink: status %d", resp.StatusCode)
+	}
 }

@@ -6,6 +6,8 @@ package e2e
 import (
 	"context"
 	"encoding/json"
+	"io"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -535,6 +537,73 @@ func TestRealName_AuditEventsThroughChain_Redaction(t *testing.T) {
 	for _, banned := range []string{"张三", "110101201506201234", "idNumber", "fingerprint"} {
 		if strings.Contains(string(encoded), banned) {
 			t.Errorf("事件序列化含违禁内容 %q: %s", banned, encoded)
+		}
+	}
+}
+
+// 批次 65 F33 直写半边 e2e:HTTPSink 作为生产类型经完整装配面(registry →
+// capability → provider → 审计接缝)产出,SIEM 摄取端(此处测试 HTTP 服务器)
+// 收到事件 POST 与 Bearer 凭证;网关不持有任何存储。红线同上一测:身份输入
+// 经真实请求体进出后仍不进事件体。单测(audit_test.go)直调 sink,本测补装配路径实证。
+func TestRealName_AuditHTTPSinkThroughChain(t *testing.T) {
+	type siemCapture struct {
+		mu       sync.Mutex
+		actions  []string
+		authHits int
+		bodies   []string
+	}
+	cap_ := &siemCapture{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("read body: %v", err)
+		}
+		var e warden.AuditEvent
+		if err := json.Unmarshal(body, &e); err != nil {
+			t.Errorf("事件非 JSON: %v (%s)", err, body)
+		}
+		cap_.mu.Lock()
+		defer cap_.mu.Unlock()
+		cap_.actions = append(cap_.actions, e.Action)
+		if r.Header.Get("Authorization") == "Bearer siem_token" {
+			cap_.authHits++
+		}
+		cap_.bodies = append(cap_.bodies, string(body))
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	sink := warden.HTTPSink{
+		Endpoint: srv.URL, Token: "siem_token", Logger: log.New(io.Discard, "", 0),
+	}
+	h := newRealNameHarness(t, rnWarden, sink)
+	token := h.login(t)
+
+	if code, _ := h.call(t, http.MethodPost, "/v1/realname/verify", token,
+		`{"name":"张三","idNumber":"110101201506201234"}`, nil); code != 200 {
+		t.Fatalf("verify: %d", code)
+	}
+	if code, _ := h.call(t, http.MethodGet, "/v1/realname/status", token, "", nil); code != 200 {
+		t.Fatalf("status: %d", code)
+	}
+	if code, _ := h.call(t, http.MethodPost, "/v1/realname/charge-check", token,
+		`{"amountCents":100}`, nil); code != 200 {
+		t.Fatalf("charge-check: %d", code)
+	}
+
+	cap_.mu.Lock()
+	defer cap_.mu.Unlock()
+	// status 为纯读,不留痕。
+	if len(cap_.actions) != 2 || cap_.actions[0] != warden.AuditActionVerify ||
+		cap_.actions[1] != warden.AuditActionChargeCheck {
+		t.Fatalf("SIEM 收到事件 = %v", cap_.actions)
+	}
+	if cap_.authHits != 2 {
+		t.Errorf("Bearer 凭证命中 = %d, want 2", cap_.authHits)
+	}
+	for _, body := range cap_.bodies {
+		if strings.Contains(body, "张三") || strings.Contains(body, "idNumber") {
+			t.Errorf("SIEM 收到身份输入明文: %s", body)
 		}
 	}
 }
