@@ -22,6 +22,7 @@ import (
 	"github.com/cuihairu/courier/gateway/providers/chirpalt"
 	"github.com/cuihairu/courier/gateway/providers/croupier"
 	"github.com/cuihairu/courier/gateway/providers/herald"
+	"github.com/cuihairu/courier/gateway/providers/heraldalt"
 	"github.com/cuihairu/courier/gateway/providers/hooks"
 	"github.com/cuihairu/courier/gateway/providers/sage"
 	"github.com/cuihairu/courier/gateway/providers/scribe"
@@ -64,6 +65,11 @@ func main() {
 	notifyTarget := chirpP.Hub().Publish
 	publish := func(eventType string, data any) { notifyTarget(eventType, data) }
 	heraldP := herald.New(herald.Options{RequireAuth: reqAuth, Notify: publish})
+	// 公告域第二实现(批次 69):herald-alt(写时索引——map 详情 O(1) +
+	// 发布时维护 publishedAt 升序切片,列表倒序遍历输出)与 herald(读时线性
+	// 扫描+读时排序)同契约异构;切换 = {"announcements":{"primary":"herald-alt"}}
+	// (一致性 e2e 见 e2e/announcements_conformance_test.go:两实现同一 wire 场景全绿)。
+	heraldAltP := heraldalt.New(heraldalt.Options{RequireAuth: reqAuth, Notify: publish})
 	// 客服(M2,批次 4):Notify 广播 support.ticket_replied 到 chirp.Hub。
 	// 附件直传(F44,support.md v1.1)存储面由接入方注入 croupier.Options.AttachmentSigner
 	// (换 S3 / OSS / 本地静态服务器 = 换配置,契约不动);未配置 = 501
@@ -137,7 +143,7 @@ func main() {
 		ChannelSecret: os.Getenv("COURIER_PAYMENTS_CHANNEL_SECRET"),
 		Notify:        publish,
 	})
-	for _, h := range []providers.Handler{acc, accAlt, heraldP, croupierP, chirpP, chirpAltP, wardenP, wardenAltP, scribeP, archivistP, archivistAltP, sageP, tellerP} {
+	for _, h := range []providers.Handler{acc, accAlt, heraldP, heraldAltP, croupierP, chirpP, chirpAltP, wardenP, wardenAltP, scribeP, archivistP, archivistAltP, sageP, tellerP} {
 		if err := reg.Register(h); err != nil {
 			log.Fatalf("courier gateway: 注册 %s 失败: %v", h.Name(), err)
 		}

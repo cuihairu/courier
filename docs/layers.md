@@ -16,7 +16,7 @@
  L5 Gateway           唯一入口:auth / session / scope / routing / aggregation / middleware
  L4 Service Provider  Provider 接口 + 默认实现(默认供应商可换可关)
  ───────────────────────── 生 态 ────────────────────────────
-   默认供应商(仅以 Provider 角色存在):courier-account(账号,第二实现 courier-account-alt 可换) herald(公告) croupier(客服) chirp(推送,第二实现 chirp-alt 环形日志+游标可换) warden(实名,第二实现 warden-alt 托管核验可换) scribe(配置/品牌/版本) archivist(档案,第二实现 archivist-alt 事件日志可换) sage(助手) teller(支付)
+   默认供应商(仅以 Provider 角色存在):courier-account(账号,第二实现 courier-account-alt 可换) herald(公告,第二实现 herald-alt 写时索引可换) croupier(客服) chirp(推送,第二实现 chirp-alt 环形日志+游标可换) warden(实名,第二实现 warden-alt 托管核验可换) scribe(配置/品牌/版本) archivist(档案,第二实现 archivist-alt 事件日志可换) sage(助手) teller(支付)
 ```
 
 L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不依赖任何层。
@@ -90,7 +90,7 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 | Provider | 接口职责 | 默认实现(可换/可关) |
 | --- | --- | --- |
 | AccountProvider | 注册/登录/凭证核验 | courier-account(自建;第二实现 courier-account-alt 同契约可换) |
-| AnnouncementProvider | 玩家侧公告投影 | herald |
+| AnnouncementProvider | 玩家侧公告投影 | herald(读时扫描;第二实现 herald-alt 写时索引可换) |
 | SupportProvider | 工单/FAQ 投影 | croupier |
 | MessageProvider | 推送通道/会话复用 | chirp(扇出;第二实现 chirp-alt 环形日志+游标可换) |
 | RealNameProvider | 实名核验(热插拔/降级链/熔断) | warden(自建核验;第二实现 warden-alt 托管核验,判定经注入 CloudVerifier;阿里云/腾讯云慧眼/易盾/Webhook 同形状可接) |
@@ -110,7 +110,7 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 
 - 每域一个 Provider 接口;实现 `providers.Handler` 后由装配方 `reg.Register(h)` 注册(接口与实现分离,默认实现可整体替换)。
 
-**现仓映射**:`gateway/providers/`(接口形状批次 2 冻结;`account/` AccountProvider 批次 3;`herald/` `croupier/` `chirp/` 三域默认实现批次 6,Notify 钩子装配解耦——发布/回复事件经注入的 `Publish` 进 chirp Hub,Provider 互不 import;`router/` 治理引擎 + `warden/` 实名自建核验批次 7——降级链/熔断/热重载首个完整落地,后续域复用;`scribe/` config/app/branding 同管道 + `archivist/` 玩家档案批次 8——M3 热生效/维护门/品牌热切换 e2e 验收;`sage/` 小助手批次 9——M4 检索问答/命中率统计/转人工 e2e 验收;`teller/` 支付批次 10——M5 服务端定价/回调 HMAC 签名面/断单对账 e2e 验收;`accountalt/` 第二 identity 实现(同契约异构,HMAC 自验证令牌)批次 18——装配期读 COURIER_GATEWAY_CONFIG 随 identity primary 重指;`wardenalt/` 第二 realname 实现(托管核验,判定经注入 CloudVerifier,网关侧只存判定态)批次 64——同 wire 场景一致性 e2e(批次 18 先例同构);`archivistalt/` 第二 player 实现(事件日志模型:变更追加事件、读=投影重放)批次 67——同 wire 场景一致性 e2e(批次 18/64 先例同构);`chirpalt/` 第二 messages 实现(共享环形日志 + 每连接游标拉取,发布只追加一次)批次 68——同 wire 场景一致性 e2e(批次 18/64/67 先例同构))。
+**现仓映射**:`gateway/providers/`(接口形状批次 2 冻结;`account/` AccountProvider 批次 3;`herald/` `croupier/` `chirp/` 三域默认实现批次 6,Notify 钩子装配解耦——发布/回复事件经注入的 `Publish` 进 chirp Hub,Provider 互不 import;`router/` 治理引擎 + `warden/` 实名自建核验批次 7——降级链/熔断/热重载首个完整落地,后续域复用;`scribe/` config/app/branding 同管道 + `archivist/` 玩家档案批次 8——M3 热生效/维护门/品牌热切换 e2e 验收;`sage/` 小助手批次 9——M4 检索问答/命中率统计/转人工 e2e 验收;`teller/` 支付批次 10——M5 服务端定价/回调 HMAC 签名面/断单对账 e2e 验收;`accountalt/` 第二 identity 实现(同契约异构,HMAC 自验证令牌)批次 18——装配期读 COURIER_GATEWAY_CONFIG 随 identity primary 重指;`wardenalt/` 第二 realname 实现(托管核验,判定经注入 CloudVerifier,网关侧只存判定态)批次 64——同 wire 场景一致性 e2e(批次 18 先例同构);`archivistalt/` 第二 player 实现(事件日志模型:变更追加事件、读=投影重放)批次 67——同 wire 场景一致性 e2e(批次 18/64 先例同构);`chirpalt/` 第二 messages 实现(共享环形日志 + 每连接游标拉取,发布只追加一次)批次 68——同 wire 场景一致性 e2e(批次 18/64/67 先例同构);`heraldalt/` 第二 announcements 实现(写时索引:map 详情 O(1) + 发布时维护 publishedAt 升序切片)批次 69——同 wire 场景一致性 e2e(批次 18/64/67/68 先例同构))。
 
 **下一步**:Diagnostics 为客户端可选包(不经网关,批次 8 落 `sdks/unity/packages/com.courier.diagnostics`);payments 批次 10 已接入(teller)。
 
@@ -158,7 +158,7 @@ Go `http.ServeMux` + 中间件链(trace → 结构化错误 → 限流 → scope
 | L1 SDK Contract | `docs/contract/` + `tools/contractgen` | 基元五件 Frozen v1 + auth v1.1 + M2 三域 v1.1 + realname v1 + M3 五域(config/app/branding/player/diagnostics)v1 + assistant(M4)v1 + payment(M5)v1.1 + oauth v1(批次 52);错误码 v8 |
 | L2 Core | `sdks/unity/packages/com.courier.core/Runtime/{Core,Identity,Session}`;`sdks/cocos/src/core`;`sdks/ue/core` | Unity 批次 4 落位(状态机+auth 域,48 用例;批次 37 SseStream 接缝+退避);cocos TS 批次 12-13 落位(core+service 全域);批次 38 messages 流客户端落位(TS 三端 node:test 111 例,真 chunked 服务器 e2e);批次 39 增量 UTF-8 解码器落位(跨块多字节不撕裂,node:test 123 例);UE C++ 批次 14 落位(core+service 全域,纯 ISO C++17 header-only);批次 38 流编排落位(g++ 七套全绿) |
 | L3 Platform Adapter | `sdks/unity/packages/com.courier.core/Runtime/Adapter`(+UPM 包;`tools/packcheck`);TS 三端 adapter(`sdks/cocos`、`sdks/miniprogram` 的 platform/wechat,`sdks/laybox` 的 platform/laya) | Unity 批次 5 落位(传输/安全存储/前后台);批次 6 service 域服务+SSE 解析、ui 面板;批次 8 App/Config/Branding/Player 域服务 + diagnostics 可选包(默认全关 no-op);批次 9 Assistant 域服务 + 助手面板(转人工);批次 10 Payment 域服务(下单/轮询);批次 37 SSE 流读接线(`UnityWebRequestSseSource`,编排退避/重连/解析在 Core+Service 纯逻辑,dotnet 77 例 [Fact] 覆盖——SSE 专属仅 16 例,引擎内 Test Runner 实跑随部署面);TS 三端批次 12-17 落位(wechat/laya 绑定;ui 包批次 17、diagnostics 包批次 20);批次 38 TS 三端 FetchSseSource(fetch 流读默认实现)+ UE SseSource 接缝落位;批次 39 微信 enableChunked 流源落位(cocos/miniprogram,头到回填连接 + 手写 UTF-8 解码);批次 40 laya XHR 流源落位(onprogress 增量 + onload 净关流重连;UE 引擎接线随引擎环境);ui 包批次 17、diagnostics 包批次 20 落位(cocos 首落,批次 41 三端对齐——TS 三端 node:test 各 123 例);Godot 批次 34/35/36 落位(HTTPClient 传输 + user:// 存储 + messages SSE 流读 + 前后台信号,真 socket 验证) |
-| L4 Service Provider | `gateway/providers/*` | 接口形状批次 2 冻结;account 批次 3;herald/croupier/chirp 批次 6(M2 三域,e2e 验收);router 治理引擎 + warden 实名批次 7;scribe + archivist 批次 8(M3,e2e 验收);sage 批次 9(M4,e2e 验收);teller 批次 10(M5,e2e 验收);accountalt 第二 identity 实现(同契约异构)批次 18;wardenalt 第二 realname 实现(托管核验)批次 64;archivistalt 第二 player 实现(事件日志)批次 67;chirpalt 第二 messages 实现(环形日志+游标)批次 68 |
+| L4 Service Provider | `gateway/providers/*` | 接口形状批次 2 冻结;account 批次 3;herald/croupier/chirp 批次 6(M2 三域,e2e 验收);router 治理引擎 + warden 实名批次 7;scribe + archivist 批次 8(M3,e2e 验收);sage 批次 9(M4,e2e 验收);teller 批次 10(M5,e2e 验收);accountalt 第二 identity 实现(同契约异构)批次 18;wardenalt 第二 realname 实现(托管核验)批次 64;archivistalt 第二 player 实现(事件日志)批次 67;chirpalt 第二 messages 实现(环形日志+游标)批次 68;heraldalt 第二 announcements 实现(写时索引)批次 69 |
 | L5 Gateway | `gateway/{cmd,routing,middleware,scope,aggregation,auth,session,e2e}` | 批次 2 骨架;auth/session 批次 3;能力驱动路由+SSE 通道+e2e 批次 6;维护门批次 8 |
 
 ## 演进原则

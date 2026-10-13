@@ -79,7 +79,8 @@ Game Client (Unity / UE / Cocos / Mini Program / Layabox / Godot)
      - AccountProvider       default: courier-account (built-in accounts/sessions;
                              second impl courier-account-alt, same contract)
      - OAuthProvider         third-party login (optional; provider registry, no built-in vendor)
-     - AnnouncementProvider  default: herald (event-driven notification delivery)
+     - AnnouncementProvider  default: herald (event-driven notification delivery);
+                             second impl herald-alt (write-time index, same contract)
      - SupportProvider       default: croupier support / ticket / faq
      - MessageProvider       default: chirp (gateway + session);
                              second impl chirp-alt (ring log + cursor, same contract)

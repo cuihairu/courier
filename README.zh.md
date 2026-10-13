@@ -72,7 +72,8 @@ Game Client (Unity / UE / Cocos / 小程序 / Layabox / Godot)
      - AccountProvider       默认:courier-account(自建 accounts/sessions;
                              第二实现 courier-account-alt 同契约可换)
      - OAuthProvider         第三方登录(可选;Provider 注册表,无内置厂商)
-     - AnnouncementProvider  默认:herald(事件驱动通知投递)
+     - AnnouncementProvider  默认:herald(事件驱动通知投递);
+                             第二实现 herald-alt(写时索引,同契约可换)
      - SupportProvider       默认:croupier support / ticket / faq
      - MessageProvider       默认:chirp(gateway + session);
                              第二实现 chirp-alt(环形日志+游标,同契约可换)
