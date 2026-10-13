@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -41,7 +42,7 @@ const (
 	rnFake            // fakeRealName(治理链演示:可整体替换的 Provider)
 )
 
-func newRealNameHarness(t *testing.T, mode int) *rnHarness {
+func newRealNameHarness(t *testing.T, mode int, audit ...warden.AuditSink) *rnHarness {
 	t.Helper()
 	reg := providers.NewRegistry()
 	acc := account.New(account.Options{Iterations: 1000})
@@ -53,8 +54,12 @@ func newRealNameHarness(t *testing.T, mode int) *rnHarness {
 	h := &rnHarness{}
 	switch mode {
 	case rnWarden:
+		var auditSink warden.AuditSink
+		if len(audit) > 0 {
+			auditSink = audit[0]
+		}
 		h.warden = warden.New(warden.Options{
-			RequireAuth: reqAuth, Clock: rnClock, S2SToken: rnS2SToken})
+			RequireAuth: reqAuth, Clock: rnClock, S2SToken: rnS2SToken, AuditSink: auditSink})
 		if err := reg.Register(h.warden); err != nil {
 			t.Fatalf("register warden: %v", err)
 		}
@@ -417,4 +422,111 @@ func (f *fakeRealName) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				aggregation.CodeNotFound, "no route")
 		}
 	})).ServeHTTP(w, r)
+}
+
+// captureAudit 事件捕获(测试装配面;生产 main.go 同源注入,经
+// COURIER_REALNAME_AUDIT=log 时为 LogSink)。
+type captureAudit struct {
+	mu     sync.Mutex
+	events []warden.AuditEvent
+}
+
+func (s *captureAudit) Record(e warden.AuditEvent) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.events = append(s.events, e)
+}
+
+func (s *captureAudit) snapshot() []warden.AuditEvent {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]warden.AuditEvent(nil), s.events...)
+}
+
+// 批次 62 F33 事件面 e2e:审计事件经完整中间件链(trace → 结构化错误 → 限流 →
+// scope)与真实装配面(registry → capability → provider)产出,TraceID 取自链上
+// 上下文;身份输入走真实请求体后仍不进事件(realname.md 红线)。单测(audit_test.go)
+// 直调 handler,本测补装配路径实证。
+func TestRealName_AuditEventsThroughChain_Redaction(t *testing.T) {
+	sink := &captureAudit{}
+	h := newRealNameHarness(t, rnWarden, sink)
+	token := h.login(t)
+
+	var st struct {
+		State string `json:"state"`
+	}
+	if code, _ := h.call(t, http.MethodPost, "/v1/realname/verify", token,
+		`{"name":"张三","idNumber":"110101201506201234"}`, &st); code != 200 || st.State != "VERIFIED" {
+		t.Fatalf("verify: %d %v", code, st)
+	}
+	if code, _ := h.call(t, http.MethodGet, "/v1/realname/curfew", token, "", nil); code != 200 {
+		t.Fatalf("curfew: %d", code)
+	}
+	if code, _ := h.call(t, http.MethodPost, "/v1/realname/charge-check", token,
+		`{"amountCents":100}`, nil); code != 200 {
+		t.Fatalf("charge-check: %d", code)
+	}
+	if code, _ := h.call(t, http.MethodPost, "/v1/realname/playtime-report", rnS2SToken,
+		`{"accountId":"acc_e2e","date":"2026-10-08","playMinutes":30,"chargeAmountCents":0}`, nil); code != 200 {
+		t.Fatalf("playtime-report: %d", code)
+	}
+	if code, _ := h.call(t, http.MethodGet, "/v1/realname/status", token, "", nil); code != 200 {
+		t.Fatalf("status: %d", code)
+	}
+
+	events := sink.snapshot()
+	want := []struct{ action, outcome string }{
+		{warden.AuditActionVerify, "VERIFIED"},
+		{warden.AuditActionCurfew, warden.AuditOutcomeDenied}, // 周四 15:00 未成年 → 不可玩
+		{warden.AuditActionChargeCheck, warden.AuditOutcomeAllowed},
+		{warden.AuditActionPlaytimeReport, warden.AuditOutcomeOK},
+	}
+	if len(events) != len(want) {
+		t.Fatalf("事件数 = %d, want %d: %+v", len(events), len(want), events)
+	}
+	for i, e := range events {
+		if e.Action != want[i].action || e.Outcome != want[i].outcome {
+			t.Errorf("事件[%d] = %s/%s, want %s/%s", i, e.Action, e.Outcome, want[i].action, want[i].outcome)
+		}
+		if e.At.IsZero() {
+			t.Errorf("事件[%d] At 零值", i)
+		}
+		if !hex32(e.TraceID) {
+			t.Errorf("事件[%d] TraceID = %q, want 32-hex", i, e.TraceID)
+		}
+	}
+	// 玩家侧三事件同账号;S2S 上报账号来自请求体。
+	for i := 0; i < 2; i++ {
+		if events[i].AccountID == "" || events[i].AccountID != events[0].AccountID {
+			t.Errorf("事件[%d] 账号 %q 与事件[0] %q 不一致", i, events[i].AccountID, events[0].AccountID)
+		}
+	}
+	if events[3].AccountID != "acc_e2e" {
+		t.Errorf("S2S 事件账号 = %q, want acc_e2e", events[3].AccountID)
+	}
+
+	// 红线:身份输入经真实请求体进出后,事件序列化形状仍不含姓名/证件号/指纹。
+	encoded, err := json.Marshal(events)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	for _, banned := range []string{"张三", "110101201506201234", "idNumber", "fingerprint"} {
+		if strings.Contains(string(encoded), banned) {
+			t.Errorf("事件序列化含违禁内容 %q: %s", banned, encoded)
+		}
+	}
+}
+
+// hex32 32 位小写 hex(primitives.md「TraceID」口径)。
+func hex32(s string) bool {
+	if len(s) != 32 {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
 }
