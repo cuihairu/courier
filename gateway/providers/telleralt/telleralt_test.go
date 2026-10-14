@@ -1,0 +1,806 @@
+// teller-alt 单元测试:与 teller 同一契约面(服务端定价、风控前置、归属 404、
+// 回调签名 fail-closed、状态机、回调幂等、断单对账、关单保护、推送事件、列表序)
+// + 异构面(事件账本追加只读、投影重放、两模型操作序列等价)。
+package telleralt
+
+import (
+	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/cuihairu/courier/gateway/auth"
+	"github.com/cuihairu/courier/gateway/providers/teller"
+)
+
+// sign 测试侧按契约算法(X-Payment-Signature = hex HMAC-SHA256(secret, rawBody))签名。
+func sign(secret string, body []byte) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(body)
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+type envelope struct {
+	Data  json.RawMessage `json:"data"`
+	Error *struct {
+		Code string `json:"code"`
+	} `json:"error"`
+}
+
+func harness(t *testing.T, secret string, deliver func(Delivery) error, risk func(string, int64) error, notify ...func(string, any)) (*PaymentsProvider, *string) {
+	t.Helper()
+	cur := new(string)
+	*cur = "acc_1"
+	var hook func(string, any)
+	if len(notify) > 0 {
+		hook = notify[0]
+	}
+	p := New(Options{
+		Clock:         func() time.Time { return time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC) },
+		ChannelSecret: secret,
+		Deliver:       deliver,
+		RiskCheck:     risk,
+		Notify:        hook,
+		RequireAuth: func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				ctx := auth.WithIdentity(r.Context(), auth.Identity{AccountID: *cur, SessionID: "ses_1"})
+				next.ServeHTTP(w, r.WithContext(ctx))
+			})
+		},
+	})
+	return p, cur
+}
+
+func call(t *testing.T, p *PaymentsProvider, method, path, body string, hdr map[string]string) *httptest.ResponseRecorder {
+	t.Helper()
+	req, err := http.NewRequest(method, path, strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for k, v := range hdr {
+		req.Header.Set(k, v)
+	}
+	rec := httptest.NewRecorder()
+	p.ServeHTTP(rec, req)
+	return rec
+}
+
+// createOrder 便利封装:acc 下单 sku,返回响应信封。
+func createOrder(t *testing.T, p *PaymentsProvider, acc *string, skuID string) (*envelope, *httptest.ResponseRecorder) {
+	t.Helper()
+	*acc = "acc_1"
+	rec := call(t, p, http.MethodPost, "/v1/payments/orders", `{"skuId":"`+skuID+`"}`, nil)
+	var env envelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("解析响应: %v body=%s", err, rec.Body.String())
+	}
+	return &env, rec
+}
+
+func seedSkus(p *PaymentsProvider) {
+	p.AddSku("sku_gem_60", "com.demo.gem60", "DIRECT_PURCHASE", 600, "CNY")
+	p.AddSku("sku_pass", "com.demo.pass", "GAME_WALLET", 3000, "CNY")
+}
+
+func TestMeta(t *testing.T) {
+	p, _ := harness(t, "s3cret", nil, nil)
+	if p.Name() != DefaultName {
+		t.Fatalf("name = %s", p.Name())
+	}
+	if string(p.Capability()) != "payments" {
+		t.Fatalf("capability = %v", p.Capability())
+	}
+	if err := p.HealthCheck(context.Background()); err != nil {
+		t.Fatalf("health: %v", err)
+	}
+}
+
+func TestFailClosedWithoutAuth(t *testing.T) {
+	// 未注入认证中间件:fail-closed 一律 401(契约:玩家端点全部 Bearer)。
+	p := New(Options{ChannelSecret: "s3cret"})
+	rec := call(t, p, http.MethodGet, "/v1/payments/orders", "", nil)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("no auth = %d, want 401", rec.Code)
+	}
+}
+
+func TestCreateOrder_ServerSidePricing(t *testing.T) {
+	p, cur := harness(t, "s3cret", nil, nil)
+	seedSkus(p)
+
+	// 未知 SKU → 404 PAYMENT_SKU_NOT_FOUND
+	env, rec := createOrder(t, p, cur, "sku_nope")
+	if rec.Code != 404 || env.Error == nil || env.Error.Code != "PAYMENT_SKU_NOT_FOUND" {
+		t.Fatalf("未知 sku = %d %s", rec.Code, rec.Body.String())
+	}
+
+	// 已知 SKU → CREATED + payToken + 服务端定价(请求体只有 skuId,价格来自价格表)
+	env, rec = createOrder(t, p, cur, "sku_gem_60")
+	if rec.Code != 200 || env.Error != nil {
+		t.Fatalf("下单 = %d %s", rec.Code, rec.Body.String())
+	}
+	var o orderDTO
+	if err := json.Unmarshal(env.Data, &o); err != nil {
+		t.Fatal(err)
+	}
+	if o.Status != StatusCreated || o.PayToken == "" {
+		t.Fatalf("下单快照 = %+v", o)
+	}
+	if o.AmountCents != 600 || o.Currency != "CNY" || o.ProductID != "com.demo.gem60" {
+		t.Fatalf("定价不符 = %+v", o)
+	}
+}
+
+func TestCreateOrder_RiskRejected(t *testing.T) {
+	p, cur := harness(t, "s3cret", nil, func(accountID string, amountCents int64) error {
+		if amountCents > 1000 {
+			return errRisk("大额")
+		}
+		return nil
+	})
+	seedSkus(p)
+
+	env, rec := createOrder(t, p, cur, "sku_pass") // 3000 > 1000 → 拒
+	if rec.Code != 403 || env.Error == nil || env.Error.Code != "PAYMENT_RISK_REJECTED" {
+		t.Fatalf("风控拒绝 = %d %s", rec.Code, rec.Body.String())
+	}
+	// 被拒订单不落库:我的订单为空
+	*cur = "acc_1"
+	rec = call(t, p, http.MethodGet, "/v1/payments/orders", "", nil)
+	if !strings.Contains(rec.Body.String(), `"items":[]`) {
+		t.Fatalf("被拒订单不应存在: %s", rec.Body.String())
+	}
+}
+
+type errRisk string
+
+func (e errRisk) Error() string { return string(e) }
+
+func TestOrderOwnership_404NoLeak(t *testing.T) {
+	p, cur := harness(t, "s3cret", nil, nil)
+	seedSkus(p)
+	_, rec := createOrder(t, p, cur, "sku_gem_60")
+	var created struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatal(err)
+	}
+
+	// 他人查询 → 404 PAYMENT_ORDER_NOT_FOUND(不泄露存在性)
+	*cur = "acc_2"
+	rec = call(t, p, http.MethodGet, "/v1/payments/orders/"+created.Data.ID, "", nil)
+	if rec.Code != 404 || !strings.Contains(rec.Body.String(), "PAYMENT_ORDER_NOT_FOUND") {
+		t.Fatalf("他人查询 = %d %s", rec.Code, rec.Body.String())
+	}
+	// 他人列表不含他人订单
+	rec = call(t, p, http.MethodGet, "/v1/payments/orders", "", nil)
+	if strings.Contains(rec.Body.String(), created.Data.ID) {
+		t.Fatalf("他人列表泄露订单: %s", rec.Body.String())
+	}
+	// 本人可见
+	*cur = "acc_1"
+	rec = call(t, p, http.MethodGet, "/v1/payments/orders/"+created.Data.ID, "", nil)
+	if rec.Code != 200 {
+		t.Fatalf("本人查询 = %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestCallback_SignatureFailClosed(t *testing.T) {
+	// 密钥未配置:fail-closed,伪造签名一律 403
+	p0, cur := harness(t, "", nil, nil)
+	seedSkus(p0)
+	_, rec := createOrder(t, p0, cur, "sku_gem_60")
+	var oid struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &oid); err != nil {
+		t.Fatal(err)
+	}
+	body := `{"orderId":"` + oid.Data.ID + `","paidAt":"2026-10-09T12:00:01Z"}`
+	rec = call(t, p0, http.MethodPost, "/v1/payments/callback", body,
+		map[string]string{"X-Payment-Signature": sign("any", []byte(body))})
+	if rec.Code != 403 || !strings.Contains(rec.Body.String(), "PAYMENT_INVALID_SIGNATURE") {
+		t.Fatalf("无密钥回调 = %d %s", rec.Code, rec.Body.String())
+	}
+
+	// 密钥已配置:缺头/错密钥/篡改 body 全部 403,订单停留 CREATED
+	p, cur := harness(t, "s3cret", nil, nil)
+	seedSkus(p)
+	_, rec = createOrder(t, p, cur, "sku_gem_60")
+	if err := json.Unmarshal(rec.Body.Bytes(), &oid); err != nil {
+		t.Fatal(err)
+	}
+	cases := []struct {
+		name string
+		hdr  map[string]string
+		body string
+	}{
+		{"缺签名头", nil, body},
+		{"错密钥", map[string]string{"X-Payment-Signature": sign("wrong", []byte(body))}, body},
+		{"篡改 body", map[string]string{"X-Payment-Signature": sign("s3cret", []byte(body))}, `{"orderId":"` + oid.Data.ID + `","paidAt":"2026-10-09T99:99:99Z"}`},
+	}
+	for _, tc := range cases {
+		rec := call(t, p, http.MethodPost, "/v1/payments/callback", tc.body, tc.hdr)
+		if rec.Code != 403 || !strings.Contains(rec.Body.String(), "PAYMENT_INVALID_SIGNATURE") {
+			t.Fatalf("%s = %d %s", tc.name, rec.Code, rec.Body.String())
+		}
+		*cur = "acc_1"
+		rec = call(t, p, http.MethodGet, "/v1/payments/orders/"+oid.Data.ID, "", nil)
+		if !strings.Contains(rec.Body.String(), `"status":"CREATED"`) {
+			t.Fatalf("%s 后订单状态应停 CREATED: %s", tc.name, rec.Body.String())
+		}
+	}
+}
+
+func TestCallback_FullFlow_Idempotent(t *testing.T) {
+	var deliveries []Delivery
+	p, cur := harness(t, "s3cret", func(d Delivery) error {
+		deliveries = append(deliveries, d)
+		return nil
+	}, nil)
+	seedSkus(p)
+	_, rec := createOrder(t, p, cur, "sku_gem_60")
+	var oid struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &oid); err != nil {
+		t.Fatal(err)
+	}
+
+	body := `{"orderId":"` + oid.Data.ID + `","paidAt":"2026-10-09T12:00:01Z"}`
+	rec = call(t, p, http.MethodPost, "/v1/payments/callback", body,
+		map[string]string{"X-Payment-Signature": sign("s3cret", []byte(body))})
+	if rec.Code != 200 {
+		t.Fatalf("回调 = %d %s", rec.Code, rec.Body.String())
+	}
+	var wrap struct {
+		Data *orderDTO `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &wrap); err != nil {
+		t.Fatal(err)
+	}
+	o := wrap.Data
+	// 回调响应即到 DELIVERED(沙箱同步发货);paidAt 取回调体;不含 payToken
+	if o.Status != StatusDelivered || o.PaidAt == "" || o.DeliveredAt == "" || o.PayToken != "" {
+		t.Fatalf("回调后快照 = %+v", o)
+	}
+	if len(deliveries) != 1 || deliveries[0].OrderID != oid.Data.ID ||
+		deliveries[0].AccountID != "acc_1" || deliveries[0].AmountCents != 600 {
+		t.Fatalf("发货指令 = %+v", deliveries)
+	}
+
+	// 重复回调:幂等受理 200,不二次发货
+	rec = call(t, p, http.MethodPost, "/v1/payments/callback", body,
+		map[string]string{"X-Payment-Signature": sign("s3cret", []byte(body))})
+	if rec.Code != 200 || len(deliveries) != 1 {
+		t.Fatalf("重复回调 = %d 发货数 %d", rec.Code, len(deliveries))
+	}
+	// 详情轮询(发货感知):状态 DELIVERED,详情不下发 payToken
+	*cur = "acc_1"
+	rec = call(t, p, http.MethodGet, "/v1/payments/orders/"+oid.Data.ID, "", nil)
+	if !strings.Contains(rec.Body.String(), `"status":"DELIVERED"`) || strings.Contains(rec.Body.String(), "payToken") {
+		t.Fatalf("详情 = %s", rec.Body.String())
+	}
+}
+
+func TestDeliverFail_StaysPaid_ReconcileRecovers(t *testing.T) {
+	fail := true
+	var attempts int
+	p, cur := harness(t, "s3cret", func(Delivery) error {
+		attempts++
+		if fail {
+			return errRisk("下游挂了")
+		}
+		return nil
+	}, nil)
+	seedSkus(p)
+	_, rec := createOrder(t, p, cur, "sku_gem_60")
+	var oid struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &oid); err != nil {
+		t.Fatal(err)
+	}
+
+	body := `{"orderId":"` + oid.Data.ID + `"}`
+	rec = call(t, p, http.MethodPost, "/v1/payments/callback", body,
+		map[string]string{"X-Payment-Signature": sign("s3cret", []byte(body))})
+	// 回调受理 200,但发货失败:订单停 PAID 不丢单
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"status":"PAID"`) {
+		t.Fatalf("发货失败回调 = %d %s", rec.Code, rec.Body.String())
+	}
+	if attempts != 1 {
+		t.Fatalf("发货尝试 = %d", attempts)
+	}
+
+	// 下游恢复,对账重发
+	fail = false
+	attempted, delivered := p.Reconcile()
+	if attempted != 1 || delivered != 1 {
+		t.Fatalf("Reconcile = (%d,%d)", attempted, delivered)
+	}
+	*cur = "acc_1"
+	rec = call(t, p, http.MethodGet, "/v1/payments/orders/"+oid.Data.ID, "", nil)
+	if !strings.Contains(rec.Body.String(), `"status":"DELIVERED"`) {
+		t.Fatalf("对账后 = %s", rec.Body.String())
+	}
+	// 已恢复订单不再入对账集合
+	if attempted, delivered := p.Reconcile(); attempted != 0 || delivered != 0 {
+		t.Fatalf("二次对账 = (%d,%d)", attempted, delivered)
+	}
+}
+
+func TestCloseOrder_StateMachine(t *testing.T) {
+	p, cur := harness(t, "s3cret", nil, nil)
+	seedSkus(p)
+	_, rec := createOrder(t, p, cur, "sku_gem_60")
+	var oid struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &oid); err != nil {
+		t.Fatal(err)
+	}
+
+	// 不存在的订单
+	if err := p.CloseOrder("order_nope"); err == nil || err.Error() != "PAYMENT_ORDER_NOT_FOUND" {
+		t.Fatalf("关不存在单 = %v", err)
+	}
+
+	// CREATED → CLOSED
+	if err := p.CloseOrder(oid.Data.ID); err != nil {
+		t.Fatalf("关单 = %v", err)
+	}
+	// 关单后回调:幂等受理 200,状态停 CLOSED,不发货
+	body := `{"orderId":"` + oid.Data.ID + `"}`
+	rec = call(t, p, http.MethodPost, "/v1/payments/callback", body,
+		map[string]string{"X-Payment-Signature": sign("s3cret", []byte(body))})
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"status":"CLOSED"`) {
+		t.Fatalf("关单后回调 = %d %s", rec.Code, rec.Body.String())
+	}
+
+	// DELIVERED 不可关(409 PAYMENT_ORDER_STATE)
+	p2, cur2 := harness(t, "s3cret", nil, nil)
+	seedSkus(p2)
+	_, rec = createOrder(t, p2, cur2, "sku_gem_60")
+	if err := json.Unmarshal(rec.Body.Bytes(), &oid); err != nil {
+		t.Fatal(err)
+	}
+	body = `{"orderId":"` + oid.Data.ID + `"}`
+	call(t, p2, http.MethodPost, "/v1/payments/callback", body,
+		map[string]string{"X-Payment-Signature": sign("s3cret", []byte(body))})
+	if err := p2.CloseOrder(oid.Data.ID); err == nil || err.Error() != "PAYMENT_ORDER_STATE" {
+		t.Fatalf("关已发货单 = %v", err)
+	}
+}
+
+// TestCallback_PublishesTransitions v1.1 推送:只报状态转移(重复受理不重发),
+// 载荷只含 orderId;发货失败停 PAID 只发 paid,对账恢复补发 delivered。
+func TestCallback_PublishesTransitions(t *testing.T) {
+	type evt struct {
+		typ     string
+		orderID string
+	}
+	var evts []evt
+	rec := func(typ string, data any) {
+		if e, ok := data.(orderEventDTO); ok {
+			evts = append(evts, evt{typ, e.OrderID})
+		}
+	}
+	fail := true
+	p, cur := harness(t, "s3cret", func(Delivery) error {
+		if fail {
+			return errRisk("下游挂了")
+		}
+		return nil
+	}, nil, rec)
+	seedSkus(p)
+	_, rec1 := createOrder(t, p, cur, "sku_gem_60")
+	var oid struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec1.Body.Bytes(), &oid); err != nil {
+		t.Fatal(err)
+	}
+
+	// 受理:paid + delivered?——发货失败停 PAID,只发 paid。
+	body := `{"orderId":"` + oid.Data.ID + `","paidAt":"2026-10-09T12:00:01Z"}`
+	rc := call(t, p, http.MethodPost, "/v1/payments/callback", body,
+		map[string]string{"X-Payment-Signature": sign("s3cret", []byte(body))})
+	if rc.Code != 200 {
+		t.Fatalf("回调 = %d %s", rc.Code, rc.Body.String())
+	}
+	if len(evts) != 1 || evts[0].typ != EventPaid || evts[0].orderID != oid.Data.ID {
+		t.Fatalf("断单事件 = %+v, want [paid %s]", evts, oid.Data.ID)
+	}
+
+	// 幂等重复回调:受理不重发事件。
+	call(t, p, http.MethodPost, "/v1/payments/callback", body,
+		map[string]string{"X-Payment-Signature": sign("s3cret", []byte(body))})
+	if len(evts) != 1 {
+		t.Fatalf("重复回调不应重发事件 = %+v", evts)
+	}
+
+	// 对账恢复 → delivered 补发。
+	fail = false
+	if attempted, delivered := p.Reconcile(); attempted != 1 || delivered != 1 {
+		t.Fatalf("Reconcile = (%d,%d)", attempted, delivered)
+	}
+	if len(evts) != 2 || evts[1].typ != EventDelivered || evts[1].orderID != oid.Data.ID {
+		t.Fatalf("对账事件 = %+v, want [.., delivered %s]", evts, oid.Data.ID)
+	}
+
+	// 同步发货成功路径:paid + delivered 顺序发。
+	_, rec2 := createOrder(t, p, cur, "sku_gem_60")
+	var oid2 struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec2.Body.Bytes(), &oid2); err != nil {
+		t.Fatal(err)
+	}
+	body2 := `{"orderId":"` + oid2.Data.ID + `"}`
+	call(t, p, http.MethodPost, "/v1/payments/callback", body2,
+		map[string]string{"X-Payment-Signature": sign("s3cret", []byte(body2))})
+	if len(evts) != 4 || evts[2].typ != EventPaid || evts[3].typ != EventDelivered ||
+		evts[2].orderID != oid2.Data.ID || evts[3].orderID != oid2.Data.ID {
+		t.Fatalf("成功路径事件 = %+v, want [paid,delivered]×%s", evts, oid2.Data.ID)
+	}
+}
+
+func TestListOrders_UpdatedAtDesc(t *testing.T) {
+	seq := 0
+	p := New(Options{
+		Clock: func() time.Time {
+			seq++
+			return time.Date(2026, 10, 9, 12, 0, seq, 0, time.UTC)
+		},
+		ChannelSecret: "s3cret",
+		RequireAuth: func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				ctx := auth.WithIdentity(r.Context(), auth.Identity{AccountID: "acc_1", SessionID: "ses_1"})
+				next.ServeHTTP(w, r.WithContext(ctx))
+			})
+		},
+	})
+	seedSkus(p)
+	for range 3 {
+		call(t, p, http.MethodPost, "/v1/payments/orders", `{"skuId":"sku_gem_60"}`, nil)
+	}
+	rec := call(t, p, http.MethodGet, "/v1/payments/orders", "", nil)
+	var page struct {
+		Data struct {
+			Items []orderDTO `json:"items"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &page); err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Data.Items) != 3 {
+		t.Fatalf("列表 = %d 项", len(page.Data.Items))
+	}
+	for i := 1; i < len(page.Data.Items); i++ {
+		if page.Data.Items[i-1].UpdatedAt < page.Data.Items[i].UpdatedAt {
+			t.Fatalf("列表未按 updatedAt 倒序: %s < %s",
+				page.Data.Items[i-1].UpdatedAt, page.Data.Items[i].UpdatedAt)
+		}
+		// 列表投影不下发 payToken
+		if page.Data.Items[i].PayToken != "" {
+			t.Fatalf("列表泄露 payToken: %+v", page.Data.Items[i])
+		}
+	}
+}
+
+// ---- 异构面:事件账本追加只读 + 投影重放 ----
+
+func TestJournalAppendOnly_ProjectionReplay(t *testing.T) {
+	seq := 0
+	p := New(Options{
+		Clock: func() time.Time {
+			seq++
+			return time.Date(2026, 10, 9, 12, 0, seq, 0, time.UTC)
+		},
+		ChannelSecret: "s3cret",
+		Deliver:       func(Delivery) error { return nil },
+		RequireAuth: func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				ctx := auth.WithIdentity(r.Context(), auth.Identity{AccountID: "acc_1", SessionID: "ses_1"})
+				next.ServeHTTP(w, r.WithContext(ctx))
+			})
+		},
+	})
+	seedSkus(p)
+	_, rec := createOrder(t, p, new(string), "sku_gem_60")
+	var oid struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &oid); err != nil {
+		t.Fatal(err)
+	}
+	e := p.orders[oid.Data.ID]
+	if e == nil {
+		t.Fatal("订单账本缺失")
+	}
+
+	// 下单后账本只有 created 一个事件;无状态字段(异构面核心:状态=投影)。
+	if len(e.Events) != 1 || e.Events[0].Type != evCreated {
+		t.Fatalf("下单后事件 = %+v, want [created]", e.Events)
+	}
+	v := projectOrder(e)
+	if v.Status != StatusCreated || v.PaidAt != nil {
+		t.Fatalf("下单投影 = %+v", v)
+	}
+	createdAt := v.CreatedAt
+
+	// 回调(发货成功)→ paid + delivered 两事件追加;首事件(created)不可变。
+	body := `{"orderId":"` + oid.Data.ID + `","paidAt":"2026-10-09T12:00:30Z"}`
+	rec = call(t, p, http.MethodPost, "/v1/payments/callback", body,
+		map[string]string{"X-Payment-Signature": sign("s3cret", []byte(body))})
+	if rec.Code != 200 {
+		t.Fatalf("回调 = %d", rec.Code)
+	}
+	if len(e.Events) != 3 || e.Events[1].Type != evPaid || e.Events[2].Type != evDelivered {
+		t.Fatalf("回调后事件 = %+v, want [created,paid,delivered]", e.Events)
+	}
+	if !e.Events[0].At.Equal(createdAt) {
+		t.Fatalf("首事件被改写: %v != %v", e.Events[0].At, createdAt)
+	}
+	v = projectOrder(e)
+	if v.Status != StatusDelivered || v.PaidAt == nil || v.DeliveredAt == nil {
+		t.Fatalf("回调投影 = %+v", v)
+	}
+	if !v.PaidAt.Equal(time.Date(2026, 10, 9, 12, 0, 30, 0, time.UTC)) {
+		t.Fatalf("paidAt 应取回调体: %v", v.PaidAt)
+	}
+	// updatedAt = 末事件(delivered),createdAt = 首事件。
+	if !v.UpdatedAt.Equal(v.DeliveredAt.UTC()) || !v.CreatedAt.Equal(createdAt) {
+		t.Fatalf("时间戳投影 = %+v", v)
+	}
+
+	// 幂等重复回调:不追加事件(账本只记录真实转移)。
+	n := len(e.Events)
+	call(t, p, http.MethodPost, "/v1/payments/callback", body,
+		map[string]string{"X-Payment-Signature": sign("s3cret", []byte(body))})
+	if len(e.Events) != n {
+		t.Fatalf("幂等回调追加事件: %d -> %d", n, len(e.Events))
+	}
+
+	// 管理面关单 → closed 事件追加;投影停 CLOSED。
+	if err := p.CloseOrder("order_nope"); err == nil {
+		t.Fatal("关不存在单应报错")
+	}
+}
+
+func TestCloseOrder_AppendsClosedEvent(t *testing.T) {
+	p, cur := harness(t, "s3cret", nil, nil)
+	seedSkus(p)
+	_, rec := createOrder(t, p, cur, "sku_gem_60")
+	var oid struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &oid); err != nil {
+		t.Fatal(err)
+	}
+	e := p.orders[oid.Data.ID]
+	if err := p.CloseOrder(oid.Data.ID); err != nil {
+		t.Fatalf("关单: %v", err)
+	}
+	if len(e.Events) != 2 || e.Events[1].Type != evClosed {
+		t.Fatalf("关单后事件 = %+v, want [created,closed]", e.Events)
+	}
+	if v := projectOrder(e); v.Status != StatusClosed {
+		t.Fatalf("关单投影 = %s", v.Status)
+	}
+}
+
+// TestProjectionEquivalenceWithTeller 等价证明:同一操作脚本(下单→回调→重复回调
+// →断单→对账→关单)对 teller(可变状态表)与本实现(事件账本投影)各跑一遍,
+// 逐字段比对 wire 快照——「投影规则=可变字段语义」的可执行证明。
+func TestProjectionEquivalenceWithTeller(t *testing.T) {
+	newTeller := func(deliver func(teller.Delivery) error) *teller.PaymentsProvider {
+		return teller.New(teller.Options{
+			Clock:         func() time.Time { return time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC) },
+			ChannelSecret: "s3cret",
+			Deliver:       deliver,
+			RequireAuth: func(next http.Handler) http.Handler {
+				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					ctx := auth.WithIdentity(r.Context(), auth.Identity{AccountID: "acc_1", SessionID: "ses_1"})
+					next.ServeHTTP(w, r.WithContext(ctx))
+				})
+			},
+		})
+	}
+	newAlt := func(deliver func(Delivery) error) *PaymentsProvider {
+		return New(Options{
+			Clock:         func() time.Time { return time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC) },
+			ChannelSecret: "s3cret",
+			Deliver:       deliver,
+			RequireAuth: func(next http.Handler) http.Handler {
+				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					ctx := auth.WithIdentity(r.Context(), auth.Identity{AccountID: "acc_1", SessionID: "ses_1"})
+					next.ServeHTTP(w, r.WithContext(ctx))
+				})
+			},
+		})
+	}
+	okDeliverT := func(teller.Delivery) error { return nil }
+	okDeliverA := func(Delivery) error { return nil }
+
+	tp := newTeller(okDeliverT)
+	ap := newAlt(okDeliverA)
+	tp.AddSku("sku_gem_60", "com.demo.gem60", "DIRECT_PURCHASE", 600, "CNY")
+	ap.AddSku("sku_gem_60", "com.demo.gem60", "DIRECT_PURCHASE", 600, "CNY")
+
+	// 步骤 1:下单——同一 clock 下两实现应产出同一 ID/token/快照。
+	idT, idA := createVia(t, tp), createVia(t, ap)
+	if idT != idA {
+		t.Fatalf("订单 ID 分叉: teller=%s alt=%s", idT, idA)
+	}
+	assertSnapEq(t, "after-create", getOrder(t, tp, idT), getOrder(t, ap, idA))
+
+	// 步骤 2:签名回调(发货成功)→ DELIVERED。
+	body := `{"orderId":"` + idT + `","paidAt":"2026-10-09T12:00:30Z"}`
+	hdr := map[string]string{"X-Payment-Signature": sign("s3cret", []byte(body))}
+	for _, pr := range []interface {
+		ServeHTTP(http.ResponseWriter, *http.Request)
+	}{tp, ap} {
+		rec := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodPost, "/v1/payments/callback", strings.NewReader(body))
+		for k, v := range hdr {
+			req.Header.Set(k, v)
+		}
+		pr.ServeHTTP(rec, req)
+		if rec.Code != 200 {
+			t.Fatalf("回调 = %d %s", rec.Code, rec.Body.String())
+		}
+	}
+	assertSnapEq(t, "after-callback", getOrder(t, tp, idT), getOrder(t, ap, idA))
+
+	// 步骤 3:重复回调(幂等)——快照不变、不二次发货由各自单测承载,此处比快照。
+	for _, pr := range []interface {
+		ServeHTTP(http.ResponseWriter, *http.Request)
+	}{tp, ap} {
+		rec := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodPost, "/v1/payments/callback", strings.NewReader(body))
+		req.Header.Set("X-Payment-Signature", sign("s3cret", []byte(body)))
+		pr.ServeHTTP(rec, req)
+		if rec.Code != 200 {
+			t.Fatalf("重复回调 = %d", rec.Code)
+		}
+	}
+	assertSnapEq(t, "after-replay", getOrder(t, tp, idT), getOrder(t, ap, idA))
+
+	// 步骤 4:断单链路(独立实现对)——deliver 挂→停 PAID→对账恢复。
+	failT := true
+	failA := true
+	tp2 := newTeller(func(teller.Delivery) error {
+		if failT {
+			return errRisk("down")
+		}
+		return nil
+	})
+	ap2 := newAlt(func(Delivery) error {
+		if failA {
+			return errRisk("down")
+		}
+		return nil
+	})
+	tp2.AddSku("sku_gem_60", "com.demo.gem60", "DIRECT_PURCHASE", 600, "CNY")
+	ap2.AddSku("sku_gem_60", "com.demo.gem60", "DIRECT_PURCHASE", 600, "CNY")
+	idT2, idA2 := createVia(t, tp2), createVia(t, ap2)
+	body2 := `{"orderId":"` + idT2 + `"}`
+	hdr2 := map[string]string{"X-Payment-Signature": sign("s3cret", []byte(body2))}
+	for _, pr := range []interface {
+		ServeHTTP(http.ResponseWriter, *http.Request)
+	}{tp2, ap2} {
+		rec := httptest.NewRecorder()
+		req, _ := http.NewRequest(http.MethodPost, "/v1/payments/callback", strings.NewReader(body2))
+		for k, v := range hdr2 {
+			req.Header.Set(k, v)
+		}
+		pr.ServeHTTP(rec, req)
+		if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"status":"PAID"`) {
+			t.Fatalf("断单回调 = %d %s", rec.Code, rec.Body.String())
+		}
+	}
+	assertSnapEq(t, "stuck-paid", getOrder(t, tp2, idT2), getOrder(t, ap2, idA2))
+	failT, failA = false, false
+	atT, deT := tp2.Reconcile()
+	atA, deA := ap2.Reconcile()
+	if atT != atA || deT != deA {
+		t.Fatalf("对账计数分叉: teller=(%d,%d) alt=(%d,%d)", atT, deT, atA, deA)
+	}
+	assertSnapEq(t, "recovered", getOrder(t, tp2, idT2), getOrder(t, ap2, idA2))
+
+	// 步骤 5:关单(独立 CREATED 单)→ CLOSED,快照同。
+	tp3, ap3 := newTeller(okDeliverT), newAlt(okDeliverA)
+	tp3.AddSku("sku_gem_60", "com.demo.gem60", "DIRECT_PURCHASE", 600, "CNY")
+	ap3.AddSku("sku_gem_60", "com.demo.gem60", "DIRECT_PURCHASE", 600, "CNY")
+	idT3, idA3 := createVia(t, tp3), createVia(t, ap3)
+	if err := tp3.CloseOrder(idT3); err != nil {
+		t.Fatalf("teller 关单: %v", err)
+	}
+	if err := ap3.CloseOrder(idA3); err != nil {
+		t.Fatalf("teller-alt 关单: %v", err)
+	}
+	assertSnapEq(t, "closed", getOrder(t, tp3, idT3), getOrder(t, ap3, idA3))
+}
+
+// createVia 经 wire 下单返回订单 ID(两实现调用形状一致)。
+func createVia(t *testing.T, p interface {
+	ServeHTTP(http.ResponseWriter, *http.Request)
+}) string {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodPost, "/v1/payments/orders", strings.NewReader(`{"skuId":"sku_gem_60"}`))
+	p.ServeHTTP(rec, req)
+	if rec.Code != 200 {
+		t.Fatalf("下单 = %d %s", rec.Code, rec.Body.String())
+	}
+	var out struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	return out.Data.ID
+}
+
+// getOrder 经 wire 拉详情,返回规范化 DTO(两实现 wire 快照逐字段可比)。
+func getOrder(t *testing.T, p interface {
+	ServeHTTP(http.ResponseWriter, *http.Request)
+}, id string) map[string]any {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/v1/payments/orders/"+id, nil)
+	p.ServeHTTP(rec, req)
+	if rec.Code != 200 {
+		t.Fatalf("详情 = %d %s", rec.Code, rec.Body.String())
+	}
+	var out struct {
+		Data map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	return out.Data
+}
+
+// assertSnapEq 逐字段比对两实现 wire 快照。
+func assertSnapEq(t *testing.T, at string, a, b map[string]any) {
+	t.Helper()
+	if len(a) != len(b) {
+		t.Fatalf("%s: 字段数分叉 %d vs %d (%v vs %v)", at, len(a), len(b), a, b)
+	}
+	for k, va := range a {
+		vb, ok := b[k]
+		if !ok || va != vb {
+			t.Fatalf("%s: %s 分叉 %v vs %v", at, k, va, vb)
+		}
+	}
+}

@@ -29,6 +29,7 @@ import (
 	"github.com/cuihairu/courier/gateway/providers/scribe"
 	"github.com/cuihairu/courier/gateway/providers/scribealt"
 	"github.com/cuihairu/courier/gateway/providers/teller"
+	"github.com/cuihairu/courier/gateway/providers/telleralt"
 	"github.com/cuihairu/courier/gateway/providers/warden"
 	"github.com/cuihairu/courier/gateway/providers/wardenalt"
 	"github.com/cuihairu/courier/gateway/routing"
@@ -159,7 +160,16 @@ func main() {
 		ChannelSecret: os.Getenv("COURIER_PAYMENTS_CHANNEL_SECRET"),
 		Notify:        publish,
 	})
-	for _, h := range []providers.Handler{acc, accAlt, heraldP, heraldAltP, croupierP, chirpP, chirpAltP, wardenP, wardenAltP, scribeP, scribeAltP, archivistP, archivistAltP, sageP, sageAltP, tellerP} {
+	// 支付域第二实现(批次 72):teller-alt(追加式事件账本——每次状态转移追加
+	// 不可变事件,status/时间戳=投影重放)与 teller(可变状态表)同契约异构;
+	// 切换 = {"payments":{"primary":"teller-alt"}}(一致性 e2e 见
+	// e2e/payments_conformance_test.go:两实现同一 wire 场景全绿)。
+	tellerAltP := telleralt.New(telleralt.Options{
+		RequireAuth:   reqAuth,
+		ChannelSecret: os.Getenv("COURIER_PAYMENTS_CHANNEL_SECRET"),
+		Notify:        publish,
+	})
+	for _, h := range []providers.Handler{acc, accAlt, heraldP, heraldAltP, croupierP, chirpP, chirpAltP, wardenP, wardenAltP, scribeP, scribeAltP, archivistP, archivistAltP, sageP, sageAltP, tellerP, tellerAltP} {
 		if err := reg.Register(h); err != nil {
 			log.Fatalf("courier gateway: 注册 %s 失败: %v", h.Name(), err)
 		}

@@ -86,7 +86,8 @@ Game Client (Unity / UE / Cocos / 小程序 / Layabox / Godot)
                              第二实现 archivist-alt(事件日志,同契约可换)
      - AssistantProvider     默认:sage(FAQ 检索问答);
                              第二实现 sage-alt(写时预计算规范化,同契约可换)
-     - PaymentsProvider      默认:teller(订单-回调-发货)
+     - PaymentsProvider      默认:teller(订单-回调-发货);
+                             第二实现 teller-alt(事件账本投影,同契约可换)
      - DiagnosticsProvider   直发接入方端点不经网关(契约红线;Sentry/GlitchTip/OTLP 可接)
 ```
 

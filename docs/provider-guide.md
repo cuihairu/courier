@@ -58,7 +58,7 @@ sidecar 形态契约不动,属部署面演进。
 | app | /v1/app/ | `scribe` | M3 | config / branding / app 同管道;第二实现 `scribe-alt`(写时维度索引,批次 71) |
 | player | /v1/player/ | `archivist` | M3 | 玩家档案 + 账号↔角色映射;第二实现 `archivist-alt`(事件日志,批次 67) |
 | assistant | /v1/assistant/ | `sage` | M4 | FAQ 检索;LLM 供应商按同一接口替换,默认不依赖;第二实现 `sage-alt`(写时预计算规范化,批次 70) |
-| payments | /v1/payments/ | `teller` | M5 | 自建沙箱渠道;真实渠道按同一回调签名面接入 |
+| payments | /v1/payments/ | `teller` | M5 | 自建沙箱渠道;真实渠道按同一回调签名面接入;第二实现 `teller-alt`(事件账本投影,批次 72) |
 
 ## 4. Options 装配面:逐域注入点
 

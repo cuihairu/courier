@@ -36,7 +36,7 @@ Gateway、Provider、生态后端全部是**契约的实现者 / 后端提供者
 4. **示例**:公告能力默认走 herald Provider;接入方可配置成自己的 HTTP 端点,或禁用公告(客户端安全地隐藏对应 UI)。
 5. **接口统一 ≠ 数据迁移**:Provider 机制承诺「接口统一」与「实现可替换」;数据可迁移(账号/订单/档案历史数据搬后台)**不是默认承诺**,需按域单独评估——切 Provider 前先回答用户 ID、会话有效性、在途订单是否兼容。
 6. **接入方式两种**:服务端 Provider 是默认方式(客户端只见网关,凭证与路由全在服务端;账号/支付/实名等敏感能力必须走此方式);客户端直连外部服务仅限明确允许直连的公开服务,不得成为默认切换机制,服务端密钥永不下客户端。
-7. **每个模块至少两种实现**:默认实现 + 可替换实现(真实第二实现或测试替身),接入方按配置选择。**只有一种实现的能力,「可换」名存实亡**——现状账号域已兑现(courier-account + courier-account-alt,同冻结契约异构实现 + 同场景 e2e 行为证明,批次 18),实名域已兑现(warden 自建核验 + warden-alt 托管核验,判定来源/落库内容异构 + 同场景 e2e 行为证明,批次 64),玩家档案域已兑现(archivist 状态表 + archivist-alt 事件日志,存储模型异构 + 同场景 e2e 行为证明,批次 67),推送域已兑现(chirp 扇出推送 + chirp-alt 共享环形日志/游标拉取,枢纽模型异构 + 同场景 e2e 行为证明,批次 68),公告域已兑现(herald 读时扫描排序 + herald-alt 写时索引,索引模型异构 + 同场景 e2e 行为证明,批次 69),助手域已兑现(sage 读时规范化 + sage-alt 写时预计算规范化,预处理模型异构 + 同场景 e2e 行为证明,批次 70),配置域已兑现(scribe 读时逐条目条件 AND + scribe-alt 写时维度索引/分阶段过滤,求值模型异构 + 同场景 e2e 行为证明,批次 71);其余域(croupier/teller)目前单实现,待补第二实现或测试替身。
+7. **每个模块至少两种实现**:默认实现 + 可替换实现(真实第二实现或测试替身),接入方按配置选择。**只有一种实现的能力,「可换」名存实亡**——现状账号域已兑现(courier-account + courier-account-alt,同冻结契约异构实现 + 同场景 e2e 行为证明,批次 18),实名域已兑现(warden 自建核验 + warden-alt 托管核验,判定来源/落库内容异构 + 同场景 e2e 行为证明,批次 64),玩家档案域已兑现(archivist 状态表 + archivist-alt 事件日志,存储模型异构 + 同场景 e2e 行为证明,批次 67),推送域已兑现(chirp 扇出推送 + chirp-alt 共享环形日志/游标拉取,枢纽模型异构 + 同场景 e2e 行为证明,批次 68),公告域已兑现(herald 读时扫描排序 + herald-alt 写时索引,索引模型异构 + 同场景 e2e 行为证明,批次 69),助手域已兑现(sage 读时规范化 + sage-alt 写时预计算规范化,预处理模型异构 + 同场景 e2e 行为证明,批次 70),配置域已兑现(scribe 读时逐条目条件 AND + scribe-alt 写时维度索引/分阶段过滤,求值模型异构 + 同场景 e2e 行为证明,批次 71),支付域已兑现(teller 可变状态表 + teller-alt 追加式事件账本/投影重放,状态表示模型异构 + 同场景 e2e 行为证明,批次 72);其余域(croupier)目前单实现,待补第二实现或测试替身。
 
 ## 总体形态
 
@@ -134,7 +134,8 @@ gateway/
     ├── archivistalt/   PlayerProvider(player 第二实现,事件日志模型,同契约可换)
     ├── sage/           AssistantProvider(assistant,FAQ 检索问答)
     ├── sagealt/       AssistantProvider(assistant 第二实现,写时预计算规范化,同契约可换)
-    └── teller/         PaymentsProvider(payments:订单-回调-发货;渠道沙箱随部署面)
+    ├── teller/         PaymentsProvider(payments:订单-回调-发货;渠道沙箱随部署面)
+    └── telleralt/      PaymentsProvider(payments 第二实现,事件账本投影,同契约可换)
 ```
 
 > 诊断不经网关:契约红线(diagnostics.md)规定诊断数据直发接入方自有端点,网关无 DiagnosticsProvider。
@@ -255,7 +256,7 @@ CourierClient(门面)
 | 配置/品牌/版本 | 契约、条件投影、热生效 | 内容发布管道 | scribe(自建;第二实现 scribe-alt 写时维度索引,同契约可换) |
 | 玩家档案 | 契约与治理 | 档案存储、角色绑定 | archivist(自建;第二实现 archivist-alt 事件日志,同契约可换) |
 | 助手 | 契约与检索面 | FAQ 知识库、坐席 | sage(自建 FAQ;第二实现 sage-alt 写时预计算规范化,同契约可换) |
-| 支付 | 契约与订单面 | 渠道回调、发货、对账 | teller(自建;渠道沙箱随部署面) |
+| 支付 | 契约与订单面 | 渠道回调、发货、对账 | teller(自建;第二实现 teller-alt 事件账本投影,同契约可换) |
 | 诊断 | 契约与红线 | 上报存储与分析 | 不经网关,直发接入方端点;Sentry/GlitchTip/OTLP |
 
 ## 竞品定位
