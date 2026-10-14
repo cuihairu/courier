@@ -168,3 +168,23 @@ func strings_contains(s, sub string) bool {
 	}
 	return false
 }
+
+// TestCheckOrWriteRoundTrip 生成→落盘→复核全链:临时根上装 fixtures 后
+// -write 生成,再复查应一致(覆盖 checkOrWrite 写与验两分支;漂移分支走
+// fatal→os.Exit,进程内不可测,不一致时以进程退出码失败暴露)。
+func TestCheckOrWriteRoundTrip(t *testing.T) {
+	tmp := t.TempDir()
+	for _, f := range []string{"errors.json", "scope.json", "dto.json"} {
+		rel := filepath.Join("docs", "contract", "fixtures", f)
+		data := readRepoFile(t, rel)
+		dst := filepath.Join(tmp, rel)
+		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(dst, data, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	checkOrWrite(tmp, true)  // 生成落盘(写分支)
+	checkOrWrite(tmp, false) // 复核一致(验分支;有漂移则进程退出)
+}
