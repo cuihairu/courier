@@ -1,7 +1,7 @@
 // L3 Adapter:前后台信号 → 状态机事件(layers.md L3「生命周期」)。
 // architecture.md:Suspended⇄Resuming,resume 恢复到挂起前状态(转移表归 L2)。
-// 移动端 OnApplicationPause 与桌面端 OnApplicationFocus 会成对触发,
-// 此处幂等去重;非法转移走 TryFire(不抛,平台消息处理器不许崩)。
+// 移动端 OnApplicationPause 与桌面端 OnApplicationFocus 会成对触发,归一化与幂等
+// 去重在引擎无关的 LifecycleSignalRelay(本类只转发引擎回调),故其逻辑可纯 dotnet 单测。
 using Courier.Core;
 using UnityEngine;
 
@@ -10,23 +10,22 @@ namespace Courier.Adapter
     /// <summary>挂到场景常驻物体(建议 DontDestroyOnLoad);Bind 传入客户端状态机。</summary>
     public sealed class ApplicationLifecycleMonitor : MonoBehaviour
     {
-        LifecycleMachine _lifecycle;
-        bool _suspended;
+        readonly LifecycleSignalRelay _relay = new LifecycleSignalRelay();
 
         public void Bind(LifecycleMachine lifecycle)
         {
-            _lifecycle = lifecycle;
+            _relay.Bind(lifecycle);
         }
 
         void OnApplicationPause(bool paused)
         {
             if (paused)
             {
-                Suspend();
+                _relay.Suspend();
             }
             else
             {
-                Resume();
+                _relay.Resume();
             }
         }
 
@@ -34,36 +33,11 @@ namespace Courier.Adapter
         {
             if (focused)
             {
-                Resume();
+                _relay.Resume();
             }
             else
             {
-                Suspend();
-            }
-        }
-
-        void Suspend()
-        {
-            if (_suspended || _lifecycle == null)
-            {
-                return;
-            }
-            if (_lifecycle.TryFire(LifecycleTrigger.Suspended))
-            {
-                _suspended = true;
-            }
-        }
-
-        void Resume()
-        {
-            if (!_suspended || _lifecycle == null)
-            {
-                return;
-            }
-            if (_lifecycle.TryFire(LifecycleTrigger.ResumeStarted) &&
-                _lifecycle.TryFire(LifecycleTrigger.ResumeCompleted))
-            {
-                _suspended = false;
+                _relay.Suspend();
             }
         }
     }

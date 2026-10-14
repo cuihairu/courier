@@ -230,13 +230,15 @@ func TestL2PurityNoPlatformReferences(t *testing.T) {
 	}
 }
 
-// Adapter 三件在位,且签名对齐 L2 接口(ITransport/ITokenStore/LifecycleMachine.TryFire)。
+// Adapter 件在位,且签名对齐 L2 接口(ITransport/ITokenStore/LifecycleMachine.TryFire)。
+// 批次 81:前后台信号归一化拆到引擎无关的 LifecycleSignalRelay,Monitor 只转发引擎回调。
 func TestAdapterSymbols(t *testing.T) {
 	adapterDir := unityPkgDir + "/com.courier.core/Runtime/Adapter"
 	want := map[string][]string{
 		"UnityWebRequestTransport.cs":    {"class UnityWebRequestTransport : ITransport", "UnityWebRequest", "TransportException"},
 		"SecureTokenStore.cs":            {"class SecureTokenStore : ITokenStore", "StoredTokens", "HMACSHA256", "Rfc2898DeriveBytes"},
-		"ApplicationLifecycleMonitor.cs": {"class ApplicationLifecycleMonitor : MonoBehaviour", "TryFire", "LifecycleTrigger.Suspended", "LifecycleTrigger.ResumeStarted"},
+		"ApplicationLifecycleMonitor.cs": {"class ApplicationLifecycleMonitor : MonoBehaviour", "LifecycleSignalRelay", "_relay.Suspend()", "_relay.Resume()"},
+		"LifecycleSignalRelay.cs":        {"class LifecycleSignalRelay", "TryFire", "LifecycleTrigger.Suspended", "LifecycleTrigger.ResumeStarted", "LifecycleTrigger.ResumeCompleted"},
 	}
 	for file, symbols := range want {
 		data, err := os.ReadFile(filepath.Join(repoRoot, adapterDir, file))
@@ -251,7 +253,9 @@ func TestAdapterSymbols(t *testing.T) {
 	}
 }
 
-// 测试工程 include 路径防漂移:每个 Compile Include 通配必须命中真实文件;不得卷入 Adapter。
+// 测试工程 include 路径防漂移:每个 Compile Include 通配必须命中真实文件;
+// 不得卷入 Adapter 目录(UnityEngine 代码,dotnet 编不过)——但允许逐文件引入 Adapter 内
+// 引擎无关件(批次 81 LifecycleSignalRelay),引入者须零平台引用。
 func TestTestProjectIncludesResolve(t *testing.T) {
 	projects := []string{
 		"sdks/unity/CoreTests~/CoreTests.csproj",
@@ -268,7 +272,22 @@ func TestTestProjectIncludesResolve(t *testing.T) {
 		for _, line := range strings.Split(content, "\n") {
 			idx := strings.Index(line, "Include=\"")
 			if idx >= 0 && strings.Contains(line, "Adapter") {
-				t.Errorf("%s 不得编译 Adapter(UnityEngine 代码,dotnet 编不过)", proj)
+				raw := line[idx+len("Include=\""):]
+				raw = raw[:strings.Index(raw, "\"")]
+				if strings.Contains(raw, "*") {
+					t.Errorf("%s 不得编译整个 Adapter 目录(UnityEngine 代码,dotnet 编不过)", proj)
+					continue
+				}
+				data, err := os.ReadFile(filepath.Join(repoRoot, filepath.Dir(proj), raw))
+				if err != nil {
+					t.Errorf("%s 引入的 Adapter 件 %s 读不到:%v", proj, raw, err)
+					continue
+				}
+				for _, banned := range []string{"UnityEngine", "UnityEditor"} {
+					if strings.Contains(string(data), banned) {
+						t.Errorf("%s 引入的 Adapter 件 %s 含 %s(该件非引擎无关,不得进 dotnet 测试)", proj, raw, banned)
+					}
+				}
 			}
 			if idx < 0 {
 				continue

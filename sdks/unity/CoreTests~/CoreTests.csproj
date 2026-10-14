@@ -17,6 +17,8 @@
     <Compile Include="../packages/com.courier.core/Runtime/Core/Contract/*.cs" />
     <Compile Include="../packages/com.courier.core/Runtime/Identity/*.cs" />
     <Compile Include="../packages/com.courier.core/Runtime/Session/*.cs" />
+    <!-- 批次 81:L3 前台后台信号归一化件(引擎无关,逐文件引入;同目录其余件耦合 UnityEngine 不可测) -->
+    <Compile Include="../packages/com.courier.core/Runtime/Adapter/LifecycleSignalRelay.cs" />
   </ItemGroup>
 
   <ItemGroup>
