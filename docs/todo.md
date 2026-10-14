@@ -113,4 +113,4 @@ F13 云存档/进度同步——player.md:5,11 红线「进度不经 Courier,角
 - [x] 批次 76 台账 hash 可达性核验(76 项逐条比对 git 历史,批次 65 的 35a13a4 因历史重写悬空改为可达的 3b80159) | 4ccc324 | 76/76 hash 可达 + docs:build 绿
 - [x] F14 分级读写权限 | 已代决(巡检 R1) | 当前契约即本人/仅服务端两层(Bearer 自持),公开层与社交非目标冲突,不立项
 - [x] F15 写锁与冲突合并 | 已代决(巡检 R1) | 唯一写字段 displayName 服务端修剪,无并发写冲突面,版本号待第二写字段出现再评估
-- [x] 批次 77 CI 竞态检测对齐(Tests go job 双模块 go test 加 -race,对齐台账批次 62 起的本地验证口径;并发面 SSE/单飞/换源回归自动拦截)+ README 本地门禁同步 | PENDING | 全量门禁绿(Go -race 双模块 + node 3×136 + unity 164 + ue + examples 5 端)
+- [x] 批次 77 CI 竞态检测对齐(Tests go job 双模块 go test 加 -race,对齐台账批次 62 起的本地验证口径;并发面 SSE/单飞/换源回归自动拦截)+ README 本地门禁同步 | 2f80204 | 全量门禁绿(Go -race 双模块 + node 3×136 + unity 164 + ue + examples 5 端)
