@@ -10,8 +10,8 @@ import {
   getSupportLabel, resetBranding, tryGetString,
 } from "../src/ui/brandingCatalog.ts";
 import { AnnouncementPanel } from "../src/ui/announcementPanel.ts";
-import { AssistantPanel } from "../src/ui/assistantPanel.ts";
-import { CustomerServicePanel } from "../src/ui/customerServicePanel.ts";
+import { AssistantPanel, AssistantPanelDefaultTitle } from "../src/ui/assistantPanel.ts";
+import { CustomerServicePanel, CustomerServicePanelDefaultTitle } from "../src/ui/customerServicePanel.ts";
 
 const config = { endpoint: "https://api.example.com", gameId: "game_demo", env: "prod" };
 const sessionJson = JSON.stringify({
@@ -330,5 +330,146 @@ test("助手面板:一键转人工带 [助手] 前缀提单(标题截 120);成�
   assert.equal(body.title, "[助手] 充值没到账"); // 前缀带进工单
   assert.equal(body.body, "充值没到账");
   assert.deepEqual(created, ["tkt_9"]);
+  resetBranding();
+});
+
+// ---- 面板未装配面与错误面(能力未接/限流/断网均走同一条 onError) ----
+
+test("客服面板:未装配 services 时全方法静默 no-op", async () => {
+  const bare = new CustomerServicePanel();
+  assert.equal(bare.getCurrentTicketId(), null);
+  await bare.openTicketAsync("t", "b");
+  await bare.loadTicketAsync("tkt_x");
+  await bare.sendMessageAsync("内容"); // 无当前工单:同样静默
+  assert.equal(await bare.searchFaqAsync("找回"), "");
+  await bare.notifyTicketReplied("tkt_x"); // 非当前工单:忽略
+  assert.equal(bare.getCurrentTicketId(), null); // 未装配不写当前工单
+
+  // 未装配面板的标题走宿主 brandTitle
+  const titled = new CustomerServicePanel();
+  assert.equal(titled.resolveTitle(), CustomerServicePanelDefaultTitle);
+  titled.brandTitle = "宿主客服";
+  assert.equal(titled.resolveTitle(), "宿主客服");
+});
+
+test("客服面板:提单限流 RATE_LIMITED 与详情 404 出错误口;标题走品牌兜底链", async () => {
+  resetBranding();
+  const transport = new FakeTransport();
+  const svc = await newServices(transport);
+  const panel = new CustomerServicePanel(svc);
+  panel.brandTitle = "宿主客服";
+  const errors: string[] = [];
+  panel.onError = (code) => errors.push(code);
+
+  // 提单被限流:重试耗尽后错误出口,不写当前工单
+  for (let i = 0; i < 3; i++) {
+    transport.enqueue(429, JSON.stringify({
+      error: { code: "RATE_LIMITED", message: "慢一点", retryable: true },
+    }));
+  }
+  await panel.openTicketAsync("问题", "内容");
+  assert.deepEqual(errors, ["RATE_LIMITED"]);
+  assert.equal(panel.getCurrentTicketId(), null);
+
+  // 非本人工单(404):详情错误出口,当前工单仍记录(供后续刷新)
+  transport.enqueue(200, JSON.stringify({ data: {
+    id: "tkt_2", title: "问题", status: "OPEN", createdAt: "t", updatedAt: "t",
+  } }));
+  transport.enqueue(404, JSON.stringify({
+    error: { code: "SUPPORT_TICKET_NOT_FOUND", message: "不属于本人", retryable: false },
+  }));
+  await panel.openTicketAsync("问题", "内容");
+  assert.deepEqual(errors, ["RATE_LIMITED", "SUPPORT_TICKET_NOT_FOUND"]);
+  assert.equal(panel.getCurrentTicketId(), "tkt_2");
+
+  // 品牌兜底链:远端 productName → 宿主 brandTitle → 内置默认
+  applyBranding({ version: 9, productName: "星尘物语" });
+  assert.equal(panel.resolveTitle(), "星尘物语");
+  applyBranding({ version: 10 });
+  assert.equal(panel.resolveTitle(), "宿主客服");
+  assert.equal(new CustomerServicePanel(svc).resolveTitle(), CustomerServicePanelDefaultTitle);
+  resetBranding();
+});
+
+test("客服面板:FAQ 检索失败出错误口并回落空串", async () => {
+  resetBranding();
+  const transport = new FakeTransport();
+  const svc = await newServices(transport);
+  const panel = new CustomerServicePanel(svc);
+  const errors: string[] = [];
+  panel.onError = (code) => errors.push(code);
+
+  transport.enqueue(503, JSON.stringify({
+    error: { code: "COMMON_UNAVAILABLE", message: "busy", retryable: true },
+  }));
+  for (let i = 0; i < 2; i++) {
+    transport.enqueue(503, JSON.stringify({
+      error: { code: "COMMON_UNAVAILABLE", message: "busy", retryable: true },
+    }));
+  }
+  assert.equal(await panel.searchFaqAsync("找回"), "");
+  assert.deepEqual(errors, ["COMMON_UNAVAILABLE"]);
+});
+
+test("助手面板:未装配静默;标题兜底链;提问断网与转人工失败出错误口", async () => {
+  resetBranding();
+  const bare = new AssistantPanel();
+  await bare.askAsync("q");
+  await bare.transferToHumanAsync("q");
+  assert.equal(bare.resolveTitle(), AssistantPanelDefaultTitle);
+
+  const transport = new FakeTransport();
+  const svc = await newServices(transport);
+  const panel = new AssistantPanel(svc);
+  panel.brandTitle = "宿主助手";
+  const errors: string[] = [];
+  panel.onError = (code) => errors.push(code);
+
+  applyBranding({ version: 11, productName: "星尘物语" });
+  assert.equal(panel.resolveTitle(), "星尘物语"); // 远端优先
+  applyBranding({ version: 12, productName: "" });
+  assert.equal(panel.resolveTitle(), "宿主助手"); // 空串回落宿主标
+  applyBranding({ version: 13 });
+  assert.equal(panel.resolveTitle(), "宿主助手");
+
+  // 提问断网:错误出口,不渲染答案
+  const rendered: string[] = [];
+  panel.onAnswerRendered = (r) => rendered.push(String(r.matched));
+  for (let i = 0; i < 3; i++) {
+    transport.enqueue(503, JSON.stringify({
+      error: { code: "COMMON_UNAVAILABLE", message: "busy", retryable: true },
+    }));
+  }
+  await panel.askAsync("q");
+  assert.deepEqual(errors, ["COMMON_UNAVAILABLE"]);
+  assert.deepEqual(rendered, []);
+
+  // 转人工提单被拒:错误出口,不回调工单 ID
+  const created: string[] = [];
+  panel.onTicketCreated = (id) => created.push(id);
+  transport.enqueue(409, JSON.stringify({
+    error: { code: "SUPPORT_TICKET_CLOSED", message: "已关单", retryable: false },
+  }));
+  await panel.transferToHumanAsync("q");
+  assert.deepEqual(errors, ["COMMON_UNAVAILABLE", "SUPPORT_TICKET_CLOSED"]);
+  assert.deepEqual(created, []);
+  resetBranding();
+});
+
+test("助手面板:转人工标题按 120 字符截断(契约 support.md title 上限)", async () => {
+  resetBranding();
+  const transport = new FakeTransport();
+  const svc = await newServices(transport);
+  const panel = new AssistantPanel(svc);
+  const long = "问".repeat(200);
+  transport.enqueue(200, JSON.stringify({ data: {
+    id: "tkt_10", title: "截断", status: "OPEN", createdAt: "t", updatedAt: "t",
+  } }));
+  await panel.transferToHumanAsync(long);
+
+  const body = JSON.parse(transport.requests[1].jsonBody ?? "{}") as { title: string; body: string };
+  assert.equal(body.title.length, 120);
+  assert.equal(body.title, ("[助手] " + long).slice(0, 120));
+  assert.equal(body.body.length, 200); // body 不截断
   resetBranding();
 });
