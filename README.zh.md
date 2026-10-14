@@ -79,7 +79,8 @@ Game Client (Unity / UE / Cocos / 小程序 / Layabox / Godot)
                              第二实现 chirp-alt(环形日志+游标,同契约可换)
      - RealNameProvider      默认:warden(自建核验;阿里云/腾讯云慧眼/易盾/Webhook 同形状可接);
                              第二实现 warden-alt(托管核验,同契约可换)
-     - ConfigProvider        默认:scribe(远程配置,自建管道)
+     - ConfigProvider        默认:scribe(远程配置,自建管道);
+                             第二实现 scribe-alt(写时维度索引,同契约可换)
      - BrandingProvider      默认:scribe(与 Config 同管道)
      - PlayerProvider        默认:archivist(档案 + 账号↔角色映射);
                              第二实现 archivist-alt(事件日志,同契约可换)

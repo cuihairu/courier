@@ -27,6 +27,7 @@ import (
 	"github.com/cuihairu/courier/gateway/providers/sage"
 	"github.com/cuihairu/courier/gateway/providers/sagealt"
 	"github.com/cuihairu/courier/gateway/providers/scribe"
+	"github.com/cuihairu/courier/gateway/providers/scribealt"
 	"github.com/cuihairu/courier/gateway/providers/teller"
 	"github.com/cuihairu/courier/gateway/providers/warden"
 	"github.com/cuihairu/courier/gateway/providers/wardenalt"
@@ -121,6 +122,15 @@ func main() {
 	// 配置/应用状态(M3,批次 8):scribe(自建),config/branding/app 同管道;
 	// 玩家侧只读投影,发布/版本/维护开关走管理面(Publish/SetVersion/SetMaintenance)。
 	scribeP := scribe.New(scribe.Options{RequireAuth: reqAuth, Notify: publish})
+	// 配置域第二实现(批次 71):scribe-alt(写时维度索引——Publish 时把条件
+	// 切片转为维度→允许值集合,投影时按请求维度分阶段过滤)与 scribe(读时
+	// 逐条目条件 AND 短路)同契约异构;切换 = {"app":{"primary":"scribe-alt"}}
+	// (一致性 e2e 见 e2e/config_conformance_test.go:两实现同一 wire 场景全绿)。
+	scribeAltP := scribealt.New(scribealt.Options{RequireAuth: reqAuth, Notify: publish})
+	// 维护门回调跟随 app 域 primary(同推送源先例):赋值先于 ListenAndServe,
+	// 无数据竞争;不重指则换源后维护开关仍在旧源上。
+	maintenanceSource := scribeP.InMaintenance
+	maintEnabled := func() bool { return maintenanceSource() }
 	// 玩家档案(M3,批次 8):archivist(自建轻量)——账号档案 + 账号↔角色映射
 	// (按 scope 隔离;角色数据归各游戏,本域不存)。
 	archivistP := archivist.New(archivist.Options{RequireAuth: reqAuth})
@@ -149,7 +159,7 @@ func main() {
 		ChannelSecret: os.Getenv("COURIER_PAYMENTS_CHANNEL_SECRET"),
 		Notify:        publish,
 	})
-	for _, h := range []providers.Handler{acc, accAlt, heraldP, heraldAltP, croupierP, chirpP, chirpAltP, wardenP, wardenAltP, scribeP, archivistP, archivistAltP, sageP, sageAltP, tellerP} {
+	for _, h := range []providers.Handler{acc, accAlt, heraldP, heraldAltP, croupierP, chirpP, chirpAltP, wardenP, wardenAltP, scribeP, scribeAltP, archivistP, archivistAltP, sageP, sageAltP, tellerP} {
 		if err := reg.Register(h); err != nil {
 			log.Fatalf("courier gateway: 注册 %s 失败: %v", h.Name(), err)
 		}
@@ -185,12 +195,16 @@ func main() {
 		if cc, ok := userCfg[providers.CapMessages]; ok && cc.Primary == chirpalt.DefaultName {
 			notifyTarget = chirpAltP.Publish
 		}
+		// 维护门源切换:跟随 app 域 primary(同推送源先例)。
+		if cc, ok := userCfg[providers.CapApp]; ok && cc.Primary == scribealt.DefaultName {
+			maintenanceSource = scribeAltP.InMaintenance
+		}
 	}
 
 	// 中间件链:trace → 结构化错误 → 限流 → scope(冻结顺序,批次 2);
 	// 维护门包整个入口(app.md:维护开启 → /v1/* 除本域端点外一律 503,白名单内建)。
 	chain := middleware.Chain(middleware.NewRateLimiter(120, 60))
-	handler := middleware.Maintenance(scribeP.InMaintenance)(routing.New(reg, cfg, chain))
+	handler := middleware.Maintenance(maintEnabled)(routing.New(reg, cfg, chain))
 
 	log.Printf("courier gateway listening on %s", addr)
 	log.Fatal(http.ListenAndServe(addr, handler))

@@ -55,7 +55,7 @@ sidecar 形态契约不动,属部署面演进。
 | support | /v1/support/ | `croupier` | M2 | 注入点最多(见 §4) |
 | messages | /v1/messages/ | `chirp` | M2 | SSE 推送通道,其余域经其 Hub 广播;第二实现 `chirp-alt`(环形日志+游标,批次 68) |
 | realname | /v1/realname/ | `warden` | M2 后段 | **默认关闭**:路由表显式配置才开启(契约红线);第二实现 `warden-alt`(托管核验,批次 64) |
-| app | /v1/app/ | `scribe` | M3 | config / branding / app 同管道 |
+| app | /v1/app/ | `scribe` | M3 | config / branding / app 同管道;第二实现 `scribe-alt`(写时维度索引,批次 71) |
 | player | /v1/player/ | `archivist` | M3 | 玩家档案 + 账号↔角色映射;第二实现 `archivist-alt`(事件日志,批次 67) |
 | assistant | /v1/assistant/ | `sage` | M4 | FAQ 检索;LLM 供应商按同一接口替换,默认不依赖;第二实现 `sage-alt`(写时预计算规范化,批次 70) |
 | payments | /v1/payments/ | `teller` | M5 | 自建沙箱渠道;真实渠道按同一回调签名面接入 |

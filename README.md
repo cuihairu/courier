@@ -87,7 +87,8 @@ Game Client (Unity / UE / Cocos / Mini Program / Layabox / Godot)
      - RealNameProvider      default: warden (built-in verification; Alibaba Cloud /
                              Tencent Cloud Huiyan / Yidun / Webhook adapters share one shape);
                              second impl warden-alt (managed verification, same contract)
-     - ConfigProvider        default: scribe (remote config, built-in pipeline)
+     - ConfigProvider        default: scribe (remote config, built-in pipeline);
+                             second impl scribe-alt (write-time dimension index, same contract)
      - BrandingProvider      default: scribe (same pipeline as Config)
      - PlayerProvider        default: archivist (profile + account-player mapping);
                              second impl archivist-alt (event log, same contract)
