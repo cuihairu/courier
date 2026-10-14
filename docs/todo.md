@@ -114,4 +114,4 @@ F13 云存档/进度同步——player.md:5,11 红线「进度不经 Courier,角
 - [x] F14 分级读写权限 | 已代决(巡检 R1) | 当前契约即本人/仅服务端两层(Bearer 自持),公开层与社交非目标冲突,不立项
 - [x] F15 写锁与冲突合并 | 已代决(巡检 R1) | 唯一写字段 displayName 服务端修剪,无并发写冲突面,版本号待第二写字段出现再评估
 - [x] 批次 77 CI 竞态检测对齐(Tests go job 双模块 go test 加 -race,对齐台账批次 62 起的本地验证口径;并发面 SSE/单飞/换源回归自动拦截)+ README 本地门禁同步 | 2f80204 | 全量门禁绿(Go -race 双模块 + node 3×136 + unity 164 + ue + examples 5 端)
-- [x] 批次 78 Provider 单元测试补口(oauth 注册表优先级/同名覆盖/显式注销;croupier fail-closed+无身份写路径+CreateTicket 运维入口+坐席回复关单;herald 分页参数校验+fail-closed;accountalt Store 访问器+SetAccountStatus 禁用闸;7 个零覆盖函数补齐至 100%) | PENDING | gateway -race 30 包全绿 + vet/gofmt 绿
+- [x] 批次 78 Provider 单元测试补口(oauth 注册表优先级/同名覆盖/显式注销;croupier fail-closed+无身份写路径+CreateTicket 运维入口+坐席回复关单;herald 分页参数校验+fail-closed;accountalt Store 访问器+SetAccountStatus 禁用闸;7 个零覆盖函数补齐至 100%) | 1bc1058 | gateway -race 30 包全绿 + vet/gofmt 绿
