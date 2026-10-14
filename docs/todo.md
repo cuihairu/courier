@@ -101,7 +101,7 @@ F13 云存档/进度同步——player.md:5,11 红线「进度不经 Courier,角
 - [x] 批次 62 F33 审计事件面半边(AuditSink + 日志半边) | c37ef71 | gateway -race 18 包
 - [x] 批次 63 跨引擎一致性:Unity 并发刷新单飞修复 + UE 重入防护 + 切号补齐 | 16e04b1 | unity 164 / ue 7 / godot 8
 - [x] 批次 64 realname 第二实现 warden-alt(托管核验)+ 一致性 e2e | 53f4194 | gateway -race 19 包
-- [x] 批次 65 审计直写半边:warden HTTPSink(SIEM/自建落库代理,尽力交付不阻断请求)+ env 接线 + e2e 装配路径实证 | 35a13a4 | gateway -race 19 包 + e2e
+- [x] 批次 65 审计直写半边:warden HTTPSink(SIEM/自建落库代理,尽力交付不阻断请求)+ env 接线 + e2e 装配路径实证 | 3b80159 | gateway -race 19 包 + e2e
 - [x] 批次 66 审计面扩到第二实现:接缝抽共享包 gateway/audit(Provider 互不 import),warden 与 wardenalt 同形状注入同事件序列 + e2e 两实现同断言 | 0060ac9 | gateway -race 20 包 + e2e
 - [x] 批次 67 player 域第二实现 archivist-alt(事件日志模型 vs 状态表,同契约异构)+ 一致性 e2e | 7a93441 | gateway -race 21 包 + e2e
 - [x] 批次 68 messages 域第二实现 chirp-alt(共享环形日志+游标拉取 vs 每订阅者独立缓冲扇出,同契约异构)+ 一致性 e2e | 7c066d9 | gateway -race 22 包 + e2e
@@ -112,3 +112,4 @@ F13 云存档/进度同步——player.md:5,11 红线「进度不经 Courier,角
 - [x] 批次 73 support 域第二实现 croupier-alt(写时属主有序索引 + 键集游标 vs 读时全表扫描 + 偏移游标,同契约异构)+ 一致性 e2e + 跨实现分页等价证明 | 906f71d | gateway -race 27 包 + e2e
 - [x] 批次 74 台账体检(28 项已完成条目回填 commit 证据)+ Go 工具链安全修补(go 1.24→1.27.2,gateway 9 个可达 stdlib 漏洞清零) | a7e367e 6448a63 | gateway -race 27 包 + govulncheck 双模块清零 + CI 全 job 绿
 - [x] 批次 75 CI 漏洞扫描门禁(govulncheck@v1.9.0 进 tests.yml go job,根+gateway 双模块可达性扫描,防 stdlib 漏洞回归)+ README 本地门禁同步 | be52c98 | govulncheck 双模块清零 + 全量门禁绿(Go -race 27 包 + node 3×136 + unity 164 + ue + examples 5 端)
+- [x] 批次 76 台账 hash 可达性核验(76 项逐条比对 git 历史,批次 65 的 35a13a4 因历史重写悬空改为可达的 3b80159) | PENDING | 76/76 hash 可达 + docs:build 绿
