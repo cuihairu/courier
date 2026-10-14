@@ -111,3 +111,4 @@ F13 云存档/进度同步——player.md:5,11 红线「进度不经 Courier,角
 - [x] 批次 72 payments 域第二实现 teller-alt(事件账本投影 vs 可变状态表,同契约异构)+ 一致性 e2e | 98ced31 | gateway -race 26 包 + e2e
 - [x] 批次 73 support 域第二实现 croupier-alt(写时属主有序索引 + 键集游标 vs 读时全表扫描 + 偏移游标,同契约异构)+ 一致性 e2e + 跨实现分页等价证明 | 906f71d | gateway -race 27 包 + e2e
 - [x] 批次 74 台账体检(28 项已完成条目回填 commit 证据)+ Go 工具链安全修补(go 1.24→1.27.2,gateway 9 个可达 stdlib 漏洞清零) | a7e367e 6448a63 | gateway -race 27 包 + govulncheck 双模块清零 + CI 全 job 绿
+- [x] 批次 75 CI 漏洞扫描门禁(govulncheck@v1.9.0 进 tests.yml go job,根+gateway 双模块可达性扫描,防 stdlib 漏洞回归)+ README 本地门禁同步 | PENDING | govulncheck 双模块清零 + 全量门禁绿(Go -race 27 包 + node 3×136 + unity 164 + ue + examples 5 端)

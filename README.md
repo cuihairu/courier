@@ -199,6 +199,8 @@ Local gates (run all green before commit):
 go test ./...                      # root module: contractgen + packcheck + tsync
 (cd gateway && go test ./...)      # gateway module: all providers + e2e
 (cd gateway && go vet ./...)       # copylocks etc. beyond go test's default vet
+go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...   # root module reachable-stdlib scan
+(cd gateway && go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...)  # gateway module
 node --test tests/*.test.ts        # in each of: sdks/cocos, sdks/miniprogram, sdks/laybox
 sh sdks/ue/run_tests.sh            # UE headless (ISO C++17, no engine needed)
 ```

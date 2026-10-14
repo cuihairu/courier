@@ -1,6 +1,8 @@
-# 测试门禁:push/PR 全仓跑一遍(与本地口径一致,零依赖,无平台专属环境)。
+# 测试门禁:push/PR 全仓跑一遍(与本地口径一致,仓内零三方依赖,无平台专属环境)。
 #
-# 覆盖:Go(gateway 模块 + 根模块 tools:contractgen/packcheck/tsync)、Node 24 原生 TS
+# 覆盖:Go(gateway 模块 + 根模块 tools:contractgen/packcheck/tsync,外加 govulncheck
+# 双模块可达性扫描,需联网拉 vuln DB——仓内零三方依赖,唯一供应链面是 Go 标准库/工具链)、
+# Node 24 原生 TS
 # (cocos / miniprogram / laybox,零依赖 node --test)、UE(ISO C++17
 # 独立编译,g++ 无引擎依赖)、Unity 四个纯逻辑 dotnet 工程(dotnet test,
 # 引擎运行时不进门禁)、六端示例(起本地网关实跑 examples/,godot 端除外)。
@@ -60,6 +62,10 @@ jobs:
       - name: gateway
         run: go test ./...
         working-directory: gateway
+      - name: govulncheck (root + gateway)
+        run: |
+          go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+          (cd gateway && go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...)
 
   node-sdks:
     name: node ${{ matrix.sdk }}
