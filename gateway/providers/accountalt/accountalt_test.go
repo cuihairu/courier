@@ -341,3 +341,30 @@ func TestOAuthStoreDeviceLimit(t *testing.T) {
 		t.Fatalf("设备超限应拒: %v", err)
 	}
 }
+
+func TestStoreAccessorAndStatusGate(t *testing.T) {
+	p := newTestProvider(t, nil)
+	if p.Store() == nil || p.Store() != p.Store() {
+		t.Fatal("Store 访问器应返回同一实例")
+	}
+	acc := p.Store().CreateGuestAccount("dev-1", "ios")
+	if got, ok := p.Store().GetAccount(acc.id); !ok || got.id != acc.id {
+		t.Fatalf("GetAccount = %+v ok=%v", got, ok)
+	}
+
+	// 禁用后注销受理必须拒(ErrDisabled);未知账号 no-op 不 panic。
+	p.Store().SetAccountStatus(acc.id, "DISABLED")
+	if _, _, _, err := p.Store().RequestDelete(acc.id, time.Minute); err != ErrDisabled {
+		t.Fatalf("禁用后 RequestDelete = %v, want ErrDisabled", err)
+	}
+	p.Store().SetAccountStatus("acctalt_missing", "DISABLED") // no-op
+	if _, _, _, err := p.Store().RequestDelete("acctalt_missing", time.Minute); err != ErrNotFound {
+		t.Fatalf("未知账号 RequestDelete err=%v, want ErrNotFound", err)
+	}
+
+	// 恢复 ACTIVE 后可正常受理注销(游客账号无宽限,立即匿名删)。
+	p.Store().SetAccountStatus(acc.id, "ACTIVE")
+	if _, _, _, err := p.Store().RequestDelete(acc.id, time.Minute); err != nil {
+		t.Fatalf("恢复后 RequestDelete err=%v", err)
+	}
+}
