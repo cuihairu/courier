@@ -1,0 +1,746 @@
+// Package croupieralt 客服第二实现(批次 73,契约 docs/contract/support.md)。
+//
+// 与默认 croupier 同一冻结契约,但列表组织与分页模型刻意不同——证明契约约束的
+// 是行为而非实现:
+//   - croupier(读时组织):列表读时全表扫描 → 属主过滤 → 读时排序;游标 =
+//     偏移序号(nextCursor = 窗口末尾序号,客户端原样回传)
+//   - 本实现(写时组织 + 键集游标):每属主一张按 (updatedAt 毫秒倒序, id 升序)
+//     全序维护的工单 ID 索引,写路径(建单/追加/回复/关单/附件登记)即时重排;
+//     游标 = 不透明键集锚点 `<updatedAt 毫秒>|<工单 ID>`,页 = 严格排在锚点之后
+//     的窗口——并发插入下不漂移(偏移游标的经典缺陷),契约只要求 cursor 不透明
+//     (primitives.md:55)与非法 → COMMON_INVALID_ARGUMENT(announcement.md:50)
+//
+// 两模型等价:同一数据集、同序键(updatedAt 倒序;毫秒精度与 wire 时间戳一致,
+// 同毫秒内次序为契约未指定行为)下产出相同页内容与相同末页语义(nextCursor 空 =
+// 末页;越界/失效锚点 = 空页)。契约面(校验/状态机/归属 404/FAQ/附件/举报/申诉/
+// 推送事件)逐字同源;一致性证明:e2e/support_conformance_test.go——两实现同一
+// wire 场景同断言(批次 18/64/67/68/69/70/71/72 先例)。接入方切换 =
+// {"support":{"primary":"croupier-alt"}} 一行配置。
+package croupieralt
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"sort"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+	"unicode/utf8"
+
+	"github.com/cuihairu/courier/gateway/aggregation"
+	"github.com/cuihairu/courier/gateway/auth"
+	"github.com/cuihairu/courier/gateway/middleware"
+	"github.com/cuihairu/courier/gateway/providers"
+)
+
+// DefaultName 注册名;路由表 {"support":{"primary":"croupier-alt"}} 即换。
+const DefaultName = "croupier-alt"
+
+// EventTicketReplied 推送事件 type(契约 messages.md 事件登记;回复与关单都发)。
+const EventTicketReplied = "support.ticket_replied"
+
+const prefixSupport = "/v1/support/"
+
+// Options 构造参数(与 croupier.Options 同形状)。
+type Options struct {
+	// Name 供应商标识(默认 DefaultName)。
+	Name string
+	// Clock 当前时间(默认 time.Now)。
+	Clock func() time.Time
+	// RequireAuth 认证中间件(main 注入;nil = fail-closed 一律 401)。
+	RequireAuth func(http.Handler) http.Handler
+	// Notify 推送钩子(support.ticket_replied,参数为 replyEventDTO);nil = 不推送。
+	Notify func(eventType string, data any)
+	// TicketRatePerMinute / TicketRateBurst 提单限流(契约:默认 5/分钟)。
+	TicketRatePerMinute int
+	TicketRateBurst     int
+
+	// AttachmentSigner 附件直传预签名(契约 v1.1 F44;nil = 附件能力 fail-closed 501)。
+	AttachmentSigner Signer
+	// MaxAttachmentsPerTicket 每工单附件上限(契约缺省 3)。
+	MaxAttachmentsPerTicket int
+	// MaxAttachmentBytes 单文件上限字节(契约缺省 10 MiB)。
+	MaxAttachmentBytes int64
+	// AttachmentTypes 允许 contentType(契约缺省 5 项;nil = 用缺省表)。
+	AttachmentTypes map[string]bool
+	// AttachmentTTL 预签名有效期(契约缺省 10 分钟)。
+	AttachmentTTL time.Duration
+
+	// PenaltyStore 处罚投影源(契约 v1.1 F45;nil = 处罚/申诉能力 fail-closed 501)。
+	PenaltyStore PenaltyStore
+}
+
+// replyEventDTO 推送事件 data(契约 messages.md:{ticketId})。
+type replyEventDTO struct {
+	TicketID string `json:"ticketId"`
+}
+
+// ticketDTO wire 形状(契约数据模型)。
+type ticketDTO struct {
+	ID        string         `json:"id"`
+	Title     string         `json:"title"`
+	Status    string         `json:"status"`
+	Category  string         `json:"category"`
+	Context   map[string]any `json:"context,omitempty"` // v1.1:零解释透传回显
+	CreatedAt string         `json:"createdAt"`
+	UpdatedAt string         `json:"updatedAt"`
+}
+
+type messageDTO struct {
+	SenderType string `json:"senderType"`
+	Body       string `json:"body"`
+	CreatedAt  string `json:"createdAt"`
+}
+
+type ticketPageDTO struct {
+	Items      []ticketDTO `json:"items"`
+	NextCursor string      `json:"nextCursor"`
+}
+
+type detailDTO struct {
+	Ticket      ticketDTO       `json:"ticket"`
+	Messages    []messageDTO    `json:"messages"`
+	Attachments []attachmentDTO `json:"attachments"` // v1.1:加法扩展,追加序
+}
+
+type faqDTO struct {
+	ID       string   `json:"id"`
+	Question string   `json:"question"`
+	Answer   string   `json:"answer"`
+	Keywords []string `json:"keywords"`
+}
+
+type faqPageDTO struct {
+	Items      []faqDTO `json:"items"`
+	NextCursor string   `json:"nextCursor"`
+}
+
+type messageRecord struct {
+	senderType string
+	body       string
+	createdAt  time.Time
+}
+
+type ticketRecord struct {
+	id          string
+	owner       string // accountId
+	title       string
+	status      string
+	category    string
+	context     map[string]any // v1.1:工单上下文(开集,服务端零解释)
+	messages    []messageRecord
+	attachments []attachmentRecord // v1.1:附件登记行(追加序)
+	createdAt   time.Time
+	updatedAt   time.Time
+}
+
+// SupportProvider 客服工单与 FAQ 第二实现(写时属主索引 + 键集游标)。
+type SupportProvider struct {
+	name    string
+	clock   func() time.Time
+	auth    func(http.Handler) http.Handler
+	notify  func(eventType string, data any)
+	limiter *middleware.RateLimiter
+
+	signer            Signer
+	maxAttachments    int
+	maxAttachmentSize int64
+	attachmentTypes   map[string]bool
+	uploadTTL         time.Duration
+
+	mu        sync.RWMutex
+	tickets   map[string]*ticketRecord
+	byOwner   map[string][]string // 属主有序索引(异构面):(updatedAt 毫秒倒序, id 升序)
+	faqs      []faqRecord
+	reports   []reportRecord // v1.1 F45:举报登记(玩家侧写入,管理面消费)
+	penalties PenaltyStore   // v1.1 F45:处罚投影源(nil = fail-closed 501)
+}
+
+type faqRecord struct {
+	id       string
+	question string
+	answer   string
+	keywords []string
+}
+
+// New 构造客服 Provider 第二实现。
+func New(opts Options) *SupportProvider {
+	if opts.Name == "" {
+		opts.Name = DefaultName
+	}
+	if opts.Clock == nil {
+		opts.Clock = time.Now
+	}
+	authMW := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			aggregation.WriteError(w, middleware.TraceID(r.Context()),
+				aggregation.CodeUnauthenticated, "not authenticated")
+		})
+	}
+	if opts.RequireAuth != nil {
+		authMW = opts.RequireAuth
+	}
+	if opts.TicketRatePerMinute <= 0 {
+		opts.TicketRatePerMinute = 5
+	}
+	if opts.TicketRateBurst <= 0 {
+		opts.TicketRateBurst = 5
+	}
+	if opts.MaxAttachmentsPerTicket <= 0 {
+		opts.MaxAttachmentsPerTicket = defaultMaxAttachmentsPerTicket
+	}
+	if opts.MaxAttachmentBytes <= 0 {
+		opts.MaxAttachmentBytes = defaultMaxAttachmentBytes
+	}
+	if opts.AttachmentTTL <= 0 {
+		opts.AttachmentTTL = defaultAttachmentTTL
+	}
+	return &SupportProvider{
+		name:              opts.Name,
+		clock:             opts.Clock,
+		auth:              authMW,
+		notify:            opts.Notify,
+		limiter:           middleware.NewRateLimiter(opts.TicketRatePerMinute, opts.TicketRateBurst),
+		signer:            opts.AttachmentSigner,
+		maxAttachments:    opts.MaxAttachmentsPerTicket,
+		maxAttachmentSize: opts.MaxAttachmentBytes,
+		attachmentTypes:   opts.AttachmentTypes,
+		uploadTTL:         opts.AttachmentTTL,
+		penalties:         opts.PenaltyStore,
+		tickets:           make(map[string]*ticketRecord),
+		byOwner:           make(map[string][]string),
+	}
+}
+
+// Name 供应商标识。
+func (p *SupportProvider) Name() string { return p.name }
+
+// Capability 能力域:support。
+func (p *SupportProvider) Capability() providers.Capability { return providers.CapSupport }
+
+// HealthCheck 内存存储常驻可用。
+func (p *SupportProvider) HealthCheck(_ context.Context) error { return nil }
+
+// CreateTicket 管理面之外的测试/运维便捷入口(等价 POST /tickets,不占限流)。
+func (p *SupportProvider) CreateTicket(owner, title, body, category string) (Ticket, error) {
+	return p.createTicket(owner, title, body, category, nil)
+}
+
+// Ticket 管理面视角的工单快照。
+type Ticket struct {
+	ID        string
+	Status    string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// AgentReply 管理面:坐席回复 → 状态转 REPLIED + 广播 support.ticket_replied。
+func (p *SupportProvider) AgentReply(ticketID, body string) error {
+	return p.agentAppend(ticketID, "AGENT", body, "REPLIED")
+}
+
+// AgentClose 管理面:关单(CLOSED)+ 广播(客户端需感知不再可回)。
+func (p *SupportProvider) AgentClose(ticketID string) error {
+	p.mu.Lock()
+	rec, ok := p.tickets[ticketID]
+	if !ok {
+		p.mu.Unlock()
+		return errNotFound
+	}
+	rec.status = "CLOSED"
+	rec.updatedAt = p.clock()
+	p.touchLocked(rec) // 异构面:updatedAt 变更 → 属主索引即时重排
+	p.mu.Unlock()
+	if p.notify != nil {
+		p.notify(EventTicketReplied, replyEventDTO{TicketID: ticketID})
+	}
+	return nil
+}
+
+// AddFAQ 管理面:新增知识条目。
+func (p *SupportProvider) AddFAQ(question, answer string, keywords []string) faqDTO {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	f := faqRecord{
+		id:       "faq_" + newUUIDv7(p.clock()),
+		question: question,
+		answer:   answer,
+		keywords: keywords,
+	}
+	p.faqs = append(p.faqs, f)
+	return faqDTO{ID: f.id, Question: f.question, Answer: f.answer, Keywords: f.keywords}
+}
+
+// ServeHTTP 分发 /v1/support/*(全部要求 Bearer)。
+func (p *SupportProvider) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	p.auth(http.HandlerFunc(p.route)).ServeHTTP(w, r)
+}
+
+func (p *SupportProvider) route(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, prefixSupport)
+	switch {
+	case path == "faq" && r.Method == http.MethodGet:
+		p.handleFAQ(w, r)
+	case path == "tickets":
+		switch r.Method {
+		case http.MethodPost:
+			p.handleCreate(w, r)
+		case http.MethodGet:
+			p.handleList(w, r)
+		default:
+			p.writeInvalid(w, r, "tickets requires POST/GET")
+		}
+	case strings.HasPrefix(path, "tickets/"):
+		rest := strings.TrimPrefix(path, "tickets/")
+		if i := strings.Index(rest, "/"); i >= 0 {
+			id, action := rest[:i], rest[i+1:]
+			if action == "messages" && r.Method == http.MethodPost {
+				p.handleAppend(w, r, id)
+				return
+			}
+			if action == "attachments" && r.Method == http.MethodPost {
+				p.handleRequestUpload(w, r, id)
+				return
+			}
+			p.writeNotFound(w, r)
+			return
+		}
+		if r.Method == http.MethodGet {
+			p.handleDetail(w, r, rest)
+			return
+		}
+		p.writeInvalid(w, r, "ticket detail requires GET")
+	case path == "reports": // v1.1 F45:举报受理
+		if r.Method == http.MethodPost {
+			p.handleReport(w, r)
+			return
+		}
+		p.writeInvalid(w, r, "reports requires POST")
+	case path == "penalties": // v1.1 F45:我的处罚(投影)
+		if r.Method == http.MethodGet {
+			p.handleListPenalties(w, r)
+			return
+		}
+		p.writeInvalid(w, r, "penalties requires GET")
+	case strings.HasPrefix(path, "penalties/"):
+		rest := strings.TrimPrefix(path, "penalties/")
+		if i := strings.Index(rest, "/"); i >= 0 {
+			id, action := rest[:i], rest[i+1:]
+			if action == "appeal" && r.Method == http.MethodPost {
+				p.handleAppeal(w, r, id)
+				return
+			}
+			p.writeNotFound(w, r)
+			return
+		}
+		if r.Method == http.MethodGet {
+			p.handleGetPenalty(w, r, rest)
+			return
+		}
+		p.writeInvalid(w, r, "penalty detail requires GET")
+	default:
+		p.writeNotFound(w, r)
+	}
+}
+
+func (p *SupportProvider) handleCreate(w http.ResponseWriter, r *http.Request) {
+	id, ok := auth.FromContext(r.Context())
+	if !ok {
+		p.writeUnauthenticated(w, r)
+		return
+	}
+	var req struct {
+		Title    string         `json:"title"`
+		Body     string         `json:"body"`
+		Category string         `json:"category"`
+		Context  map[string]any `json:"context"` // v1.1:可选,扁平开集
+	}
+	if !p.decode(w, r, &req) {
+		return
+	}
+	if req.Context != nil {
+		if err := validContext(req.Context); err != nil {
+			p.writeInvalid(w, r, err.Error())
+			return
+		}
+	}
+	if p.limiter != nil {
+		if ok, retryAfter := p.limiter.Allow(id.AccountID); !ok {
+			w.Header().Set("Retry-After", strconv.Itoa(int(retryAfter.Seconds())+1))
+			aggregation.WriteError(w, middleware.TraceID(r.Context()),
+				aggregation.CodeRateLimited, "too many tickets")
+			return
+		}
+	}
+	t, err := p.createTicket(id.AccountID, req.Title, req.Body, req.Category, req.Context)
+	if err != nil {
+		p.writeInvalid(w, r, err.Error())
+		return
+	}
+	p.mu.RLock()
+	rec := p.tickets[t.ID]
+	dto := ticketDTOOf(rec)
+	p.mu.RUnlock()
+	aggregation.WriteData(w, dto)
+}
+
+func (p *SupportProvider) handleAppend(w http.ResponseWriter, r *http.Request, ticketID string) {
+	id, ok := auth.FromContext(r.Context())
+	if !ok {
+		p.writeUnauthenticated(w, r)
+		return
+	}
+	var req struct {
+		Body string `json:"body"`
+	}
+	if !p.decode(w, r, &req) {
+		return
+	}
+	p.mu.Lock()
+	rec, ok := p.tickets[ticketID]
+	if !ok || rec.owner != id.AccountID {
+		p.mu.Unlock()
+		p.writeNotFound(w, r)
+		return
+	}
+	if rec.status == "CLOSED" {
+		p.mu.Unlock()
+		aggregation.WriteError(w, middleware.TraceID(r.Context()),
+			aggregation.CodeSupportTicketClosed, "ticket closed")
+		return
+	}
+	if req.Body == "" || len([]rune(req.Body)) > 4000 {
+		p.mu.Unlock()
+		p.writeInvalid(w, r, "body 1-4000 字符")
+		return
+	}
+	now := p.clock()
+	rec.messages = append(rec.messages, messageRecord{senderType: "PLAYER", body: req.Body, createdAt: now})
+	rec.updatedAt = now
+	// 玩家说话不改变状态(契约:坐席回复才转 REPLIED)。
+	p.touchLocked(rec) // 异构面:updatedAt 变更 → 属主索引即时重排
+	dto := messageDTO{SenderType: "PLAYER", Body: req.Body, CreatedAt: formatMilli(now)}
+	p.mu.Unlock()
+
+	aggregation.WriteData(w, dto)
+}
+
+// handleList 属主有序索引直接取窗(异构面:零扫描零排序)+ 键集游标分页。
+func (p *SupportProvider) handleList(w http.ResponseWriter, r *http.Request) {
+	id, ok := auth.FromContext(r.Context())
+	if !ok {
+		p.writeUnauthenticated(w, r)
+		return
+	}
+	limit, anchor, err := pageParams(r)
+	if err != nil {
+		p.writeInvalid(w, r, err.Error())
+		return
+	}
+	p.mu.RLock()
+	lst := p.byOwner[id.AccountID]
+	start := 0
+	if anchor.id != "" {
+		start = len(lst) // 锚点失效 → 空页(与读时偏移越界同形)
+		for i, tid := range lst {
+			if tid == anchor.id && p.tickets[tid].updatedAt.UnixMilli() == anchor.ms {
+				start = i + 1
+				break
+			}
+		}
+	}
+	end := start + limit
+	if end > len(lst) {
+		end = len(lst)
+	}
+	items := make([]ticketDTO, 0, limit)
+	for _, tid := range lst[start:end] {
+		items = append(items, ticketDTOOf(p.tickets[tid]))
+	}
+	var next string
+	if end < len(lst) && end > start {
+		next = encodeCursor(p.tickets[lst[end-1]])
+	}
+	p.mu.RUnlock()
+	aggregation.WriteData(w, ticketPageDTO{Items: items, NextCursor: next})
+}
+
+func (p *SupportProvider) handleDetail(w http.ResponseWriter, r *http.Request, ticketID string) {
+	id, ok := auth.FromContext(r.Context())
+	if !ok {
+		p.writeUnauthenticated(w, r)
+		return
+	}
+	p.mu.RLock()
+	rec, owned := p.tickets[ticketID]
+	if !owned || rec.owner != id.AccountID {
+		p.mu.RUnlock()
+		p.writeNotFound(w, r)
+		return
+	}
+	dto := detailDTO{
+		Ticket:      ticketDTOOf(rec),
+		Messages:    make([]messageDTO, 0, len(rec.messages)),
+		Attachments: p.attachmentsOf(rec), // v1.1:追加序
+	}
+	for _, m := range rec.messages { // createdAt 升序(追加序)
+		dto.Messages = append(dto.Messages, messageDTO{
+			SenderType: m.senderType, Body: m.body, CreatedAt: formatMilli(m.createdAt),
+		})
+	}
+	p.mu.RUnlock()
+	aggregation.WriteData(w, dto)
+}
+
+func (p *SupportProvider) handleFAQ(w http.ResponseWriter, r *http.Request) {
+	keyword := strings.ToLower(r.URL.Query().Get("keyword"))
+	if keyword == "" && r.URL.Query().Has("keyword") {
+		p.writeInvalid(w, r, "keyword 不能为空串")
+		return
+	}
+	limit := 20
+	if v := r.URL.Query().Get("limit"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 || n > 50 {
+			p.writeInvalid(w, r, "limit 须为 1-50")
+			return
+		}
+		limit = n
+	}
+	p.mu.RLock()
+	items := make([]faqDTO, 0)
+	for _, f := range p.faqs {
+		if keyword == "" || faqMatch(f, keyword) {
+			items = append(items, faqDTO{ID: f.id, Question: f.question, Answer: f.answer, Keywords: f.keywords})
+		}
+	}
+	p.mu.RUnlock()
+	// 最多 limit 条(FAQ 全量小,不做跨页;nextCursor 恒空 = 末页)。
+	if len(items) > limit {
+		items = items[:limit]
+	}
+	aggregation.WriteData(w, faqPageDTO{Items: items, NextCursor: ""})
+}
+
+func faqMatch(f faqRecord, keywordLower string) bool {
+	if strings.Contains(strings.ToLower(f.question), keywordLower) ||
+		strings.Contains(strings.ToLower(f.answer), keywordLower) {
+		return true
+	}
+	for _, k := range f.keywords {
+		if strings.Contains(strings.ToLower(k), keywordLower) {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *SupportProvider) createTicket(owner, title, body, category string, context map[string]any) (Ticket, error) {
+	if title == "" || len([]rune(title)) > 120 {
+		return Ticket{}, errInvalid("title 1-120 字符")
+	}
+	if body == "" || len([]rune(body)) > 4000 {
+		return Ticket{}, errInvalid("body 1-4000 字符")
+	}
+	if category == "" {
+		category = "OTHER"
+	}
+	now := p.clock()
+	rec := &ticketRecord{
+		id:        "tkt_" + newUUIDv7(now),
+		owner:     owner,
+		title:     title,
+		status:    "OPEN",
+		category:  category,
+		context:   context,
+		messages:  []messageRecord{{senderType: "PLAYER", body: body, createdAt: now}},
+		createdAt: now,
+		updatedAt: now,
+	}
+	p.mu.Lock()
+	p.tickets[rec.id] = rec
+	p.touchLocked(rec) // 异构面:建单入属主索引
+	p.mu.Unlock()
+	return Ticket{ID: rec.id, Status: rec.status, CreatedAt: rec.createdAt, UpdatedAt: rec.updatedAt}, nil
+}
+
+func (p *SupportProvider) agentAppend(ticketID, senderType, body, status string) error {
+	if body == "" || len([]rune(body)) > 4000 {
+		return errInvalid("body 1-4000 字符")
+	}
+	p.mu.Lock()
+	rec, ok := p.tickets[ticketID]
+	if !ok {
+		p.mu.Unlock()
+		return errNotFound
+	}
+	now := p.clock()
+	rec.messages = append(rec.messages, messageRecord{senderType: senderType, body: body, createdAt: now})
+	rec.status = status
+	rec.updatedAt = now
+	p.touchLocked(rec) // 异构面:updatedAt 变更 → 属主索引即时重排
+	p.mu.Unlock()
+	if p.notify != nil {
+		p.notify(EventTicketReplied, replyEventDTO{TicketID: ticketID})
+	}
+	return nil
+}
+
+// touchLocked 属主索引重排(异构面):从旧位摘除,按 (updatedAt 毫秒倒序, id 升序)
+// 二分插入。调用方须持写锁;索引与 tickets 表同锁保护。
+func (p *SupportProvider) touchLocked(rec *ticketRecord) {
+	lst := p.byOwner[rec.owner]
+	for i, tid := range lst {
+		if tid == rec.id {
+			lst = append(lst[:i], lst[i+1:]...)
+			break
+		}
+	}
+	ms := rec.updatedAt.UnixMilli()
+	pos := sort.Search(len(lst), func(i int) bool {
+		o := p.tickets[lst[i]]
+		if oms := o.updatedAt.UnixMilli(); oms != ms {
+			return oms < ms // 严格更旧 → 排在 rec 之后
+		}
+		return lst[i] > rec.id // 同毫秒:id 升序(契约未指定同毫秒次序,取稳定全序)
+	})
+	lst = append(lst, "")
+	copy(lst[pos+1:], lst[pos:])
+	lst[pos] = rec.id
+	p.byOwner[rec.owner] = lst
+}
+
+func ticketDTOOf(rec *ticketRecord) ticketDTO {
+	return ticketDTO{
+		ID:        rec.id,
+		Title:     rec.title,
+		Status:    rec.status,
+		Category:  rec.category,
+		Context:   rec.context,
+		CreatedAt: formatMilli(rec.createdAt),
+		UpdatedAt: formatMilli(rec.updatedAt),
+	}
+}
+
+// validContext 工单上下文校验(契约 support.md v1.1):扁平开集 map,仅原始值
+// (string/number/boolean);键 1–32 字符 [a-zA-Z0-9_.]、≤10 键、单值 ≤256 字符、
+// 整体 ≤1 KiB;超限 → COMMON_INVALID_ARGUMENT。服务端零解释:不白名单业务含义。
+func validContext(ctx map[string]any) error {
+	if len(ctx) > 10 {
+		return errInvalid("context ≤10 keys")
+	}
+	raw, err := json.Marshal(ctx)
+	if err != nil || len(raw) > 1024 {
+		return errInvalid("context ≤1KiB")
+	}
+	for k, v := range ctx {
+		if n := len(k); n < 1 || n > 32 {
+			return errInvalid("context key 1-32 chars")
+		}
+		for _, c := range k {
+			if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '_' || c == '.') {
+				return errInvalid("context key 仅限 [a-zA-Z0-9_.]")
+			}
+		}
+		switch tv := v.(type) {
+		case string:
+			if utf8.RuneCountInString(tv) > 256 {
+				return errInvalid("context string value ≤256 chars")
+			}
+		case float64, bool:
+		default:
+			return errInvalid("context value 须为 string/number/boolean")
+		}
+	}
+	return nil
+}
+
+func (p *SupportProvider) decode(w http.ResponseWriter, r *http.Request, v any) bool {
+	if err := json.NewDecoder(r.Body).Decode(v); err != nil {
+		aggregation.WriteError(w, middleware.TraceID(r.Context()),
+			aggregation.CodeInvalidArgument, "invalid JSON body")
+		return false
+	}
+	return true
+}
+
+func (p *SupportProvider) writeInvalid(w http.ResponseWriter, r *http.Request, msg string) {
+	aggregation.WriteError(w, middleware.TraceID(r.Context()),
+		aggregation.CodeInvalidArgument, msg)
+}
+
+func (p *SupportProvider) writeUnauthenticated(w http.ResponseWriter, r *http.Request) {
+	aggregation.WriteError(w, middleware.TraceID(r.Context()),
+		aggregation.CodeUnauthenticated, "not authenticated")
+}
+
+func (p *SupportProvider) writeNotFound(w http.ResponseWriter, r *http.Request) {
+	aggregation.WriteError(w, middleware.TraceID(r.Context()),
+		aggregation.CodeSupportTicketNotFound, "ticket not found")
+}
+
+// cursorAnchor 键集游标锚点(异构面):(updatedAt/issuedAt 毫秒, 条目 ID)。
+type cursorAnchor struct {
+	ms int64
+	id string
+}
+
+// encodeCursor 锚点编码:`<毫秒>|<ID>`(wire 不透明,契约 primitives.md:55)。
+func encodeCursor(rec *ticketRecord) string {
+	return strconv.FormatInt(rec.updatedAt.UnixMilli(), 10) + "|" + rec.id
+}
+
+// decodeCursor 锚点解码:格式非法 → COMMON_INVALID_ARGUMENT(契约 announcement.md:50)。
+func decodeCursor(v string) (cursorAnchor, error) {
+	i := strings.Index(v, "|")
+	if i <= 0 || i == len(v)-1 {
+		return cursorAnchor{}, errInvalid("cursor 非法")
+	}
+	ms, err := strconv.ParseInt(v[:i], 10, 64)
+	if err != nil {
+		return cursorAnchor{}, errInvalid("cursor 非法")
+	}
+	return cursorAnchor{ms: ms, id: v[i+1:]}, nil
+}
+
+// pageParams 解析 limit(默认 20,最大 100)与键集游标(异构面;空 = 首页)。
+func pageParams(r *http.Request) (limit int, anchor cursorAnchor, err error) {
+	limit = 20
+	if v := r.URL.Query().Get("limit"); v != "" {
+		limit, err = strconv.Atoi(v)
+		if err != nil || limit < 1 || limit > 100 {
+			return 0, cursorAnchor{}, errInvalid("limit 须为 1-100")
+		}
+	}
+	if v := r.URL.Query().Get("cursor"); v != "" {
+		anchor, err = decodeCursor(v)
+		if err != nil {
+			return 0, cursorAnchor{}, err
+		}
+	}
+	return limit, anchor, nil
+}
+
+// 附件限额访问器(Options 缺省已在 New 归一,这里不再判零)。
+func (p *SupportProvider) maxAttachmentLimit() int { return p.maxAttachments }
+
+func (p *SupportProvider) maxAttachmentBytes() int64 { return p.maxAttachmentSize }
+
+func (p *SupportProvider) attachmentTTL() time.Duration { return p.uploadTTL }
+
+func (p *SupportProvider) allowedAttachmentTypes() map[string]bool { return p.attachmentTypes }
+
+// errInvalid / errNotFound:参数类与不存在(内部哨兵)。
+type invalidError string
+
+func (e invalidError) Error() string { return string(e) }
+
+func errInvalid(msg string) error { return invalidError(msg) }
+
+var errNotFound = invalidError("not found")
+
+func formatMilli(t time.Time) string {
+	return t.UTC().Format("2006-01-02T15:04:05.000Z07:00")
+}

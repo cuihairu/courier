@@ -74,7 +74,8 @@ Game Client (Unity / UE / Cocos / 小程序 / Layabox / Godot)
      - OAuthProvider         第三方登录(可选;Provider 注册表,无内置厂商)
      - AnnouncementProvider  默认:herald(事件驱动通知投递);
                              第二实现 herald-alt(写时索引,同契约可换)
-     - SupportProvider       默认:croupier support / ticket / faq
+     - SupportProvider       默认:croupier support / ticket / faq;
+                             第二实现 croupier-alt(写时属主索引 + 键集游标,同契约可换)
      - MessageProvider       默认:chirp(gateway + session);
                              第二实现 chirp-alt(环形日志+游标,同契约可换)
      - RealNameProvider      默认:warden(自建核验;阿里云/腾讯云慧眼/易盾/Webhook 同形状可接);

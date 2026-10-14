@@ -107,5 +107,6 @@ F13 云存档/进度同步——player.md:5,11 红线「进度不经 Courier,角
 - [x] 批次 68 messages 域第二实现 chirp-alt(共享环形日志+游标拉取 vs 每订阅者独立缓冲扇出,同契约异构)+ 一致性 e2e | 7c066d9 | gateway -race 22 包 + e2e
 - [x] 批次 69 announcements 域第二实现 herald-alt(写时索引 vs 读时线性扫描,同契约异构)+ 一致性 e2e | 3323ed6 | gateway -race 23 包 + e2e
 - [x] 批次 70 assistant 域第二实现 sage-alt(写时预计算规范化 vs 读时重复规范化,同契约异构)+ 一致性 e2e | 736fcc0 | gateway -race 24 包 + e2e
-- [x] 批次 71 config 域第二实现 scribe-alt(写时维度索引 vs 读时逐条目 AND,同契约异构)+ 一致性 e2e | 24da6e2 | gateway -race 25 包 + e2e
+- [x] 批次 71 config 域第二实现 scribe-alt(写时维度索引 vs 读时逐条目 AND,同契约异构)+ 一致性 e2e + 维护门回调随 app primary 重指 | 24da6e2 | gateway -race 25 包 + e2e
 - [x] 批次 72 payments 域第二实现 teller-alt(事件账本投影 vs 可变状态表,同契约异构)+ 一致性 e2e | 98ced31 | gateway -race 26 包 + e2e
+- [x] 批次 73 support 域第二实现 croupier-alt(写时属主有序索引 + 键集游标 vs 读时全表扫描 + 偏移游标,同契约异构)+ 一致性 e2e + 跨实现分页等价证明 | PENDING | gateway -race 27 包 + e2e

@@ -21,6 +21,7 @@ import (
 	"github.com/cuihairu/courier/gateway/providers/chirp"
 	"github.com/cuihairu/courier/gateway/providers/chirpalt"
 	"github.com/cuihairu/courier/gateway/providers/croupier"
+	"github.com/cuihairu/courier/gateway/providers/croupieralt"
 	"github.com/cuihairu/courier/gateway/providers/herald"
 	"github.com/cuihairu/courier/gateway/providers/heraldalt"
 	"github.com/cuihairu/courier/gateway/providers/hooks"
@@ -78,6 +79,11 @@ func main() {
 	// (换 S3 / OSS / 本地静态服务器 = 换配置,契约不动);未配置 = 501
 	// COMMON_CAPABILITY_DISABLED(不内置假存储到生产)。
 	croupierP := croupier.New(croupier.Options{RequireAuth: reqAuth, Notify: publish})
+	// 客服域第二实现(批次 73):croupier-alt(写时属主有序索引 + 键集游标)与
+	// croupier(读时全表扫描 + 偏移游标)同契约异构;切换 =
+	// {"support":{"primary":"croupier-alt"}}。存储面与处罚投影源同口径:由接入方
+	// 注入 croupieralt.Options 的同名字段,未配置 = 501(不内置假数据到生产)。
+	croupierAltP := croupieralt.New(croupieralt.Options{RequireAuth: reqAuth, Notify: publish})
 	// 实名(M2 后段,批次 7):注册 warden(自建核验),但默认路由表不含 realname
 	// ——契约红线「默认关闭」;接入方在 COURIER_GATEWAY_CONFIG 显式配置
 	// {"realname":{"primary":"warden"}} 开启,S2S 上报凭证经
@@ -169,7 +175,7 @@ func main() {
 		ChannelSecret: os.Getenv("COURIER_PAYMENTS_CHANNEL_SECRET"),
 		Notify:        publish,
 	})
-	for _, h := range []providers.Handler{acc, accAlt, heraldP, heraldAltP, croupierP, chirpP, chirpAltP, wardenP, wardenAltP, scribeP, scribeAltP, archivistP, archivistAltP, sageP, sageAltP, tellerP, tellerAltP} {
+	for _, h := range []providers.Handler{acc, accAlt, heraldP, heraldAltP, croupierP, croupierAltP, chirpP, chirpAltP, wardenP, wardenAltP, scribeP, scribeAltP, archivistP, archivistAltP, sageP, sageAltP, tellerP, tellerAltP} {
 		if err := reg.Register(h); err != nil {
 			log.Fatalf("courier gateway: 注册 %s 失败: %v", h.Name(), err)
 		}

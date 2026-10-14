@@ -52,7 +52,7 @@ sidecar 形态契约不动,属部署面演进。
 | --- | --- | --- | --- | --- |
 | identity | /v1/identity/ | `courier-account` | M1 | 第二实现 `courier-account-alt`(批次 18) |
 | announcements | /v1/announcements/ | `herald` | M2 | 第二实现 `herald-alt`(写时索引,批次 69) |
-| support | /v1/support/ | `croupier` | M2 | 注入点最多(见 §4) |
+| support | /v1/support/ | `croupier` | M2 | 注入点最多(见 §4);第二实现 `croupier-alt`(写时属主索引 + 键集游标,批次 73) |
 | messages | /v1/messages/ | `chirp` | M2 | SSE 推送通道,其余域经其 Hub 广播;第二实现 `chirp-alt`(环形日志+游标,批次 68) |
 | realname | /v1/realname/ | `warden` | M2 后段 | **默认关闭**:路由表显式配置才开启(契约红线);第二实现 `warden-alt`(托管核验,批次 64) |
 | app | /v1/app/ | `scribe` | M3 | config / branding / app 同管道;第二实现 `scribe-alt`(写时维度索引,批次 71) |
@@ -68,7 +68,7 @@ sidecar 形态契约不动,属部署面演进。
 | --- | --- | --- |
 | identity | `account.Options` / `accountalt.Options`;会话校验器经 `auth.NewSwitchable` 供 M2+ 域共享,身份源切换 = `SetTarget` 跟随 primary | 双实现同一 wire(见 §6) |
 | identity·oauth | `OAuthDisabled: true` 关闭 oauth 域(501);第三方凭证校验器经 providers/oauth 装配,未注册 = `OAUTH_PROVIDER_UNKNOWN` | fail-closed |
-| support | `croupier.Options.AttachmentSigner`(F44 附件直传)、`PenaltyStore`(F45 处罚投影源:List/Get/Appeal) | nil = 附件 / 处罚能力 501(不内置假存储假风控到生产) |
+| support | `croupier.Options.AttachmentSigner`(F44 附件直传)、`PenaltyStore`(F45 处罚投影源:List/Get/Appeal) | nil = 附件 / 处罚能力 501(不内置假存储假风控到生产);`croupieralt.Options` 同名字段同口径 |
 | support | `Notify`(坐席回复 → chirp 广播)、`TicketRatePerMinute/Burst`(默认 5/分钟) | nil = 不推送 |
 | payments | `teller.Options.ChannelSecret`(回调 HMAC-SHA256)、`Deliver` 发货钩子(按订单幂等,接入方落库) | 密钥空 = 回调一律 403 `PAYMENT_INVALID_SIGNATURE` |
 | realname | `warden.Options.S2SToken`、`AuditSink`(F33 审计事件面:verify/curfew/charge_check/playtime_report,事件只含账号维度元数据;接缝在共享包 `gateway/audit`,内置 `LogSink` 日志半边与 `HTTPSink` 直写半边,SIEM 摄取端 / 自建落库代理按部署面注入;两实现同形状,`wardenalt.Options.AuditSink` 同);`wardenalt.Options.Cloud`(托管核验:核验服务按 `CloudVerifier` 接口注入,`WebhookVerifier` 为契约「自定义 Webhook」形态适配;地址经 `COURIER_REALNAME_VERIFY_WEBHOOK`) | S2S 缺省 = fail-closed 401;sink 缺省 = 不产出——`COURIER_REALNAME_AUDIT_WEBHOOK`(+ `COURIER_REALNAME_AUDIT_TOKEN`)开直写半边(尽力交付:超时/网络失败/非 2xx 只记日志,不阻断实名请求;保留策略归接入方存储),`COURIER_REALNAME_AUDIT=log` 开日志半边,两实现经 main.go 同源注入;warden-alt Cloud 缺省 = HealthCheck 不就绪 → 503(fail-closed,配置缺失 ≠ 能力关闭 501) |
