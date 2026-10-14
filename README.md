@@ -196,8 +196,8 @@ tools/      Repo gates: contractgen (contract test skeleton), packcheck (UPM str
 Local gates (run all green before commit):
 
 ```text
-go test ./...                      # root module: contractgen + packcheck + tsync
-(cd gateway && go test ./...)      # gateway module: all providers + e2e
+go test -race ./...                # root module: contractgen + packcheck + tsync
+(cd gateway && go test -race ./...)  # gateway module: all providers + e2e
 (cd gateway && go vet ./...)       # copylocks etc. beyond go test's default vet
 go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...   # root module reachable-stdlib scan
 (cd gateway && go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...)  # gateway module

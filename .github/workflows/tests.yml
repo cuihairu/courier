@@ -1,6 +1,6 @@
 # 测试门禁:push/PR 全仓跑一遍(与本地口径一致,仓内零三方依赖,无平台专属环境)。
 #
-# 覆盖:Go(gateway 模块 + 根模块 tools:contractgen/packcheck/tsync,外加 govulncheck
+# 覆盖:Go(gateway 模块 + 根模块 tools:contractgen/packcheck/tsync,均 -race;外加 govulncheck
 # 双模块可达性扫描,需联网拉 vuln DB——仓内零三方依赖,唯一供应链面是 Go 标准库/工具链)、
 # Node 24 原生 TS
 # (cocos / miniprogram / laybox,零依赖 node --test)、UE(ISO C++17
@@ -53,14 +53,14 @@ jobs:
         with:
           go-version-file: go.mod
       - name: root module tools
-        run: go test ./tools/...
+        run: go test -race ./tools/...
       - name: vet (root module)
         run: go vet ./...
       - name: vet (gateway)
         run: go vet ./...
         working-directory: gateway
       - name: gateway
-        run: go test ./...
+        run: go test -race ./...
         working-directory: gateway
       - name: govulncheck (root + gateway)
         run: |
