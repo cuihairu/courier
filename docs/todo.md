@@ -110,3 +110,4 @@ F13 云存档/进度同步——player.md:5,11 红线「进度不经 Courier,角
 - [x] 批次 71 config 域第二实现 scribe-alt(写时维度索引 vs 读时逐条目 AND,同契约异构)+ 一致性 e2e + 维护门回调随 app primary 重指 | 24da6e2 | gateway -race 25 包 + e2e
 - [x] 批次 72 payments 域第二实现 teller-alt(事件账本投影 vs 可变状态表,同契约异构)+ 一致性 e2e | 98ced31 | gateway -race 26 包 + e2e
 - [x] 批次 73 support 域第二实现 croupier-alt(写时属主有序索引 + 键集游标 vs 读时全表扫描 + 偏移游标,同契约异构)+ 一致性 e2e + 跨实现分页等价证明 | 906f71d | gateway -race 27 包 + e2e
+- [x] 批次 74 台账体检(28 项已完成条目回填 commit 证据)+ Go 工具链安全修补(go 1.24→1.27.2,gateway 9 个可达 stdlib 漏洞清零) | a7e367e 6448a63 | gateway -race 27 包 + govulncheck 双模块清零 + CI 全 job 绿
