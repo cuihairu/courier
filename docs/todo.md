@@ -9,8 +9,6 @@
 
 ## 待议(边界未定,不立项)
 
-- [ ] F14 分级读写权限:本人/公开/仅服务端分层待议(当前契约面无分层数据——档案仅 displayName/avatarUrl,无公开/仅服务端字段)
-- [ ] F15 写锁与冲突合并:乐观锁/版本号待议(当前契约面无并发写冲突面——唯一写 PATCH displayName,服务端修剪,无版本号字段)
 - [ ] F62 邮件/礼包码:与消息面相邻,按需优先评估(features.md §10 定性「值得优先评估」,需运营侧实际需求触发)
 
 ## Provider 口径(能力归 Provider,不进核心契约)
@@ -113,3 +111,5 @@ F13 云存档/进度同步——player.md:5,11 红线「进度不经 Courier,角
 - [x] 批次 74 台账体检(28 项已完成条目回填 commit 证据)+ Go 工具链安全修补(go 1.24→1.27.2,gateway 9 个可达 stdlib 漏洞清零) | a7e367e 6448a63 | gateway -race 27 包 + govulncheck 双模块清零 + CI 全 job 绿
 - [x] 批次 75 CI 漏洞扫描门禁(govulncheck@v1.9.0 进 tests.yml go job,根+gateway 双模块可达性扫描,防 stdlib 漏洞回归)+ README 本地门禁同步 | be52c98 | govulncheck 双模块清零 + 全量门禁绿(Go -race 27 包 + node 3×136 + unity 164 + ue + examples 5 端)
 - [x] 批次 76 台账 hash 可达性核验(76 项逐条比对 git 历史,批次 65 的 35a13a4 因历史重写悬空改为可达的 3b80159) | 4ccc324 | 76/76 hash 可达 + docs:build 绿
+- [x] F14 分级读写权限 | 已代决(巡检 R1) | 当前契约即本人/仅服务端两层(Bearer 自持),公开层与社交非目标冲突,不立项
+- [x] F15 写锁与冲突合并 | 已代决(巡检 R1) | 唯一写字段 displayName 服务端修剪,无并发写冲突面,版本号待第二写字段出现再评估
