@@ -91,7 +91,8 @@ Game Client (Unity / UE / Cocos / Mini Program / Layabox / Godot)
      - BrandingProvider      default: scribe (same pipeline as Config)
      - PlayerProvider        default: archivist (profile + account-player mapping);
                              second impl archivist-alt (event log, same contract)
-     - AssistantProvider     default: sage (FAQ search Q&A)
+     - AssistantProvider     default: sage (FAQ search Q&A);
+                             second impl sage-alt (write-time normalization, same contract)
      - PaymentsProvider      default: teller (order-callback-delivery)
      - DiagnosticsProvider   direct-to-endpoint, not via gateway (contract red line;
                              Sentry/GlitchTip/OTLP can be connected)

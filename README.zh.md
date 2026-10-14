@@ -83,7 +83,8 @@ Game Client (Unity / UE / Cocos / 小程序 / Layabox / Godot)
      - BrandingProvider      默认:scribe(与 Config 同管道)
      - PlayerProvider        默认:archivist(档案 + 账号↔角色映射);
                              第二实现 archivist-alt(事件日志,同契约可换)
-     - AssistantProvider     默认:sage(FAQ 检索问答)
+     - AssistantProvider     默认:sage(FAQ 检索问答);
+                             第二实现 sage-alt(写时预计算规范化,同契约可换)
      - PaymentsProvider      默认:teller(订单-回调-发货)
      - DiagnosticsProvider   直发接入方端点不经网关(契约红线;Sentry/GlitchTip/OTLP 可接)
 ```

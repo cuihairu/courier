@@ -13,6 +13,7 @@
 > **更新**(2026-10-14,对账):过期阻塞销项——F13(player.md:5,11 红线「进度不经 Courier」)、F58/F59/F60/F61/F63(features.md §10 定性「玩法系统非服务递送」)决策已落,由「待议」移「不做」;F33 仓内面已全落(批次 62/65/66),余保留策略与查询面归接入方存储(audit.go:3 已注);F14/F15 注明当前契约面无适用面。待议 9→3、不做 7→13。
 > **更新**(2026-10-14,批次 67):player 域第二实现 archivist-alt(事件日志模型:变更追加事件、读=投影重放,与 archivist 状态表同契约异构)落地——单测含追加只读/投影重放/注销弃历史异构面,e2e 一致性(两实现同 wire 场景同断言),main 同源接线;零新错误码。
 > **更新**(2026-10-14,批次 68):messages 域第二实现 chirp-alt(共享环形日志 + 每连接游标拉取,与 chirp 每订阅者独立缓冲扇出同契约异构)落地——单测含环形淘汰/慢消费者跳窗(at-most-once 缺失段不补发)/订阅点语义,e2e 一致性(两实现同 wire 场景同断言),main 注册 + Notify 钩子随 messages primary 重指(同身份源先例);零新错误码。
+> **更新**(2026-10-14,批次 70):assistant 域第二实现 sage-alt(写时预计算规范化文本:AddEntry 时规范化一次,查询零重复计算,与 sage 读时对每个条目重复规范化同契约异构)落地——单测含预计算字段/大小写与首尾空白不敏感/空关键词语义/幂等性,e2e 一致性(两实现同 wire 场景同断言),main 注册;零新错误码。
 > **更新**(2026-10-13,批次 56):F45 由 ❌ → ✅(support.md v1.1 举报与处罚申诉节 Frozen → 网关 → SDK 六端 → e2e 分批落地,证据 commit 见行内);F11 错误码表 v7→v8(+SUPPORT 举报/申诉 2 码,42 码)。
 > **核对方法**:「已有」声称引用批次号+commit(来自 todo 各批验收记录);「缺口」声称以 grep 机器核对为准(零命中/命中行注明;批次 45 时点 announcement.md `filter` 0 命中、support.md `context` 0 命中、全契约 `language/locale` 0 命中,已分别于批次 51/57 落地);auth.md:10 与 realname.md:100 为契约明示的边界预留。
 > **图例**:✅ 已落地(仓库内有契约+实现+测试/e2e 证据,部署面残留另行注明)· ◑ 部分(核心面已落,剩余明示)· ❌ 缺口(仓库内未立项/未实现)· 🔌 Provider(不进核心契约)· ⏸ 待议 · ⛔ 不做。
@@ -52,7 +53,7 @@
 | F35 | 公告定向过滤 | ✅ | announcement.md Frozen v1.1 `filters` 开集 map + 四查询维度;herald 匹配 + SDK list 参数(`53eaa7c`)+ e2e 命中/未命中/详情 404;批次 51(`5317802`/`f20e9ab`);herald-alt 匹配同源 + 两实现一致性 e2e 批次 69 |
 | F36 | 跑马灯 | ✅ | 数据面零新契约(severity 字段 announcement.md:32);跑马灯呈现随批次 54 落 UI 包(TS 三端 `onMarqueeRendered`/`formatMarquee` + Unity `MarqueeRendered`/`AnnouncementText`,packcheck 结构守卫,`8127ba9`) |
 | F41 | 工单 | ✅ | support.md Frozen+croupier;批次 6 |
-| F42 | FAQ 自助 | ✅ | FAQ+sage 检索;批次 6/9(`2481383`) |
+| F42 | FAQ 自助 | ✅ | FAQ+sage 检索;批次 6/9(`2481383`);第二实现 sage-alt(写时预计算规范化,同契约可换 + 一致性 e2e)批次 70 |
 | F43 | 上下文附带 | ✅ | support.md Frozen v1.1 `context` 开集 map 服务端零解释透传;croupier 校验 + SDK 六端(`53eaa7c`)+ e2e 回显与 400;批次 51(`5317802`/`f20e9ab`) |
 | F44 | 反馈+日志上传 | ✅ | support.md 附件节 Frozen v1.1(批次 53 `9954281`:单端点申请直传 + 预签名 URL + 限额/allowlist/归属/状态 + fail-closed 存储);croupier `Signer` 接口 + 详情 `attachments[]` 加法(`035125d`)+ SDK 六端(`6dbfca0`)+ e2e(`804e93d`);diagnostics 自有面不变 |
 | F45 | 举报/申诉 | ✅ | support.md v1.1 举报与处罚申诉节 Frozen(批次 56 `d02ddcc`:reports/penalties/appeal 四端点;**判定与执行全在管理面**,玩家侧只读投影 + 申诉入口;进展不向举报人反馈);croupier `PenaltyStore` 投影源 + fail-closed 501 缺省 + e2e(`96d8295`)+ SDK 六端(`de4dc3d`);errors v8 +2 码 |

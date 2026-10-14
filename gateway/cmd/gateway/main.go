@@ -25,6 +25,7 @@ import (
 	"github.com/cuihairu/courier/gateway/providers/heraldalt"
 	"github.com/cuihairu/courier/gateway/providers/hooks"
 	"github.com/cuihairu/courier/gateway/providers/sage"
+	"github.com/cuihairu/courier/gateway/providers/sagealt"
 	"github.com/cuihairu/courier/gateway/providers/scribe"
 	"github.com/cuihairu/courier/gateway/providers/teller"
 	"github.com/cuihairu/courier/gateway/providers/warden"
@@ -134,6 +135,11 @@ func main() {
 	// 小助手(M4,批次 9):sage(自建 FAQ 检索)——命中即答,答不出引导转人工
 	// (复用 support 域提单链路,经客户端组装;LLM 供应商按同一接口替换,默认不依赖)。
 	sageP := sage.New(sage.Options{RequireAuth: reqAuth})
+	// 助手域第二实现(批次 70):sage-alt(写时预计算规范化文本——AddEntry 时
+	// 规范化一次,查询零重复计算)与 sage(读时对每个条目重复规范化)同契约异构;
+	// 切换 = {"assistant":{"primary":"sage-alt"}}(一致性 e2e 见
+	// e2e/assistant_conformance_test.go:两实现同一 wire 场景全绿)。
+	sageAltP := sagealt.New(sagealt.Options{RequireAuth: reqAuth})
 	// 支付(M5,批次 10):teller(自建沙箱渠道)——服务端定价 + 渠道回调 HMAC 校验
 	// (签名即认证,不走 Bearer;密钥未配置 = 回调 fail-closed 403);
 	// 真实渠道按同一回调签名面接入,发货经 Deliver 钩子由接入方落地。
@@ -143,7 +149,7 @@ func main() {
 		ChannelSecret: os.Getenv("COURIER_PAYMENTS_CHANNEL_SECRET"),
 		Notify:        publish,
 	})
-	for _, h := range []providers.Handler{acc, accAlt, heraldP, heraldAltP, croupierP, chirpP, chirpAltP, wardenP, wardenAltP, scribeP, archivistP, archivistAltP, sageP, tellerP} {
+	for _, h := range []providers.Handler{acc, accAlt, heraldP, heraldAltP, croupierP, chirpP, chirpAltP, wardenP, wardenAltP, scribeP, archivistP, archivistAltP, sageP, sageAltP, tellerP} {
 		if err := reg.Register(h); err != nil {
 			log.Fatalf("courier gateway: 注册 %s 失败: %v", h.Name(), err)
 		}
