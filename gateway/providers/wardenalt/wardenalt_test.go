@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cuihairu/courier/gateway/aggregation"
 	"github.com/cuihairu/courier/gateway/auth"
 	"github.com/cuihairu/courier/gateway/providers/router"
 )
@@ -463,5 +464,49 @@ func TestHTTP_EdgeValidation(t *testing.T) {
 	}
 	if code, _ := post(t, p, "/v1/realname/playtime-report", "", `{"accountId":"a","date":"2026-10-07","playMinutes":1,"chargeAmountCents":0}`); code != http.StatusUnauthorized {
 		t.Fatalf("s2s no token = %d, want 401(fail-closed)", code)
+	}
+}
+
+func TestWritePathsWithoutIdentity(t *testing.T) {
+	passThrough := func(next http.Handler) http.Handler { return next } // 放行但不注入身份
+	p := New(Options{Clock: fixedClock(nowThursday), RequireAuth: passThrough, S2SToken: "s2s-secret"})
+	for _, tc := range []struct{ method, path string }{
+		{http.MethodPost, "/v1/realname/verify"},
+		{http.MethodGet, "/v1/realname/status"},
+	} {
+		code, env := post(t, p, tc.path, "", "")
+		if tc.method == http.MethodGet {
+			code, env = get(t, p, tc.path, "")
+		}
+		if code != http.StatusUnauthorized || env.Error == nil ||
+			env.Error.Code != aggregation.CodeUnauthenticated {
+			t.Fatalf("%s %s: %d %+v, want 401/%s", tc.method, tc.path, code, env.Error,
+				aggregation.CodeUnauthenticated)
+		}
+	}
+}
+
+func TestReloadFallbacksSwapsChain(t *testing.T) {
+	p := newProvider(scriptedVerdicts())
+	before := p.Chain()
+	if len(before) != 1 || before[0] != DefaultName {
+		t.Fatalf("初始链 = %v", before)
+	}
+	p.ReloadFallbacks([]router.RealNameProvider{stubFallback{verdict: Verdict{State: stateVerified, AgeBand: BandAdult}}})
+	if chain := p.Chain(); len(chain) != 2 || chain[0] != DefaultName || chain[1] != "stub-fallback" {
+		t.Fatalf("热重载后链 = %v", chain)
+	}
+	p.ReloadFallbacks(nil)
+	if got := p.Chain(); len(got) != 1 || got[0] != DefaultName {
+		t.Fatalf("清空后链 = %v", got)
+	}
+}
+
+func TestCloudCoreHealthCheckFollowsCloud(t *testing.T) {
+	if newProvider(nil).core.HealthCheck() {
+		t.Fatal("未配 cloud 应不健康")
+	}
+	if !newProvider(scriptedVerdicts()).core.HealthCheck() {
+		t.Fatal("已配 cloud 应健康")
 	}
 }

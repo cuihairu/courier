@@ -262,3 +262,20 @@ func TestEmptyChain_AllSafeStates(t *testing.T) {
 		t.Error("empty charge 应不放行")
 	}
 }
+
+func TestBreakerIsOpenDiagnostic(t *testing.T) {
+	p, fb := newFake("primary"), newFake("fb")
+	p.failWith(errDown)
+	r := New(Config{Primary: p, Fallbacks: []RealNameProvider{fb},
+		Breaker: BreakerConfig{Failures: 2, OpenCalls: 100}})
+	br := r.table.Load().breakers["primary"]
+	if br.IsOpen() {
+		t.Fatal("初始应闭合(IsOpen=false)")
+	}
+	for i := 0; i < 2; i++ {
+		r.Verify("acc_1", IdentityInput{})
+	}
+	if !br.IsOpen() {
+		t.Fatal("连续失败达阈值后应开路(IsOpen=true)")
+	}
+}

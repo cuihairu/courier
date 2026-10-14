@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cuihairu/courier/gateway/aggregation"
 	"github.com/cuihairu/courier/gateway/auth"
 	"github.com/cuihairu/courier/gateway/providers/croupier"
 )
@@ -610,5 +611,55 @@ func defRequire(t *testing.T) func(http.Handler) http.Handler {
 			ctx := auth.WithIdentity(r.Context(), auth.Identity{AccountID: "acc_1", SessionID: "ses_1"})
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
+	}
+}
+
+func TestUnauthenticatedPaths(t *testing.T) {
+	p, _ := harness(t, func(o *Options) {
+		o.RequireAuth = func(next http.Handler) http.Handler { return next } // 放行但不注入身份
+	})
+	for _, tc := range []struct{ method, path, body string }{
+		{http.MethodPost, "/v1/support/tickets", `{"title":"t","body":"b"}`},
+		{http.MethodPost, "/v1/support/tickets/tkt_x/messages", `{"body":"b"}`},
+		{http.MethodGet, "/v1/support/tickets", ""},
+		{http.MethodGet, "/v1/support/tickets/tkt_x", ""},
+	} {
+		rec := call(t, p, tc.method, tc.path, tc.body)
+		var env envelope
+		_ = json.Unmarshal(rec.Body.Bytes(), &env)
+		if rec.Code != http.StatusUnauthorized || env.Error == nil ||
+			env.Error.Code != aggregation.CodeUnauthenticated {
+			t.Fatalf("%s %s: %d %+v, want 401/%s", tc.method, tc.path, rec.Code, env.Error,
+				aggregation.CodeUnauthenticated)
+		}
+	}
+}
+
+func TestCreateTicketOpsEntry(t *testing.T) {
+	p, _ := harness(t, nil)
+	tk, err := p.CreateTicket("acc_1", "title", "body", "OTHER")
+	if err != nil || tk.ID == "" || tk.Status != "OPEN" {
+		t.Fatalf("CreateTicket = %+v err=%v", tk, err)
+	}
+	if _, err := p.CreateTicket("acc_1", "", "b", ""); err == nil {
+		t.Fatal("空 title 应拒")
+	}
+	if _, err := p.CreateTicket("acc_1", strings.Repeat("t", 121), "b", ""); err == nil {
+		t.Fatal("超长 title 应拒")
+	}
+	if err := p.AgentReply(tk.ID, "reply"); err != nil {
+		t.Fatalf("AgentReply: %v", err)
+	}
+	if err := p.AgentClose(tk.ID); err != nil {
+		t.Fatalf("AgentClose: %v", err)
+	}
+	if err := p.AgentClose("tkt_missing"); err == nil {
+		t.Fatal("不存在工单应拒")
+	}
+	p.mu.RLock()
+	status := p.tickets[tk.ID].status
+	p.mu.RUnlock()
+	if status != "CLOSED" {
+		t.Fatalf("回单后 status = %s, want CLOSED", status)
 	}
 }

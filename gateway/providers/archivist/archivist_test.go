@@ -180,3 +180,22 @@ func TestRoutingShape(t *testing.T) {
 		t.Fatalf("DELETE characters: %d", rec.Code)
 	}
 }
+
+func TestDeleteAccountCascade(t *testing.T) {
+	p := newP("acc_1")
+	call(t, p, http.MethodGet, "/v1/player/profile", "")
+	call(t, p, http.MethodPost, "/v1/player/characters", `{"playerId":"ch_1"}`)
+	p.mu.Lock()
+	before := len(p.prof) + len(p.chars)
+	p.mu.Unlock()
+	if before == 0 {
+		t.Fatal("前置失败:档案/角色未建")
+	}
+	p.DeleteAccount("acc_1")
+	p.mu.Lock()
+	after := len(p.prof) + len(p.chars)
+	p.mu.Unlock()
+	if after != 0 {
+		t.Fatalf("注销级联后残留 = %d, want 0", after)
+	}
+}

@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cuihairu/courier/gateway/aggregation"
 	"github.com/cuihairu/courier/gateway/auth"
 )
 
@@ -386,5 +387,36 @@ func TestHandlerIdentity(t *testing.T) {
 	}
 	if chain := w.Chain(); len(chain) != 1 || chain[0] != DefaultName {
 		t.Errorf("chain = %v, want [warden](core 为 primary)", chain)
+	}
+}
+
+func TestWritePathsWithoutIdentity(t *testing.T) {
+	passThrough := func(next http.Handler) http.Handler { return next } // 放行但不注入身份
+	w := New(Options{Clock: fixedClock(nowThursday), RequireAuth: passThrough})
+	for _, tc := range []struct{ method, path string }{
+		{http.MethodPost, "/v1/realname/verify"},
+		{http.MethodGet, "/v1/realname/status"},
+	} {
+		req := httptest.NewRequest(tc.method, tc.path, nil)
+		rec := httptest.NewRecorder()
+		w.ServeHTTP(rec, req)
+		var env struct {
+			Error *struct {
+				Code string `json:"code"`
+			} `json:"error"`
+		}
+		_ = json.Unmarshal(rec.Body.Bytes(), &env)
+		if rec.Code != http.StatusUnauthorized || env.Error == nil ||
+			env.Error.Code != aggregation.CodeUnauthenticated {
+			t.Fatalf("%s %s: %d %+v, want 401/%s", tc.method, tc.path, rec.Code, env.Error,
+				aggregation.CodeUnauthenticated)
+		}
+	}
+}
+
+func TestCoreHealthCheckAlwaysTrue(t *testing.T) {
+	w := newWarden(fixedClock(nowThursday), "")
+	if !w.core.HealthCheck() {
+		t.Fatal("自建核验 core 应恒健康")
 	}
 }

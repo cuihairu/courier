@@ -453,3 +453,28 @@ func TestSetBrandingValidation(t *testing.T) {
 	bad("null", []byte(`null`))
 	bad("占用 version 键", []byte(`{"version":9,"companyName":"x"}`))
 }
+
+func TestConfigVersionAccessor(t *testing.T) {
+	p := New(Options{})
+	if v := p.ConfigVersion(); v != 0 {
+		t.Fatalf("初始版本 = %d, want 0", v)
+	}
+	v1, err := p.Publish([]Entry{{Key: "k", Value: "v"}})
+	if err != nil || v1 != 1 {
+		t.Fatalf("Publish = %d err=%v", v1, err)
+	}
+	if v := p.ConfigVersion(); v != v1 {
+		t.Fatalf("ConfigVersion = %d, want %d", v, v1)
+	}
+}
+
+func TestPublishInvalidValueRendersError(t *testing.T) {
+	p := New(Options{})
+	_, err := p.Publish([]Entry{{Key: "k", Value: make(chan int)}})
+	if err == nil || err.Error() == "" {
+		t.Fatalf("非法 JSON 值应报可读错误, got %v", err)
+	}
+	if _, err := p.Publish([]Entry{{Key: "k", Value: strings.Repeat("x", 33*1024)}}); err == nil {
+		t.Fatal("超 32KiB 应拒")
+	}
+}

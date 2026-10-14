@@ -498,3 +498,13 @@ func TestListOrders_UpdatedAtDesc(t *testing.T) {
 		}
 	}
 }
+
+func TestCreateOrderInvalidBody(t *testing.T) {
+	p, _ := harness(t, "s3cret", nil, nil)
+	for _, body := range []string{`{not json`, `{"skuId":" "}`, ``} {
+		rec := call(t, p, http.MethodPost, "/v1/payments/orders", body, nil)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("body %q: %d, want 400", body, rec.Code)
+		}
+	}
+}

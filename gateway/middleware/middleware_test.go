@@ -2,11 +2,13 @@ package middleware
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/cuihairu/courier/gateway/scope"
 )
@@ -177,5 +179,31 @@ func TestTraceEchoesRequestID(t *testing.T) {
 	h.ServeHTTP(rec2, httptest.NewRequest(http.MethodGet, "/", nil))
 	if got := rec2.Header().Get("X-Request-Id"); got != "" {
 		t.Fatalf("未携带 X-Request-Id 时不应设置, got %q", got)
+	}
+}
+
+func TestPruneRemovesIdleBuckets(t *testing.T) {
+	l := NewRateLimiter(60, 60)
+	now := time.Now()
+	l.mu.Lock()
+	l.buckets["stale"] = &bucket{tokens: 1, last: now.Add(-11 * time.Minute)}
+	l.buckets["fresh"] = &bucket{tokens: 1, last: now}
+	l.prune(now)
+	_, hasStale := l.buckets["stale"]
+	_, hasFresh := l.buckets["fresh"]
+	l.mu.Unlock()
+	if hasStale || !hasFresh {
+		t.Fatalf("prune 后 stale=%v fresh=%v, want false/true", hasStale, hasFresh)
+	}
+
+	// 触发路径:满表(maxBuckets)时 Allow 先清退再进新桶,不拒流。
+	l2 := NewRateLimiter(60, 60)
+	l2.mu.Lock()
+	for i := 0; i < maxBuckets; i++ {
+		l2.buckets[fmt.Sprintf("k%d", i)] = &bucket{tokens: 0, last: now.Add(-11 * time.Minute)}
+	}
+	l2.mu.Unlock()
+	if ok, retry := l2.Allow("new"); !ok || retry != 0 {
+		t.Fatalf("满表 Allow = ok=%v retry=%v, want true/0", ok, retry)
 	}
 }
