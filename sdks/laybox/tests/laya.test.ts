@@ -184,6 +184,23 @@ test("laya transport:请求头/体/超时透传 XHR;网络失败与超时归一 
   );
 });
 
+test("laya transport:响应体缺失降级空串;timeoutMs 缺省不设超时", async () => {
+  // 防御分支:真实 XHR responseText 恒为字符串,缺省头/体路径兜底
+  const xhr = {
+    open() {}, setRequestHeader() {},
+    getAllResponseHeaders() { return ""; },
+    send() { queueMicrotask(() => this.onload?.()); },
+    onload: null, onerror: null, ontimeout: null,
+    timeout: -1,
+  };
+  const resp = await createLayaboxTransport(() => xhr as never).send({
+    method: "GET", url: "https://api.example.com/x", headers: {},
+  });
+  assert.deepEqual(resp.headers, {});
+  assert.equal(resp.body, ""); // responseText 缺失:?? "" 降级
+  assert.equal(xhr.timeout, 0); // timeoutMs 缺省(>0 为假):归 0 = 不设超时
+});
+
 // ---- LifecycleMonitor(可见性/网络信号) ----
 
 function playerReadyMachine(): { machine: LifecycleMachine; events: string[] } {

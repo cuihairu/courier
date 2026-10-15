@@ -159,6 +159,22 @@ test("wx transport:对象响应重新序列化;失败归一 TransportError;缺�
   );
 });
 
+test("wx transport:缺省响应头与 null 响应体降级(header ?? {} 与空体归一)", async () => {
+  // 真机防御分支:success 无 header 字段、data 恒 null(绕过 fake 的 ?? {} 合并)
+  const wx = {
+    request(options: WxRequestOptions) {
+      queueMicrotask(() => options.success({ statusCode: 502, data: null } as never));
+      return { abort() {} };
+    },
+  };
+  const resp = await createWechatTransport(wx as never).send({
+    method: "GET", url: "https://api.example.com/x", headers: {}, timeoutMs: 5,
+  });
+  assert.equal(resp.statusCode, 502);
+  assert.deepEqual(resp.headers, {}); // header 缺省:?? {} 空头集
+  assert.equal(resp.body, ""); // data null:归一空串
+});
+
 // ---- LifecycleMonitor(onShow/onHide/网络信号) ----
 
 function playerReadyMachine(): { machine: LifecycleMachine; events: string[] } {
