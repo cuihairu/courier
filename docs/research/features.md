@@ -170,7 +170,7 @@
 
 ## 10. 进度、成就与留存玩法
 
-> **结论先行:本节是玩法不是服务,全列待议防范围失控;仅 F62 邮件/礼包码值得后续评估。**
+> **结论先行:本节是玩法不是服务,全列待议防范围失控;仅 F62 邮件/礼包码值得后续评估(已评估:见 [mail-cdk-evaluation.md](./mail-cdk-evaluation.md),FW1016D 代决——不立项,运营需求触发再按草图冻结)。**
 
 | ID | 功能 | 典型能力 | 常见度 | 代表实现 | 取舍 |
 | --- | --- | --- | --- | --- | --- |
@@ -178,7 +178,7 @@
 | F59 | 成就 / 任务 | 一次性与累积式(incremental)成就、隐藏成就、进度可视化 | 必备 | [PGS 成就质量清单](https://developer.android.com/games/pgs/quality)、EOS Achievements | ❓ 待议 |
 | F60 | 数值统计(Stats) | 服务端保存的玩家统计项,供成就/排行榜消费 | 常见 | EOS Stats、AccelByte Statistics | ❓ 待议 |
 | F61 | 赛季 / 通行证 / 签到 | 活动周期、奖励轨道、每日奖励 | 常见 | AccelByte Season Pass、[GamePush 奖励调度](https://gamepush.com/en/backend/) | ❓ 待议 |
-| F62 | 邮件 / 礼包码 | 全服邮件、单人邮件、兑换码,常与运营工具同源 | 必备(运营侧) | [运营工具:全服&单人邮件](https://cloud.tencent.com/developer/article/1978643)、[MSDK 礼包券](https://cloud.tencent.com/developer/article/1856528) | ❓ 待议(属「消息」近邻) |
+| F62 | 邮件 / 礼包码 | 全服邮件、单人邮件、兑换码,常与运营工具同源 | 必备(运营侧) | [运营工具:全服&单人邮件](https://cloud.tencent.com/developer/article/1978643)、[MSDK 礼包券](https://cloud.tencent.com/developer/article/1856528) | ✅ 已代决(评估完成,不立项;见 [mail-cdk-evaluation.md](./mail-cdk-evaluation.md)) |
 | F63 | 活动与限时运营 | 活动日程、倒计时、开服预热 | 常见 | [BACKND 活动与公告](https://backnd.com/en/)、[SpellSync 活动](https://spellsync.com/game-backend/) | ❓ 待议 |
 
 **Courier 取舍**:本节多数是**玩法系统**而非「服务递送」,除 F62 邮件与消息面相邻、值得优先评估外,其余列入待议,避免把 Courier 做成第二个 Nakama(见 [competitive.md](./competitive.md) 结论 3)。
@@ -261,6 +261,6 @@
 | F49 A/B 实验 | ⬜ 不适用(本期) | 实验平台是垂直领域,自建投入产出差 | 留 Provider;契约不建 |
 | F51 GM/运营工具界面 | ⬜ 不适用(界面) | 结论④:做递送层的人不做所有层的界面 | croupier API 面保留;界面归 Provider 管理面(roadmap 非目标) |
 | F52–F55 分析、崩溃、归因 | ⬜ 不适用(自建) | 成熟厂商林立;SDK 只保自身可观测 | [diagnostics.md](../contract/diagnostics.md)(F56);其余交给游戏自有分析栈或 Provider |
-| F58–F63 排行榜/成就/赛季/邮件 | ⬜ 不适用(本期) | 玩法系统非服务递送,是最大范围风险(结论⑤) | §10 维持待议;仅 F62 邮件/礼包码在批次 9 后按需评估(与消息面相邻) |
+| F58–F63 排行榜/成就/赛季/邮件 | ⬜ 不适用(本期) | 玩法系统非服务递送,是最大范围风险(结论⑤) | §10 维持待议;仅 F62 邮件/礼包码已评估(FW1016D 代决:不立项,触发即按草图冻结,与消息面相邻) |
 | F64–F68 社交与实时 | ⬜ 不适用 | roadmap 非目标,与 Nakama/Agones 划界 | — |
 | F69–F76 多引擎、模块化、生命周期、弱网、沙箱、日志、多语言 | ✅ 可参考(已落地) | 结论②「抄 Nakama 工程面 + MSDK 插件化」的落地清单,本仓已按八条施工 | 契约测试骨架(六端生成)、UPM 三包、RetryPolicy、scope 三环境(dev/staging/prod)、events 生命周期、diagnostics 开关 |

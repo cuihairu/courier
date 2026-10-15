@@ -97,7 +97,7 @@ RealName
 
 - `Status().isMinor` 与 `Curfew().playable` 是唯二判定输出;策略执行不在本契约(接入方游戏侧,或未来独立防沉迷模块)。
 - 预留:`OnRealNameVerified` 客户端回调;服务端 Provider 结果中保留 `policyExtension` 扩展位,当前必须忽略未知字段。
-- v1.1 预留(只加不改):海外年龄门/家长同意 `consent` 组(调研 F31,出海需求触发再冻结)。
+- v1.1 预留(只加不改):海外年龄门/家长同意 `consent` 组(调研 F31,出海需求触发再冻结;法域中立设计草案已落 [research/consent-v1.1-draft.md](../research/consent-v1.1-draft.md),FW1016D 代决)。
 
 ## Provider 热插拔(服务端,治理首个完整适用方)
 
@@ -168,7 +168,7 @@ HealthCheck() → bool
 
 | 可能的扩展 | 兼容处理方式 |
 | --- | --- |
-| 海外年龄门/家长同意(F31) | `consent` 端点组 v1.1 预留(上文「防沉迷钩子」节,出海需求触发再冻结);现有字段与端点不动 |
+| 海外年龄门/家长同意(F31) | `consent` 端点组 v1.1 预留(上文「防沉迷钩子」节,出海需求触发再冻结;草案见 [research/consent-v1.1-draft.md](../research/consent-v1.1-draft.md));现有字段与端点不动 |
 | Provider 结果扩展 | `policyExtension` 扩展位已预留,未知字段必须忽略;新策略字段 = 加法兼容 |
 | 验证通过回调 | `OnRealNameVerified` 客户端回调已预留;触发时机细化 = 加参数提案 |
 | 第三方核验生态 | `RealNameProvider` 接口可插拔 + 路由表热切换已冻结;接新供应商 = 新适配,契约不动 |
