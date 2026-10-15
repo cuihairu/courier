@@ -345,6 +345,75 @@ int main() {
         CHECK(h.client->lifecycle().current() == LifecycleState::kPlayerReady, "PlayerReady");
     }
 
+    // ---- 状态名/触发名全表 + 防御性兜底(表外枚举值) ----
+    {
+        const LifecycleState states[] = {
+            LifecycleState::kUninitialized, LifecycleState::kInitializing, LifecycleState::kReady,
+            LifecycleState::kAuthenticating, LifecycleState::kAuthenticated,
+            LifecycleState::kPlayerReady, LifecycleState::kSuspended, LifecycleState::kResuming,
+            LifecycleState::kSignedOut};
+        const char* names[] = {"Uninitialized", "Initializing", "Ready", "Authenticating",
+                               "Authenticated", "PlayerReady", "Suspended", "Resuming",
+                               "SignedOut"};
+        for (std::size_t i = 0; i < 9; i++) {
+            CHECK(std::string(lifecycle_state_name(states[i])) == names[i], "state name table");
+        }
+        CHECK(std::string(lifecycle_state_name(static_cast<LifecycleState>(99))) == "?",
+              "state name defensive fallback");
+        CHECK(std::string(lifecycle_trigger_name(static_cast<LifecycleTrigger>(99))) == "?",
+              "trigger name defensive fallback");
+        const LifecycleTrigger triggers[] = {
+            LifecycleTrigger::kInitStarted, LifecycleTrigger::kInitCompleted,
+            LifecycleTrigger::kAuthStarted, LifecycleTrigger::kAuthSucceeded,
+            LifecycleTrigger::kAuthFailed, LifecycleTrigger::kEnterPlayerReady,
+            LifecycleTrigger::kSignedOut, LifecycleTrigger::kSuspended,
+            LifecycleTrigger::kResumeStarted, LifecycleTrigger::kResumeCompleted};
+        const char* trigger_names[] = {"InitStarted", "InitCompleted", "AuthStarted",
+                                       "AuthSucceeded", "AuthFailed", "EnterPlayerReady",
+                                       "SignedOut", "Suspended", "ResumeStarted",
+                                       "ResumeCompleted"};
+        for (std::size_t i = 0; i < 10; i++) {
+            CHECK(std::string(lifecycle_trigger_name(triggers[i])) == trigger_names[i],
+                  "trigger name table");
+        }
+    }
+
+    // ---- 表外迁移一律拒绝(含 Resuming 特判不落表) ----
+    {
+        LifecycleState to = LifecycleState::kReady;
+        CHECK(!lifecycle_transition(LifecycleState::kInitializing,
+                                    LifecycleTrigger::kAuthStarted, to),
+              "Initializing rejects AuthStarted");
+        CHECK(!lifecycle_transition(LifecycleState::kAuthenticated,
+                                    LifecycleTrigger::kResumeStarted, to),
+              "Authenticated rejects ResumeStarted");
+        CHECK(!lifecycle_transition(LifecycleState::kSuspended,
+                                    LifecycleTrigger::kAuthStarted, to),
+              "Suspended rejects AuthStarted");
+        CHECK(!lifecycle_transition(LifecycleState::kResuming,
+                                    LifecycleTrigger::kInitStarted, to),
+              "Resuming rejects InitStarted");
+        CHECK(!lifecycle_transition(LifecycleState::kResuming,
+                                    LifecycleTrigger::kResumeCompleted, to),
+              "Resuming resume is special-cased, not table-driven");
+        CHECK(!lifecycle_transition(static_cast<LifecycleState>(99),
+                                    LifecycleTrigger::kInitStarted, to),
+              "unknown state rejects every trigger");
+        LifecycleMachine m;
+        m.fire(LifecycleTrigger::kInitStarted);
+        CHECK(!m.try_fire(LifecycleTrigger::kAuthStarted), "try_fire reject keeps state");
+        CHECK(m.current() == LifecycleState::kInitializing, "state unchanged after reject");
+    }
+
+    // ---- 无订阅者时 emit 走空转(拷贝分发无回调) ----
+    {
+        LifecycleMachine quiet;
+        quiet.raise_token_expired();
+        CHECK(!quiet.report_account_id(""), "empty account id is not a switch");
+        CHECK(!quiet.report_account_id("acc_1"), "first login is not a switch");
+        CHECK(quiet.report_account_id("acc_2"), "switch detected without listeners");
+    }
+
     if (gFailed > 0) {
         std::printf("ue lifecycle tests: %d failed\n", gFailed);
         return 1;

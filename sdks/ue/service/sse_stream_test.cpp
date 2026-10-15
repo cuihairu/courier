@@ -232,6 +232,74 @@ static void TestRunStoppedBeforeStart() {
     CHECK(source.connect_count == 0, "no connect");
 }
 
+/// 流中断(读失败非流尾)→ 退避重连,不算终态。
+static void TestRunStreamInterrupted() {
+    FakeSource source;
+    auto broken = std::make_unique<FakeStream>();
+    broken->status_code = 200;
+    broken->failure = "connection reset";
+    auto conn2 = std::make_unique<FakeStream>();
+    conn2->status_code = 200;
+    conn2->lines = {"id: 5", "event: announcement.published", "data: {\"id\":\"ann_5\"}", ""};
+    source.streams.push_back(std::move(broken));
+    source.streams.push_back(std::move(conn2));
+
+    std::vector<int> sleeps;
+    SseStreamClientOptions options;
+    options.source = &source;
+    options.sleep = [&sleeps](int ms) { sleeps.push_back(ms); };
+    SseStreamClient client(options);
+
+    std::vector<SseEvent> events;
+    std::vector<std::string> reasons;
+    client.run(MakeRequest(), [&](const SseEvent& e) { events.push_back(e); },
+        [&](const std::string& r) { reasons.push_back(r); },
+        [&]() { return !events.empty(); });
+
+    CHECK(events.size() == 1 && events[0].id == "5", "event after mid-stream interruption");
+    CHECK(reasons.empty(), "interruption is not a terminal reason");
+    CHECK(source.connect_count >= 2, "reconnected after read failure");
+    CHECK(!sleeps.empty() && sleeps[0] == 1000, "interruption backs off from base");
+}
+
+/// 头键小写归一(契约 transport 键规范)。
+static void TestLowercasedHeaders() {
+    const std::map<std::string, std::string> lowered =
+        lowercased({{"Retry-After", "7"}, {"X-Courier-Game-Id", "game_demo"}});
+    CHECK(lowered.count("retry-after") == 1 && lowered.at("retry-after") == "7",
+          "uppercase header key normalized");
+    CHECK(lowered.count("X-Courier-Game-Id") == 0, "original key removed after normalization");
+}
+
+/// 未注入 sleep:构造期装缺省占位(不真阻塞调用方线程)。
+static void TestDefaultSleepPlaceholder() {
+    FakeSource source;
+    auto conn = std::make_unique<FakeStream>();
+    conn->status_code = 501;
+    source.streams.push_back(std::move(conn));
+    SseStreamClientOptions options;
+    options.source = &source;  // 不设 sleep
+    SseStreamClient client(options);
+    std::vector<std::string> reasons;
+    client.run(MakeRequest(), [](const SseEvent&) {},
+        [&](const std::string& r) { reasons.push_back(r); });
+    CHECK(reasons.size() == 1 && reasons[0] == sse_close_reasons::kCapabilityDisabled,
+          "default-sleep client still reaches terminal state");
+}
+
+/// 无冒号行:整行作字段名(SSE 规范);未知字段忽略,不污染帧状态。
+static void TestParserFieldWithoutColon() {
+    SseParser p;
+    CHECK(!p.feed_line("data"), "bare field name yields no frame");
+    const auto bare = p.feed_line("");
+    CHECK(bare.has_value() && bare->data.empty(), "bare 'data' field opens an empty frame");
+    CHECK(!p.feed_line("retry"), "bare unknown field tolerated");
+    CHECK(!p.feed_line("data: payload").has_value(), "frames settle only on blank line");
+    const auto settled = p.feed_line("");
+    CHECK(settled.has_value() && settled->data == "payload",
+          "bare lines did not corrupt field state");
+}
+
 int main() {
     TestBackoff();
     TestRunFramesReconnectToken();
@@ -240,6 +308,10 @@ int main() {
     TestRunRetryAfter();
     TestRunConnectFailureRetries();
     TestRunStoppedBeforeStart();
+    TestRunStreamInterrupted();
+    TestLowercasedHeaders();
+    TestDefaultSleepPlaceholder();
+    TestParserFieldWithoutColon();
     if (gFailed == 0) {
         std::printf("sse_stream_test: all passed\n");
         return 0;

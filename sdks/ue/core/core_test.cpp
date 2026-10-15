@@ -496,6 +496,129 @@ int main() {
         CHECK(list.next_cursor.empty(), "no nextCursor = 末页");
     }
 
+    // ---- 状态码兜底映射表(无 JSON body 时的保守选择;重试性随码) ----
+    {
+        CHECK(std::string(fallback_wire(401).wire) == "COMMON_UNAUTHENTICATED" &&
+                  !fallback_wire(401).retryable, "401 → unauthenticated, no retry");
+        CHECK(std::string(fallback_wire(403).wire) == "COMMON_PERMISSION_DENIED" &&
+                  !fallback_wire(403).retryable, "403 → permission denied, no retry");
+        CHECK(std::string(fallback_wire(404).wire) == "COMMON_NOT_FOUND" &&
+                  !fallback_wire(404).retryable, "404 → not found, no retry");
+        CHECK(std::string(fallback_wire(429).wire) == "RATE_LIMITED" &&
+                  fallback_wire(429).retryable, "429 → rate limited, retry");
+        CHECK(std::string(fallback_wire(501).wire) == "COMMON_CAPABILITY_DISABLED" &&
+                  !fallback_wire(501).retryable, "501 → capability disabled, no retry");
+        CHECK(std::string(fallback_wire(503).wire) == "COMMON_UNAVAILABLE" &&
+                  fallback_wire(503).retryable, "5xx → unavailable, retry");
+        CHECK(std::string(fallback_wire(418).wire) == "COMMON_INTERNAL" &&
+                  !fallback_wire(418).retryable, "other status → internal, no retry");
+    }
+
+    // ---- Retry-After 解析:缺省/空/负值 = 无;秒 → 毫秒 ----
+    {
+        CHECK(retry_after_ms({}) == -1, "retry-after absent → -1");
+        CHECK(retry_after_ms({{"retry-after", ""}}) == -1, "retry-after empty → -1");
+        CHECK(retry_after_ms({{"retry-after", "-5"}}) == -1, "retry-after negative → -1");
+        CHECK(retry_after_ms({{"retry-after", "2"}}) == 2000, "retry-after seconds → ms");
+    }
+
+    // ---- 空 body / 非 JSON body:按状态兜底而非误判成功 ----
+    {
+        Harness h;
+        h.sign_in();
+        h.transport.enqueue(403, "");
+        const RequestOutcome empty = h.client->api().request("GET", "/v1/player/profile", nullptr, true);
+        CHECK(!empty.ok && empty.error.wire == "COMMON_PERMISSION_DENIED", "empty body → status wire");
+        CHECK(empty.error.http == 403 && !empty.error.retryable, "empty body not retryable");
+        CHECK(empty.error.message.find("empty response body") != std::string::npos, "empty body reason");
+
+        h.transport.enqueue(200, "<html>maintenance</html>");
+        const RequestOutcome html = h.client->api().request("GET", "/v1/player/profile", nullptr, true);
+        CHECK(!html.ok && html.error.wire == "COMMON_INTERNAL", "non-JSON body → status wire");
+        CHECK(html.error.message.find("non-JSON response body") != std::string::npos, "non-JSON body reason");
+    }
+
+    // ---- 空 body 5xx 走退避重试(尽力到底后仍返错误) ----
+    {
+        Harness h;
+        h.sign_in();
+        h.transport.enqueue(503, "");
+        h.transport.enqueue(503, "");
+        h.transport.enqueue(503, "");
+        const RequestOutcome out = h.client->api().request("GET", "/v1/player/profile", nullptr, true);
+        CHECK(!out.ok && out.error.wire == "COMMON_UNAVAILABLE" && out.error.retryable,
+              "empty 5xx stays retryable after attempts exhausted");
+        CHECK(h.transport.requests.size() == 4, "login + three attempts on retryable 5xx");
+        CHECK(h.sleeps.size() == 2, "backoff sleeps between attempts only");
+    }
+
+    // ---- 未注入 sleep:构造落真实退避默认(仅验证可用,不打真实 sleep) ----
+    {
+        FakeTransport t;
+        t.enqueue(200, data_envelope("{}"));
+        ApiClientOptions options;
+        options.config = {"https://api.example.com", "game_demo", "prod"};
+        options.transport = &t;  // 不设 sleep → 构造期装默认退避
+        ApiClient api(std::move(options));
+        CHECK(api.request("GET", "/v1/app/environment", nullptr, false).ok,
+              "default-sleep client serves a successful request");
+    }
+
+    // ---- 未注入 sleep 且真要退避:走默认真实 sleep(1ms 策略,不打测试时长) ----
+    {
+        FakeTransport t;
+        t.enqueue(503, "");  // 空 body 5xx → 可重试
+        t.enqueue(200, data_envelope("{}"));
+        ApiClientOptions options;
+        options.config = {"https://api.example.com", "game_demo", "prod"};
+        options.transport = &t;             // 不设 sleep → 默认真实退避
+        options.retry.max_attempts = 2;
+        options.retry.base_delay_ms = 1;    // 真实 sleep 只睡 1ms
+        ApiClient api(std::move(options));
+        const RequestOutcome out = api.request("GET", "/v1/app/environment", nullptr, false);
+        CHECK(out.ok && t.requests.size() == 2, "default backoff retries once then succeeds");
+    }
+
+    // ---- AUTH_TOKEN_EXPIRED + refresh 成功但无 token 来源:重放一次,不挂 Bearer ----
+    {
+        FakeTransport t;
+        t.enqueue(401, error_envelope("AUTH_TOKEN_EXPIRED", "expired"));
+        t.enqueue(200, data_envelope("{}"));
+        ApiClientOptions options;
+        options.config = {"https://api.example.com", "game_demo", "prod"};
+        options.transport = &t;
+        options.retry.max_attempts = 1;  // 只放行 refresh 重放,不进退避循环
+        options.refresh_hook = []() { return true; };
+        ApiClient api(std::move(options));  // 无 access_token_provider
+        const RequestOutcome out = api.request("GET", "/v1/app/environment", nullptr, false);
+        CHECK(out.ok, "replay succeeds after refresh");
+        CHECK(t.requests.size() == 2, "exactly one replay");
+        CHECK(t.requests[1].headers.find("Authorization") == t.requests[1].headers.end(),
+              "replay carries no Bearer when no token provider");
+    }
+
+    // ---- refresh 失败:原错误直接返回,不重放 ----
+    {
+        FakeTransport t;
+        t.enqueue(401, error_envelope("AUTH_TOKEN_EXPIRED", "expired"));
+        ApiClientOptions options;
+        options.config = {"https://api.example.com", "game_demo", "prod"};
+        options.transport = &t;
+        options.refresh_hook = []() { return false; };
+        ApiClient api(std::move(options));
+        const RequestOutcome out = api.request("GET", "/v1/app/environment", nullptr, false);
+        CHECK(!out.ok && out.error.wire == "AUTH_TOKEN_EXPIRED", "refresh declined keeps error");
+        CHECK(t.requests.size() == 1, "no replay when refresh declines");
+    }
+
+    // ---- 无本地会话时 refresh 直接拒绝(不补发 refresh 包) ----
+    {
+        Harness h;
+        h.client->init();
+        CHECK(!h.client->session().refresh(), "refresh without a stored session is refused");
+        CHECK(h.transport.requests.empty(), "no refresh packet when no session");
+    }
+
     if (gFailed > 0) {
         std::printf("ue core tests: %d failed\n", gFailed);
         return 1;

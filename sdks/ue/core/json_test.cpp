@@ -159,6 +159,49 @@ int main() {
     Value scalar = Value::integer(5);
     CHECK(scalar.find("k") == nullptr, "find on non-object → nullptr");
 
+    // ---- 序列化:布尔 / 控制字符转义 / 2 字节 UTF-8 往返 / 非对象 set 无副作用 ----
+    CHECK(Value::boolean(true).dump() == "true", "dump bool true");
+    CHECK(Value::boolean(false).dump() == "false", "dump bool false");
+    CHECK(Value::str("a\\b").dump() == "\"a\\\\b\"", "dump backslash escaped");
+    CHECK(Value::str(std::string("a\bb")).dump() == "\"a\\bb\"", "dump backspace escaped");
+    CHECK(Value::str(std::string("a\fb")).dump() == "\"a\\fb\"", "dump formfeed escaped");
+    CHECK(Value::str("a\tb").dump() == "\"a\\tb\"", "dump tab escaped");
+    CHECK(Value::str(std::string("a\x01" "b")).dump() == "\"a\\u0001b\"",
+          "dump other control char as \\u");
+    {
+        Value u;
+        CHECK(ok_parse("\"\\u00a9\"", u) && u.as_string() == "\xc2\xa9", "u00a9 → 2-byte utf8");
+        CHECK(u.dump() == "\"\xc2\xa9\"", "2-byte utf8 dump passthrough");
+        CHECK(ok_parse("\"\\u00A9\"", u) && u.as_string() == "\xc2\xa9", "uppercase hex accepted");
+    }
+    {
+        Value text = Value::str("x");
+        text.set("k", Value::integer(1));  // 非对象:编程错误,无副作用
+        CHECK(text.dump() == "\"x\"", "set on non-object keeps value");
+        CHECK(text.find("k") == nullptr, "set on non-object stores nothing");
+    }
+
+    // ---- 解析拒绝:字面量 / 对象数组分隔 / 转义 / 代理对 / 数字指数 ----
+    CHECK(bad_parse("tru"), "bad literal true");
+    CHECK(bad_parse("falsy"), "bad literal false");
+    CHECK(bad_parse("nul"), "bad literal null");
+    CHECK(bad_parse("{\"a\":1 \"b\":2}"), "object missing comma rejected");
+    CHECK(ok_parse("[1,2]", v) && v.items().size() == 2 && v.items()[1].as_int() == 2,
+          "multi-element array");
+    CHECK(bad_parse("[1 2]"), "array missing comma rejected");
+    CHECK(bad_parse("\"abc\\"), "truncated escape rejected");
+    CHECK(bad_parse("\"a\\x\""), "unknown escape rejected");
+    CHECK(ok_parse("\"a\\/b\"", v) && v.as_string() == "a/b", "solidus escape");
+    CHECK(ok_parse("\"a\\bb\\fc\"", v) && v.as_string() == std::string("a\bb\fc"),
+          "backspace/formfeed escapes decode");
+    CHECK(bad_parse("\"\\u00\""), "truncated \\u escape rejected");
+    CHECK(bad_parse("\"\\uZZZZ\""), "non-hex \\u escape rejected");
+    CHECK(bad_parse("\"\\uD800\""), "lone high surrogate rejected");
+    CHECK(bad_parse("\"\\uDC00\""), "lone low surrogate rejected");
+    CHECK(bad_parse("\"\\uD800\\u0041\""), "bad low surrogate rejected");
+    CHECK(bad_parse("1e"), "number with empty exponent rejected");
+    CHECK(bad_parse("1e+"), "number with sign-only exponent rejected");
+
     if (gFailed > 0) {
         std::printf("ue json tests: %d failed\n", gFailed);
         return 1;

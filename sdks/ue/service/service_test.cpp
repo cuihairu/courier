@@ -538,6 +538,159 @@ int main() {
         CHECK(ticket.data.context->find("level")->as_int() == 42, "context level echoed");
     }
 
+    // ---- 各端点错误面:typed 码原样上抛,SDK 不本地改写/不重试 ----
+    {
+        Harness h;
+        h.sign_in();
+        SupportService svc(&h.client->api());
+        AnnouncementService ann(&h.client->api());
+
+        h.transport.enqueue(404, error_envelope("ANNOUNCEMENT_NOT_FOUND", "gone"));
+        const auto a_missing = ann.get("a_gone");
+        CHECK(!a_missing.ok && a_missing.error.wire == "ANNOUNCEMENT_NOT_FOUND",
+              "announcement 404 typed wire");
+        CHECK(h.transport.requests.size() == 2, "no retry on announcement 404");
+
+        h.transport.enqueue(400, error_envelope("COMMON_INVALID_ARGUMENT", "bad id"));
+        CHECK(svc.get_ticket("t_gone").error.wire == "COMMON_INVALID_ARGUMENT",
+              "support get_ticket typed wire");
+        h.transport.enqueue(400, error_envelope("COMMON_INVALID_ARGUMENT", "bad title"));
+        CHECK(svc.create_ticket(CreateTicketRequest{"", "", std::nullopt, {}}).error.wire ==
+                  "COMMON_INVALID_ARGUMENT", "support create_ticket typed wire");
+        h.transport.enqueue(400, error_envelope("COMMON_INVALID_ARGUMENT", "bad limit"));
+        CHECK(svc.list_tickets(0).error.wire == "COMMON_INVALID_ARGUMENT",
+              "support list_tickets typed wire");
+        h.transport.enqueue(500, error_envelope("COMMON_UNAVAILABLE", "boom"));
+        CHECK(svc.faq("kw", 5).error.wire == "COMMON_UNAVAILABLE", "support faq typed wire");
+        h.transport.enqueue(409, error_envelope("SUPPORT_TICKET_CLOSED", "closed"));
+        CHECK(svc.append_message("t1", "hi").error.wire == "SUPPORT_TICKET_CLOSED",
+              "support append_message typed wire");
+        h.transport.enqueue(409, error_envelope("SUPPORT_APPEAL_EXISTS", "already"));
+        CHECK(svc.appeal_penalty("pen_1").error.wire == "SUPPORT_APPEAL_EXISTS",
+              "support appeal typed wire");
+        h.transport.enqueue(404, error_envelope("SUPPORT_PENALTY_NOT_FOUND", "gone"));
+        CHECK(svc.get_penalty("pen_x").error.wire == "SUPPORT_PENALTY_NOT_FOUND",
+              "support penalty typed wire");
+        h.transport.enqueue(400, error_envelope("COMMON_INVALID_ARGUMENT", "bad target"));
+        CHECK(svc.create_report(ReportRequest{"PLAYER", "p1", "CHEATING", std::nullopt}).error.wire ==
+                  "COMMON_INVALID_ARGUMENT", "support report typed wire");
+        h.transport.enqueue(413, error_envelope("SUPPORT_ATTACHMENT_TOO_LARGE", "too big"));
+        CHECK(svc.request_attachment_upload("t1",
+                                             AttachmentUploadRequest{"a.png", "image/png", 12,
+                                                                      std::nullopt})
+                  .error.wire == "SUPPORT_ATTACHMENT_TOO_LARGE",
+              "support attachment typed wire");
+    }
+
+    // ---- 处罚/举报/附件成功解码 ----
+    {
+        Harness h;
+        h.sign_in();
+        SupportService svc(&h.client->api());
+
+        h.transport.enqueue(200, data_envelope(
+            "{\"id\":\"pen_1\",\"type\":\"MUTE\",\"reason\":\"辱骂\",\"state\":\"ACTIVE\","
+            "\"issuedAt\":\"2026-10-01T00:00:00.000Z\",\"expiresAt\":\"2026-10-08T00:00:00.000Z\"}"));
+        const auto pen = svc.get_penalty("pen_1");
+        CHECK(pen.ok && pen.data.id == "pen_1" && pen.data.type == "MUTE", "penalty detail decoded");
+        CHECK(pen.data.expiresAt.has_value(), "penalty expiresAt decoded");
+
+        h.transport.enqueue(200, data_envelope(
+            "{\"id\":\"pen_1\",\"type\":\"MUTE\",\"state\":\"ACTIVE\",\"issuedAt\":\"t\","
+            "\"appeal\":{\"state\":\"PENDING\",\"submittedAt\":\"t2\"}}"));
+        const auto appealed = svc.appeal_penalty("pen_1");
+        CHECK(appealed.ok && appealed.data.appeal.has_value() &&
+                  appealed.data.appeal->state == "PENDING", "appeal state echoed");
+        CHECK(!appealed.data.appeal->decidedAt.has_value(), "pending appeal has no decision time");
+
+        h.transport.enqueue(200, data_envelope("{\"items\":[{\"id\":\"pen_2\"}],\"nextCursor\":\"\"}"));
+        const auto list = svc.list_penalties(10, "c1");
+        CHECK(list.ok && list.data.items.size() == 1 && list.data.items[0].id == "pen_2",
+              "penalty list decoded");
+        CHECK(h.transport.requests[3].url ==
+                  "https://api.example.com/v1/support/penalties?limit=10&cursor=c1",
+              "penalty list url with cursor");
+
+        h.transport.enqueue(200, data_envelope("{\"id\":\"rep_1\"}"));
+        const auto report =
+            svc.create_report(ReportRequest{"PLAYER", "p1", "CHEATING", std::nullopt});
+        CHECK(report.ok && report.data.id == "rep_1", "report accepted (id only)");
+
+        h.transport.enqueue(200, data_envelope(
+            "{\"attachmentId\":\"att_1\",\"uploadUrl\":\"https://oss/put\",\"method\":\"PUT\","
+            "\"headers\":{\"X-Tick\":\"1\"},\"expiresAt\":\"t\"}"));
+        const auto upload = svc.request_attachment_upload(
+            "t1", AttachmentUploadRequest{"a.png", "image/png", 12, std::nullopt});
+        CHECK(upload.ok && upload.data.uploadUrl == "https://oss/put", "attachment upload ok");
+        CHECK(upload.data.headers.at("X-Tick") == "1", "attachment headers echoed");
+    }
+
+    // ---- FAQ keywords 解码(非字符串元素跳过)+ 公告 filters 非数组成员跳过 ----
+    {
+        Harness h;
+        h.sign_in();
+        SupportService svc(&h.client->api());
+        AnnouncementService ann(&h.client->api());
+
+        h.transport.enqueue(200, data_envelope(
+            "{\"items\":[{\"id\":\"faq_1\",\"question\":\"q\",\"answer\":\"a\","
+            "\"keywords\":[\"找回\",7,\"passwd\"]}],\"nextCursor\":\"\"}"));
+        const auto faq = svc.faq("找回", 5);
+        CHECK(faq.ok && faq.data.items.size() == 1, "faq page ok");
+        CHECK(faq.data.items[0].keywords.has_value() && faq.data.items[0].keywords->size() == 2,
+              "non-string keyword skipped");
+        CHECK((*faq.data.items[0].keywords)[0] == "找回" &&
+                  (*faq.data.items[0].keywords)[1] == "passwd",
+              "keywords decoded in order");
+        CHECK(h.transport.requests[1].url ==
+                  "https://api.example.com/v1/support/faq?limit=5&keyword=%E6%89%BE%E5%9B%9E",
+              "faq url encodes keyword");
+
+        h.transport.enqueue(200, data_envelope(
+            "{\"items\":[{\"id\":\"a_1\",\"title\":\"t\",\"body\":\"b\",\"severity\":\"INFO\","
+            "\"publishedAt\":\"p\",\"filters\":{\"platform\":[\"android\"],\"region\":\"cn\"}}],"
+            "\"nextCursor\":\"\"}"));
+        const auto list = ann.list(5, "", AnnouncementQuery{});
+        CHECK(list.ok && list.data.items.size() == 1, "announcement list ok");
+        CHECK(list.data.items[0].filters.has_value() && list.data.items[0].filters->size() == 1,
+              "non-array filter member skipped");
+        CHECK(list.data.items[0].filters->count("platform") == 1, "array filter member kept");
+    }
+
+    // ---- 工单列表(带游标)/玩家追加消息成功解码 + 列表与处罚列表错误面 ----
+    {
+        Harness h;
+        h.sign_in();
+        SupportService svc(&h.client->api());
+        AnnouncementService ann(&h.client->api());
+
+        h.transport.enqueue(200, data_envelope(
+            "{\"items\":[{\"id\":\"t_1\",\"status\":\"OPEN\",\"category\":\"OTHER\","
+            "\"subject\":\"s\",\"createdAt\":\"t1\",\"updatedAt\":\"t2\"}],\"nextCursor\":\"c2\"}"));
+        const auto tickets = svc.list_tickets(20, "c1");
+        CHECK(tickets.ok && tickets.data.items.size() == 1, "ticket list decoded");
+        CHECK(tickets.data.items[0].id == "t_1" && tickets.data.nextCursor == "c2",
+              "ticket list fields");
+        CHECK(h.transport.requests[1].url ==
+                  "https://api.example.com/v1/support/tickets?limit=20&cursor=c1",
+              "ticket list url with cursor");
+
+        h.transport.enqueue(200, data_envelope(
+            "{\"senderType\":\"PLAYER\",\"body\":\"hi\",\"createdAt\":\"t\"}"));
+        const auto msg = svc.append_message("t_1", "hi");
+        CHECK(msg.ok && msg.data.senderType == "PLAYER" && msg.data.body == "hi",
+              "append message ok");
+        CHECK(h.transport.requests[2].json_body == "{\"body\":\"hi\"}", "append message body");
+
+        h.transport.enqueue(503, error_envelope("COMMON_UNAVAILABLE", "down"));
+        CHECK(svc.list_tickets(20).error.wire == "COMMON_UNAVAILABLE", "ticket list error");
+        h.transport.enqueue(503, error_envelope("COMMON_UNAVAILABLE", "down"));
+        CHECK(svc.list_penalties(5).error.wire == "COMMON_UNAVAILABLE", "penalty list error");
+        h.transport.enqueue(400, error_envelope("COMMON_INVALID_ARGUMENT", "bad ann query"));
+        CHECK(ann.list(0, "", AnnouncementQuery{}).error.wire == "COMMON_INVALID_ARGUMENT",
+              "announcement list typed wire");
+    }
+
     if (gFailed == 0) {
         std::printf("ue service tests: all green\n");
         return 0;
