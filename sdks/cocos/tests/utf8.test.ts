@@ -98,3 +98,14 @@ test("utf8 2 字节完整解码与 3 字节超长/代理区拒绝", () => {
   const surrogate = new IncrementalUtf8Decoder();
   assert.equal(surrogate.decode(new Uint8Array([0xED, 0xA0, 0x80])), "�");
 });
+
+test("utf8 4 字节超长与越界码点降级 U+FFFD", () => {
+  // F0 80 80 80:形状合法但 < U+10000(超长),码点判据拒收
+  const overlong = new IncrementalUtf8Decoder();
+  assert.equal(overlong.decode(new Uint8Array([0xF0, 0x80, 0x80, 0x80])), "�");
+  // F4 90 80 80:U+110000 越界(> U+10FFFF)
+  const beyond = new IncrementalUtf8Decoder();
+  assert.equal(beyond.decode(new Uint8Array([0xF4, 0x90, 0x80, 0x80])), "�");
+  // 跨块喂入同结果(4 字节判据在结算点统一走 codePoint())
+  assert.equal(decodeSplit(new Uint8Array([0xF4, 0x90, 0x80, 0x80]), [1]), "�");
+});

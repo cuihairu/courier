@@ -74,6 +74,29 @@ test("app:维护中 typed APP_MAINTENANCE(503)照常抛,不进降级路径", asy
   assert.equal(e.http, 503);
 });
 
+test("app/config/assistant:无参版本查询(空 query 不带 ?);region 维度;非降级错误照常抛", async () => {
+  const transport = new FakeTransport();
+  const svc = await newServices(transport);
+
+  transport.enqueue(200, JSON.stringify({
+    data: { latestVersion: "1.2.0", minVersion: "1.0.0", updateUrl: "https://dl", forceUpdate: false },
+  }));
+  await svc.app.checkUpdateAsync(); // 缺省维度:不判定,不带 query
+  assert.equal(transport.requests[1].url, "https://api.example.com/v1/app/version");
+
+  transport.enqueue(200, JSON.stringify({ data: { configVersion: 3, items: { shop_banner: "v" } } }));
+  const snapshot = await svc.config.fetchAsync("ios", "2.0.0", "cn"); // region 维度参与过滤
+  assert.equal(transport.requests[2].url,
+    "https://api.example.com/v1/app/config?platform=ios&appVersion=2.0.0&region=cn");
+  assert.equal(snapshot.configVersion, 3);
+
+  transport.enqueue(400, JSON.stringify({
+    error: { code: "COMMON_INVALID_ARGUMENT", message: "text too long", retryable: false },
+  }));
+  const e = await svc.assistant.queryAsync("x".repeat(501)).catch((x) => x);
+  assert.equal(e.code, "CommonInvalidArgument"); // 参数错非降级:照常抛给调用方
+});
+
 // ---- Config 域(缓存 + 重拉判据 + 501 → 空结果) ----
 
 test("config:拉取缓存;needsRefetch 判据;501 → v0 空 items(用内建默认值)", async () => {

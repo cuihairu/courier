@@ -2,7 +2,7 @@
 // 重试退避、TOKEN_EXPIRED 自动 refresh 重放、安全事件清场、本地未认证预检。
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ApiClient } from "../src/core/apiClient.ts";
+import { ApiClient, parseEnvelope } from "../src/core/apiClient.ts";
 import { CourierApiError, isCapabilityDisabled } from "../src/core/courierError.ts";
 import { CourierClient } from "../src/core/courierClient.ts";
 import { MemoryTokenStore } from "../src/core/tokenStore.ts";
@@ -257,6 +257,25 @@ test("安全事件:refresh REUSED/REVOKED → 本地清场(重登)", async () =>
 
   assert.equal(ok, false);
   assert.equal(store.load(), null); // 清场,需重登
+});
+
+test("refresh 轮换:REVOKED 同走安全清场;网络错误非安全事件照常上抛且会话保留", async () => {
+  const transport = new FakeTransport();
+  const store = new MemoryTokenStore();
+  const client = new CourierClient({ config, transport, tokenStore: store, sleep: async () => {} });
+  transport.enqueue(200, successRaw(sessionJson));
+  await client.identity.guest({ deviceId: "device-1" });
+
+  transport.enqueueHandler(() => { throw new Error("ECONNRESET"); });
+  const e1 = isErr(await client.session.refresh().catch((x) => x));
+  assert.equal(e1.wire, "COMMON_UNAVAILABLE"); // 非安全事件:原样上抛
+  assert.ok(store.load()); // 会话保留,网络恢复后可重试
+
+  transport.enqueue(401, JSON.stringify({
+    error: { code: "AUTH_TOKEN_REVOKED", message: "revoked", retryable: false },
+  }));
+  assert.equal(await client.session.refresh(), false);
+  assert.equal(store.load(), null); // 吊销同走清场(重登)
 });
 
 test("refresh 单飞:并发共享一次轮换", async () => {
@@ -516,4 +535,159 @@ test("identity.refresh:轮换 wire 形状(匿名 POST refresh)", async () => {
   assert.equal(JSON.parse(req.jsonBody as string).refreshToken, "refresh-old");
   assert.ok(!("Authorization" in req.headers)); // 刷新带 refresh token,不带 access
   assert.equal(session.refreshToken, "refresh-1");
+});
+
+// --- 补口:parseEnvelope 全分支矩阵、Retry-After 非法值、defaultSleep、refresh 边界 ---
+
+test("parseEnvelope:空体按状态兜底全分支(401/403/404/429/501/其他)", () => {
+  const cases: Array<[number, string, boolean]> = [
+    [401, "COMMON_UNAUTHENTICATED", false],
+    [403, "COMMON_PERMISSION_DENIED", false],
+    [404, "COMMON_NOT_FOUND", false],
+    [429, "RATE_LIMITED", true],
+    [501, "COMMON_CAPABILITY_DISABLED", true], // fb 不可重试,但 5xx 一票可重试
+    [418, "COMMON_INTERNAL", false], // 其他:非 5xx/429 → 不可重试
+  ];
+  for (const [status, wire, retryable] of cases) {
+    const e = parseEnvelope({ statusCode: status, headers: {}, body: " \n" }).error;
+    assert.ok(e instanceof CourierApiError, String(status));
+    assert.equal(e.wire, wire, String(status));
+    assert.equal(e.retryable, retryable, String(status));
+    assert.match(e.message, new RegExp("HTTP " + status)); // 空白体归一空兜底
+  }
+});
+
+test("parseEnvelope:信封缺字段降级(空 error/无 message/无 retryable 走登记 spec)", () => {
+  // 空 error 对象:code 缺省 ""(未登记),message 缺省 "",retryable 兜底 false
+  const e1 = parseEnvelope({ statusCode: 400, headers: {}, body: JSON.stringify({ error: {} }) }).error;
+  assert.ok(e1 instanceof CourierApiError);
+  assert.equal(e1.wire, "");
+  assert.equal(e1.message, "");
+  assert.equal(e1.retryable, false);
+  assert.equal(e1.traceId, undefined);
+
+  // 无 message、无 retryable:登记码用冻结 spec 的 retryable 兜底
+  const denied = parseEnvelope({
+    statusCode: 403, headers: {},
+    body: JSON.stringify({ error: { code: "COMMON_PERMISSION_DENIED" } }),
+  }).error;
+  assert.ok(denied instanceof CourierApiError);
+  assert.equal(denied.message, ""); // message 缺省
+  assert.equal(denied.retryable, false); // spec(COMMON_PERMISSION_DENIED)= false
+
+  // 同路径反向证明 spec 求值:RATE_LIMITED 冻结 retryable=true
+  const limited = parseEnvelope({
+    statusCode: 429, headers: {},
+    body: JSON.stringify({ error: { code: "RATE_LIMITED" } }),
+  }).error;
+  assert.ok(limited instanceof CourierApiError);
+  assert.equal(limited.retryable, true); // 若走 ?? false 兜底则断言失败
+});
+
+test("Retry-After 非法值:降级基础间隔退避(非数字/负数)", async () => {
+  const transport = new FakeTransport();
+  const { client, sleeps } = newClient(transport);
+  transport.enqueue(429, JSON.stringify({
+    error: { code: "RATE_LIMITED", message: "x", retryable: true },
+  }), { "retry-after": "abc" });
+  transport.enqueue(429, JSON.stringify({
+    error: { code: "RATE_LIMITED", message: "x", retryable: true },
+  }), { "retry-after": "-1" });
+  transport.enqueue(200, success({ ok: 1 }));
+
+  const data = await client.api.request<{ ok: number }>("GET", "/x", undefined, false);
+  assert.deepEqual(data, { ok: 1 });
+  assert.deepEqual(sleeps, [300, 300]); // 非法 Retry-After → undefined → baseDelayMs
+});
+
+test("默认退避:未注入 sleep 走真实定时器(defaultSleep)", async () => {
+  const transport = new FakeTransport();
+  const client = new ApiClient({ config, transport, retry: { maxAttempts: 2, baseDelayMs: 1 } });
+  transport.enqueue(503, "");
+  transport.enqueue(200, success({ ok: 1 }));
+
+  const data = await client.request<{ ok: number }>("GET", "/x", undefined, false);
+  assert.deepEqual(data, { ok: 1 });
+  assert.equal(transport.requests.length, 2);
+});
+
+test("token 预检与过期:无 provider 本地抛;无 refreshHook 过期直抛不重放", async () => {
+  const transport = new FakeTransport();
+  const bare = new ApiClient({ config, transport });
+
+  const e1 = isErr(await bare.request("GET", "/x").catch((x) => x));
+  assert.equal(e1.wire, "COMMON_UNAUTHENTICATED"); // provider 缺省 → 本地预检
+  assert.equal(transport.requests.length, 0);
+
+  const withTok = new ApiClient({ config, transport, accessTokenProvider: () => "tok-1" });
+  transport.enqueue(401, JSON.stringify({
+    error: { code: "AUTH_TOKEN_EXPIRED", message: "expired", retryable: false },
+  }));
+  const e2 = isErr(await withTok.request("GET", "/x").catch((x) => x));
+  assert.equal(e2.wire, "AUTH_TOKEN_EXPIRED"); // 无 refreshHook:不重放,直抛
+  assert.equal(transport.requests[0].headers["Authorization"], "Bearer tok-1");
+});
+
+test("refresh 重放边界:二次过期不再 refresh;refresh 后 token 为空 Bearer 不动", async () => {
+  const transport = new FakeTransport();
+  let token: string | null = "tok-1";
+  const client = new ApiClient({
+    config, transport,
+    accessTokenProvider: () => token,
+    refreshHook: async () => { token = null; return true; }, // 刷新"成功"但现取为空
+    sleep: async () => {},
+  });
+  transport.enqueue(401, JSON.stringify({
+    error: { code: "AUTH_TOKEN_EXPIRED", message: "expired", retryable: false },
+  }));
+  transport.enqueue(401, JSON.stringify({
+    error: { code: "AUTH_TOKEN_EXPIRED", message: "expired again", retryable: false },
+  }));
+
+  const e = isErr(await client.request("GET", "/x").catch((x) => x));
+  assert.equal(e.wire, "AUTH_TOKEN_EXPIRED"); // 二次过期:refreshed 已置位,直抛
+  assert.equal(transport.requests.length, 2); // 只重放一次
+  assert.equal(transport.requests[1].headers["Authorization"], "Bearer tok-1"); // token 空:Bearer 不更新
+});
+
+test("refresh 重放:无 accessTokenProvider(匿名请求)hook 仍生效,Bearer 恒不设", async () => {
+  const transport = new FakeTransport();
+  let refreshCalls = 0;
+  const client = new ApiClient({
+    config, transport,
+    refreshHook: async () => { refreshCalls++; return true; },
+    sleep: async () => {},
+  });
+  transport.enqueue(401, JSON.stringify({
+    error: { code: "AUTH_TOKEN_EXPIRED", message: "expired", retryable: false },
+  }));
+  transport.enqueue(200, success({ ok: 1 }));
+
+  const data = await client.request<{ ok: number }>("GET", "/x", undefined, false); // 匿名:无 provider
+  assert.deepEqual(data, { ok: 1 });
+  assert.equal(refreshCalls, 1);
+  assert.ok(transport.requests.every((r) => !("Authorization" in r.headers))); // token null:不加 Bearer
+});
+
+test("transport 抛错归一:CourierApiError 原样透传;非 Error 值归一 COMMON_UNAVAILABLE", async () => {
+  const transport = new FakeTransport();
+  const client = new ApiClient({ config, transport, sleep: async () => {} });
+  const boom = new CourierApiError("AUTH_TOKEN_REVOKED", "revoked", 401, false);
+  transport.enqueueHandler(() => { throw boom; });
+
+  const e1 = isErr(await client.request("GET", "/x", undefined, false).catch((x) => x));
+  assert.equal(e1, boom); // transport 已归一的契约错误:透传不重包
+
+  const rawBoom = { send: async () => { throw "socket torn"; } };
+  const rawClient = new ApiClient({ config, transport: rawBoom as never, sleep: async () => {} });
+  const e2 = isErr(await rawClient.request("GET", "/x", undefined, false).catch((x) => x));
+  assert.equal(e2.wire, "COMMON_UNAVAILABLE");
+  assert.match(e2.message, /socket torn/); // 非 Error 值走 String(e)
+});
+
+test("parseEnvelope:非 JSON 404 → fb 不可重试且状态 <500,归一不可重试", () => {
+  const e = parseEnvelope({ statusCode: 404, headers: {}, body: "not json" }).error;
+  assert.ok(e instanceof CourierApiError);
+  assert.equal(e.wire, "COMMON_NOT_FOUND");
+  assert.equal(e.retryable, false); // fb.retryable=false || 404>=500=false
 });

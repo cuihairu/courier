@@ -62,8 +62,23 @@ test("diagnostics:默认全关零上报;调遍四类一次发送都不发生", (
   hub.crash.breadcrumb("进入主城");
   hub.trace.span("op", 5, "/p");
   hub.performance.startup(100);
+  hub.performance.jank(16);
+  hub.performance.rtt(80);
   hub.analytics.track("evt", null);
   assert.equal(transport.requests.length, 0);
+});
+
+test("diagnostics:resource 全字段时 crash wire 携带 osVersion/deviceModel", () => {
+  const transport = new FakeTransport();
+  const hub = DiagnosticsHub.create(only("crash", "https://diag.example.com/crash"), transport,
+    { ...resource(), osVersion: "iOS 18.0", deviceModel: "iPhone15,3" });
+
+  hub.crash.report("boom", null, null);
+
+  const body = JSON.parse(transport.requests[0].jsonBody ?? "{}") as Record<string, unknown>;
+  assert.equal(body.osVersion, "iOS 18.0"); // 采集到的可选字段入 wire
+  assert.equal(body.deviceModel, "iPhone15,3");
+  assert.equal("traceId" in body, false); // traceId null 不入 wire
 });
 
 test("diagnostics:options/transport 为 null → Disabled 共享实例", () => {

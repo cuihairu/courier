@@ -9,7 +9,7 @@ import {
   applyBranding, BrandingDefaults, currentBrandingVersion, getCompanyName,
   getPrimaryColor, getProductTitle, getSupportLabel, resetBranding, tryGetString,
 } from "../src/ui/brandingCatalog.ts";
-import { AnnouncementPanel } from "../src/ui/announcementPanel.ts";
+import { AnnouncementPanel, wireOf } from "../src/ui/announcementPanel.ts";
 import { AssistantPanel, AssistantPanelDefaultTitle } from "../src/ui/assistantPanel.ts";
 import { CustomerServicePanel, CustomerServicePanelDefaultTitle } from "../src/ui/customerServicePanel.ts";
 
@@ -44,6 +44,18 @@ async function newServices(transport: FakeTransport): Promise<CourierServices> {
 }
 
 // ---- 品牌目录(兜底链:远端 → 内置默认) ----
+
+test("wireOf:非 Courier 错误落 UNKNOWN(Error 无 wire/非 Error 值);详情视图空列表兜底", () => {
+  assert.equal(wireOf(new Error("plain")), "UNKNOWN"); // Error 但无 wire 字段
+  assert.equal(wireOf("boom"), "UNKNOWN"); // 非 Error 值
+
+  // format([], false):详情渲染路径永不产生空列表,防御分支直测
+  const panel = new AnnouncementPanel();
+  const format = (panel as unknown as {
+    format(items: unknown[], withTitle?: boolean): string;
+  }).format;
+  assert.equal(format.call(panel, [], false), "(暂无公告)");
+});
 
 test("branding:apply 热切换;相同 version 忽略;reset 回全默认", () => {
   resetBranding();

@@ -224,6 +224,143 @@ test("run cancelled before start, no connect", async () => {
   assert.equal(source.connectCount, 0);
 });
 
+test("run:非法 Retry-After 落退避;request/conn 头缺省归一空头集", async () => {
+  const source = new FakeSource();
+  const bare: SseStreamConnection = {
+    statusCode: 429, headers: undefined as never, // 真机防御:头回调前恒缺省
+    readLine: async () => null, close() {},
+  };
+  source.connections.push(
+    new FakeConnection(429, [], { "Retry-After": "abc" }), // 非法值 → 0 → 退避序列
+    bare, // headers 缺省 → lowerKeys ?? {}
+  );
+  const sleeps: number[] = [];
+  const client = new SseStreamClient({
+    source, backoffBaseMs: 500,
+    sleep: async (ms) => { sleeps.push(ms); await yieldSleep(); },
+  });
+  const controller = new AbortController();
+  let run: Promise<void> | undefined;
+  try {
+    run = client.run({ url: "http://gw.example/v1/messages/stream", tokenProvider: () => "t" },
+      () => {}, () => {}, controller.signal); // request 无 headers 字段
+    await waitUntil(() => sleeps.length >= 2);
+    assert.equal(sleeps[0], 500); // 非法 Retry-After 归 0 → 退避序列
+    assert.equal(sleeps[1], 1000); // 第二连退避翻倍
+    assert.deepEqual(source.requests[0].headers, { Authorization: "Bearer t" }); // 空头集仅 Bearer
+  } finally {
+    controller.abort();
+    if (run) await awaitSettled(run);
+  }
+});
+
+test("run:readLine 抛非 TransportError 原样上抛(不吞错重连)", async () => {
+  const source = new FakeSource();
+  const boom: SseStreamConnection = {
+    statusCode: 200, headers: {},
+    readLine: async () => { throw new Error("decoder boom"); },
+    close() {},
+  };
+  source.connections.push(boom);
+  const client = new SseStreamClient({ source, sleep: yieldSleep });
+  await assert.rejects(
+    () => client.run(request(), () => {}, () => {}),
+    /decoder boom/,
+  );
+});
+
+test("run:建连中取消(connect 抛错且 signal 已取消)净停不发终态", async () => {
+  const controller = new AbortController();
+  const cancellingSource: SseSource = {
+    connect: async () => {
+      controller.abort(); // 建连竞态:抛错前信号已取消
+      throw new TransportError("torn during connect");
+    },
+  };
+  const client = new SseStreamClient({ source: cancellingSource, sleep: yieldSleep });
+  const reasons: string[] = [];
+  await client.run(request(), () => {}, (r) => reasons.push(r), controller.signal);
+  assert.deepEqual(reasons, []); // 净停
+});
+
+test("run:未注入 sleep 走 default 退避,abort 即拒(退避中取消净停);缺省构造绑全局 fetch", () => {
+  assert.ok(new FetchSseSource()); // fetchImpl ?? globalThis.fetch:缺省支可达
+
+  const source = new FakeSource();
+  source.connections.push(new TransportError("down"));
+  const client = new SseStreamClient({ source, backoffBaseMs: 50 });
+  const controller = new AbortController();
+  const run = client.run(request(), () => {}, () => {}, controller.signal);
+  setTimeout(() => controller.abort(), 10); // 退避(50ms)中取消
+  return awaitSettled(run).then(() => {
+    assert.equal(source.connectCount, 1); // 净停:不再重连
+  });
+});
+
+test("run:事件回调内取消,行未读尽 → 循环顶检查净停(连接释放,不重连)", async () => {
+  const source = new FakeSource();
+  const conn = new FakeConnection(200, ["event: a", "data: 1", "", "event: b", "data: 2"]);
+  source.connections.push(conn);
+  const client = new SseStreamClient({ source, sleep: yieldSleep });
+  const controller = new AbortController();
+  let events = 0;
+  const run = client.run(request(), () => {
+    events++;
+    controller.abort(); // 行还有剩:取消在下一轮循环顶被检查
+  }, () => {}, controller.signal);
+  await awaitSettled(run);
+  assert.equal(events, 1);
+  assert.ok(conn.closed);
+  assert.equal(source.connectCount, 1); // 净停:不重连
+});
+
+test("run:读行抛 TransportError 中途断流 → 重连;abort 与断流竞态 → 净停", async () => {
+  const source = new FakeSource();
+  source.connections.push(
+    new FakeConnection(200, ["event: a", "data: 1", "", new TransportError("torn mid-stream")]),
+    new FakeConnection(200, ["event: b", "data: 2", ""]),
+  );
+  const client = new SseStreamClient({ source, sleep: yieldSleep });
+  const events: { type: string }[] = [];
+  const controller = new AbortController();
+  const run = client.run(request(), (e) => events.push(e), () => {}, controller.signal);
+  await waitUntil(() => events.length >= 2);
+  assert.equal(events[1].type, "b"); // 断流后重连续传
+  controller.abort();
+  await awaitSettled(run);
+
+  // 竞态:readLine 抛 TransportError 时信号已取消 → 净停(Stopped)不发终态
+  const raceSource = new FakeSource();
+  const raceConn: SseStreamConnection = {
+    statusCode: 200, headers: {},
+    readLine: async () => {
+      controller.abort();
+      throw new TransportError("torn");
+    },
+    close() {},
+  };
+  raceSource.connections.push(raceConn);
+  const reasons: string[] = [];
+  const client2 = new SseStreamClient({ source: raceSource, sleep: yieldSleep });
+  const run2 = client2.run(request(), () => {}, (r) => reasons.push(r), controller.signal);
+  await awaitSettled(run2);
+  assert.deepEqual(reasons, []);
+});
+
+test("run:建连返回前取消 + 429 → default 退避入口即拒(净停不发终态)", async () => {
+  const controller = new AbortController();
+  const source: SseSource = {
+    connect: async () => {
+      controller.abort(); // 建连期间取消,连接仍带回 429
+      return { statusCode: 429, headers: {}, readLine: async () => null, close() {} };
+    },
+  };
+  const client = new SseStreamClient({ source, backoffBaseMs: 60000 }); // 未注入 sleep:default
+  const reasons: string[] = [];
+  await client.run(request(), () => {}, (r) => reasons.push(r), controller.signal);
+  assert.deepEqual(reasons, []); // 退避入口检 signal.aborted 即拒
+});
+
 // ---- FetchSseSource 真服务器 e2e(chunked 分框 + 断流重连 + 501) ----
 
 interface SseServerHandle {

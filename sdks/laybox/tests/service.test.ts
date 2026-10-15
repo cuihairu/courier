@@ -88,6 +88,22 @@ test("sse:未知字段容忍;reset 断线重连复用", () => {
   assert.equal(evt.data, "leftover-from-old-frame");
 });
 
+test("sse:防御分支(null/undefined 行归一空;纯 id 帧不出事件)", () => {
+  const p = new SseParser();
+  assert.equal(p.feedLine(undefined), null); // 缺省行:?? "" 归一空行语义
+  assert.equal(p.feedLine(null), null);
+
+  // 纯 id 帧:data 与 type 皆空 → 与心跳等价,不出事件
+  assert.equal(p.feedLine("id: 5"), null);
+  assert.equal(p.feedLine(""), null);
+});
+
+test("sse:无冒号行整行按字段名(值为空);空值帧不出事件", () => {
+  const p = new SseParser();
+  assert.equal(p.feedLine("data"), null); // 无冒号:field = 整行,value = ""
+  assert.equal(p.feedLine(""), null); // data [""].join = "" → 空帧不结算
+});
+
 // ---- 公告域(契约 announcement.md) ----
 
 test("公告列表:wire 形状(limit/cursor/Bearer)+ 分页解析", async () => {

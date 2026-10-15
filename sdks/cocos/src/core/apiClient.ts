@@ -1,7 +1,7 @@
 // L2 Core:API 客户端(unity ApiClient 同构)——拼 scope 头、发请求、解析信封、
 // 按 retryable 退避重试、AUTH_TOKEN_EXPIRED 时经 refreshHook 换发后重放一次
 // (自动 refresh,契约 auth.md「access 过期」)。
-import { ErrorSpecs } from "../contract/errors.ts";
+import { ErrorSpecs, errorCodeOf } from "../contract/errors.ts";
 import type { CourierConfig } from "./types.ts";
 import { CourierApiError } from "./courierError.ts";
 import { TransportError, type Transport, type TransportRequest } from "./transport.ts";
@@ -160,7 +160,9 @@ function parseEnvelope(response: { statusCode: number; headers: Readonly<Record<
   }
   if (envelope.error) {
     const wire = envelope.error.code ?? "";
-    const spec = ErrorSpecs[wire as keyof typeof ErrorSpecs];
+    // ErrorSpecs 按枚举名做键:wire → code 名 → spec。
+    const code = errorCodeOf(wire);
+    const spec = code === undefined ? undefined : ErrorSpecs[code];
     // 信封 retryable 为准;登记码的冻结映射兜底缺省字段。
     return {
       error: new CourierApiError(wire, envelope.error.message ?? "",
