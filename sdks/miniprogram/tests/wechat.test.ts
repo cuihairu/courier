@@ -89,6 +89,14 @@ test("wx tokenStore:save/load 往返;clear 移除;缺失返回 null", () => {
   assert.equal(store.load(), null);
 });
 
+test("wx tokenStore:storage 读取异常安全降级返回 null(不反噬)", () => {
+  const wx = new FakeWx();
+  wx.setStorageSync("courier.session", sessionJson);
+  const store = createWechatTokenStore(wx);
+  wx.getStorageSync = () => { throw new Error("storage broken"); };
+  assert.equal(store.load(), null); // 读取异常:按未认证降级,不抛出
+});
+
 test("wx tokenStore:自定义 key 前缀;损坏数据清场返回 null", () => {
   const wx = new FakeWx();
   const store = createWechatTokenStore(wx, "courier.session.dev");

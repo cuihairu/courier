@@ -6,6 +6,7 @@ import { test } from "node:test";
 import type { SseStreamRequest } from "../src/core/sseStream.ts";
 import { SseStreamClient } from "../src/service/sseStreamClient.ts";
 import { createWechatSseSource } from "../src/platform/wechat/sseSource.ts";
+import { TransportError } from "../src/core/transport.ts";
 import type { WxChunkedRequestOptions } from "../src/platform/wechat/wxApi.ts";
 
 /** 让出宏任务(防纯微任务自旋饿死 waitUntil 的定时器)。 */
@@ -67,7 +68,7 @@ class FakeChunkedWx {
         options.fail({ errMsg: task.aborted ? "request:fail aborted" : next.errMsg! });
         return;
       }
-      options.success({ statusCode: next.statusCode ?? 200, header: next.header ?? {} });
+      options.success({ statusCode: next.statusCode ?? 200, header: next.header });
     });
     return {
       abort: () => {
@@ -222,4 +223,69 @@ test("wechat sse normalizes header keys (Retry-After honored)", async () => {
     controller.abort();
     if (run) await awaitSettled(run);
   }
+});
+
+// ---- 补口:连接守卫与连接级行为边界 ----
+
+test("wechat sse source guards:已取消拒连;wx.request 同步抛错归一(Error 与非 Error)", async () => {
+  const source = createWechatSseSource(new FakeChunkedWx([]));
+  const controller = new AbortController();
+  controller.abort();
+  await assert.rejects(() => source.connect(makeRequest(() => "t"), controller.signal),
+    (e: unknown) => e instanceof TransportError && e.message === "aborted");
+
+  const wxErr = { request(): never { throw new Error("wx down"); } };
+  await assert.rejects(
+    () => createWechatSseSource(wxErr as never).connect(makeRequest(() => "t")),
+    (e: unknown) => e instanceof TransportError && e.message === "wx down");
+
+  const wxStr = { request(): never { throw "wx broken"; } };
+  await assert.rejects(
+    () => createWechatSseSource(wxStr as never).connect(makeRequest(() => "t")),
+    (e: unknown) => e instanceof TransportError && e.message === "wx broken");
+});
+
+test("wechat sse source:settled 后重复 success 忽略;task.abort 抛错被吞(fail 照常收场)", async () => {
+  const wx = new FakeChunkedWx([{ statusCode: 200, header: { "X-A": "1" } }]);
+  const origRequest = wx.request.bind(wx);
+  // 覆写 request:abort 抛错须落在 sseSource 实际持有的返回 task 对象上(内部 FakeTask 的 abort 无人调用)
+  wx.request = (options) => {
+    const task = origRequest(options);
+    task.abort = () => { throw new Error("abort boom"); };
+    return task;
+  };
+  const source = createWechatSseSource(wx);
+  const controller = new AbortController();
+  const conn = await source.connect(makeRequest(() => "t"), controller.signal);
+
+  const opts = wx.requests[0];
+  opts.success({ statusCode: 500, header: { "X-B": "2" }, data: "" } as never);
+  assert.equal(conn.statusCode, 200); // 头到后再 success:settled 分流忽略
+  assert.equal((conn.headers as Record<string, string>)["x-a"], "1");
+  assert.equal((conn.headers as Record<string, string>)["x-b"], undefined);
+
+  controller.abort(); // onAbort 吞掉返回 task.abort 的抛错,不置 aborted 标记
+  wx.hangup(0); // wx 仍以 fail 收场(aborted 标记未置 → disconnected)
+  await assert.rejects(() => conn.readLine(), /disconnected/);
+});
+
+test("wechat sse connection:CRLF 行剥除;空块与关流后 push 忽略;close 净关流", async () => {
+  const wx = new FakeChunkedWx([{ statusCode: 200 }]);
+  const conn = await createWechatSseSource(wx).connect(makeRequest(() => "t"));
+
+  wx.pushTo(0, "event: a\r\n\r\n");
+  assert.equal(await conn.readLine(), "event: a"); // 行尾 \r 剥除
+  assert.equal(await conn.readLine(), ""); // 帧分隔空行
+
+  wx.pushTo(0, ""); // 空块:守卫直接忽略
+  wx.hangup(0); // 断流
+  wx.pushTo(0, "late"); // 关流后 push 忽略
+  await assert.rejects(() => conn.readLine(), /disconnected/);
+
+  const wx2 = new FakeChunkedWx([{ statusCode: 200 }]);
+  const conn2 = await createWechatSseSource(wx2).connect(makeRequest(() => "t"));
+  conn2.close(); // 净关流(无 failure)
+  assert.equal(await conn2.readLine(), null);
+  wx2.hangup(0); // close 后再来 fail:breakStream 已关守卫忽略,仍是净关流
+  assert.equal(await conn2.readLine(), null);
 });
