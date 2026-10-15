@@ -2,6 +2,8 @@
 
 > 只列需求,一行一句;已完成项保留一行证据(commit + 测试)。F01–F76 逐项状态与落点见 [implementation-status.md](./research/implementation-status.md);阶段路线见 [roadmap](./roadmap.md);分层映射见 [layers.md](./layers.md)。
 
+> **复核**(2026-10-16,巡检 PATROL1016):3 条未完成项逐条复核解锁条件,结论全部仍成立,无合法开工项——F31 `contract/realname.md:100/171` v1.1 预留「只加不改」口径未变、仓内无出海立项决策;F33 `gateway/audit/audit.go:3` 落库归实现方口径未变、无接入方存储形态输入;F62 `research/implementation-status.md:104` 仍 `⏸ 待议`、无运营需求触发。已裁决项未重开(卡点类型与解锁条件由上轮 498b3ae 就地标注)。
+
 ## 未完成
 
 - [ ] F31 年龄门与同意管理(海外):首启年龄筛查 + VPC 家长同意;realname.md 已预留 consent 扩展位,出海需求拍板后立项;卡点类型=等拍板;解锁条件=出海需求拍板立项后解冻 realname.md v1.1 consent 组(只加不改)
