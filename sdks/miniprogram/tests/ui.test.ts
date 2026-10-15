@@ -6,8 +6,8 @@ import { CourierClient } from "../src/core/courierClient.ts";
 import type { Transport, TransportRequest, TransportResponse } from "../src/core/transport.ts";
 import { CourierServices } from "../src/service/courierServices.ts";
 import {
-  applyBranding, currentBrandingVersion, getCompanyName, getPrimaryColor,
-  getSupportLabel, resetBranding, tryGetString,
+  applyBranding, BrandingDefaults, currentBrandingVersion, getCompanyName,
+  getPrimaryColor, getProductTitle, getSupportLabel, resetBranding, tryGetString,
 } from "../src/ui/brandingCatalog.ts";
 import { AnnouncementPanel } from "../src/ui/announcementPanel.ts";
 import { AssistantPanel, AssistantPanelDefaultTitle } from "../src/ui/assistantPanel.ts";
@@ -471,5 +471,29 @@ test("助手面板:转人工标题按 120 字符截断(契约 support.md title �
   assert.equal(body.title.length, 120);
   assert.equal(body.title, ("[助手] " + long).slice(0, 120));
   assert.equal(body.body.length, 200); // body 不截断
+  resetBranding();
+});
+
+test("brandingCatalog:getProductTitle 缺省回退与品牌覆盖", () => {
+  resetBranding();
+  assert.equal(getProductTitle(), BrandingDefaults.productTitle); // 从未应用 → Courier 默认
+  applyBranding({ version: 2, productName: "我的游戏" });
+  assert.equal(getProductTitle(), "我的游戏");
+  resetBranding();
+});
+
+test("announcementPanel:list 非降级失败 → onError(不静默)", async () => {
+  resetBranding();
+  const transport = new FakeTransport();
+  const svc = await newServices(transport);
+  const panel = new AnnouncementPanel(svc);
+  const errors: string[] = [];
+  panel.onError = (code) => errors.push(code);
+
+  transport.enqueue(403, JSON.stringify({
+    error: { code: "COMMON_PERMISSION_DENIED", message: "denied", retryable: false },
+  }));
+  await panel.refreshAsync();
+  assert.deepEqual(errors, ["COMMON_PERMISSION_DENIED"]);
   resetBranding();
 });

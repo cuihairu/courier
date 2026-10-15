@@ -85,3 +85,16 @@ test("utf8 emoji split across three chunks", () => {
   out += decoder.end();
   assert.equal(out, "🎮");
 });
+
+test("utf8 2 字节完整解码与 3 字节超长/代理区拒绝", () => {
+  // 2 字节(é):单块与跨块,补 codePoint 两字节分支
+  const single = new IncrementalUtf8Decoder();
+  assert.equal(single.decode(new Uint8Array([0xC3, 0xA9])), "é");
+  assert.equal(decodeSplit(new Uint8Array([0xC3, 0xA9]), [1]), "é");
+
+  // 3 字节超长编码(< U+0800)与代理区(U+D800..U+DFFF)均以 U+FFFD 降级
+  const overlong = new IncrementalUtf8Decoder();
+  assert.equal(overlong.decode(new Uint8Array([0xE0, 0x80, 0x80])), "�");
+  const surrogate = new IncrementalUtf8Decoder();
+  assert.equal(surrogate.decode(new Uint8Array([0xED, 0xA0, 0x80])), "�");
+});

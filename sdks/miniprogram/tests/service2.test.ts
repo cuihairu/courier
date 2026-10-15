@@ -260,3 +260,90 @@ test("realname:提交 wire(字段只在传输链);curfew;charge-check;501 → nu
   transport.enqueue(501, disabled);
   assert.equal(await svc.realname.statusAsync(), null); // 隐藏实名 UI
 });
+
+// ---- 补口:分页 cursor / 角色绑定与订单列表 / 访问器 / 非降级错误照常抛 ----
+
+test("support:listTicketsAsync 组装 limit 与 cursor(URL 编码)", async () => {
+  const transport = new FakeTransport();
+  const svc = await newServices(transport);
+
+  transport.enqueue(200, JSON.stringify({ data: { items: [], nextCursor: "" } }));
+  await svc.support.listTicketsAsync(10);
+  assert.equal(transport.requests[1].url, "https://api.example.com/v1/support/tickets?limit=10");
+
+  transport.enqueue(200, JSON.stringify({ data: { items: [], nextCursor: "cur/1=a" } }));
+  const page = await svc.support.listTicketsAsync(10, "cur/1=a");
+  assert.equal(transport.requests[2].url,
+    "https://api.example.com/v1/support/tickets?limit=10&cursor=cur%2F1%3Da");
+  assert.deepEqual(page.items, []);
+});
+
+test("player:bindCharacterAsync wire 形状;501 → null;非降级照常抛", async () => {
+  const transport = new FakeTransport();
+  const svc = await newServices(transport);
+
+  transport.enqueue(200, JSON.stringify({
+    data: { playerId: "player_1", boundAt: "t1" },
+  }));
+  const bound = await svc.player.bindCharacterAsync("player_1");
+  assert.equal(transport.requests[1].method, "POST");
+  assert.equal(transport.requests[1].url, "https://api.example.com/v1/player/characters");
+  assert.equal(transport.requests[1].jsonBody, JSON.stringify({ playerId: "player_1" }));
+  assert.equal(bound?.playerId, "player_1");
+
+  transport.enqueue(501, disabled);
+  assert.equal(await svc.player.bindCharacterAsync("player_1"), null); // 隐藏角色绑定入口
+
+  transport.enqueue(403, JSON.stringify({
+    error: { code: "COMMON_PERMISSION_DENIED", message: "denied", retryable: false },
+  }));
+  const e = await svc.player.bindCharacterAsync("player_1").catch((x) => x);
+  assert.equal(e.wire, "COMMON_PERMISSION_DENIED"); // 非降级错误不吞
+});
+
+test("payments:listOrdersAsync GET 列表;501 → null", async () => {
+  const transport = new FakeTransport();
+  const svc = await newServices(transport);
+
+  transport.enqueue(200, JSON.stringify({ data: { items: [], nextCursor: "" } }));
+  const page = await svc.payments.listOrdersAsync();
+  assert.equal(transport.requests[1].method, "GET");
+  assert.equal(transport.requests[1].url, "https://api.example.com/v1/payments/orders");
+  assert.deepEqual(page?.items, []);
+
+  transport.enqueue(501, disabled);
+  assert.equal(await svc.payments.listOrdersAsync(), null);
+});
+
+test("branding:cachedBranding 访问器(null → 值);非降级照常抛", async () => {
+  const transport = new FakeTransport();
+  const svc = await newServices(transport);
+  assert.equal(svc.branding.cachedBranding, null); // 从未拉到
+
+  transport.enqueue(200, JSON.stringify({ data: { version: 3, companyName: "Demo" } }));
+  await svc.branding.fetchAsync();
+  assert.equal(svc.branding.cachedBranding?.companyName, "Demo");
+
+  transport.enqueue(403, JSON.stringify({
+    error: { code: "COMMON_PERMISSION_DENIED", message: "denied", retryable: false },
+  }));
+  const e = await svc.branding.fetchAsync().catch((x) => x);
+  assert.equal(e.wire, "COMMON_PERMISSION_DENIED");
+});
+
+test("config/realname:非降级错误照常抛(不进 501 兜底)", async () => {
+  const transport = new FakeTransport();
+  const svc = await newServices(transport);
+
+  transport.enqueue(403, JSON.stringify({
+    error: { code: "COMMON_PERMISSION_DENIED", message: "denied", retryable: false },
+  }));
+  const ce = await svc.config.fetchAsync().catch((x) => x);
+  assert.equal(ce.wire, "COMMON_PERMISSION_DENIED");
+
+  transport.enqueue(403, JSON.stringify({
+    error: { code: "COMMON_PERMISSION_DENIED", message: "denied", retryable: false },
+  }));
+  const re = await svc.realname.statusAsync().catch((x) => x);
+  assert.equal(re.wire, "COMMON_PERMISSION_DENIED");
+});

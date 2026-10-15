@@ -305,3 +305,53 @@ test("FetchSseSource real 501: capability_disabled terminal", async () => {
     await stopServer(handle);
   }
 });
+
+// ---- 补口:构造守卫 / 退避取消净停 / 非 TransportError 上抛 / defaultSleep ----
+
+test("SseStreamClient:source/request 必填守卫", async () => {
+  assert.throws(() => new SseStreamClient({} as never), /source required/);
+  const source = new FakeSource();
+  const client = new SseStreamClient({ source });
+  await assert.rejects(() => client.run(null as never, () => {}), /request required/);
+});
+
+test("SseStreamClient:退避 sleep 被拒 → 净停返回(无终态回调)", async () => {
+  const source = new FakeSource();
+  source.connections.push(new TransportError("down"), new TransportError("down"));
+  let closed: string | null = null;
+  let slept = 0;
+  const client = new SseStreamClient({
+    source,
+    backoffBaseMs: 1000,
+    sleep: async () => {
+      slept++;
+      throw new TransportError("cancelled");
+    },
+  });
+  await client.run(request(), () => {}, (reason) => { closed = reason; });
+  assert.equal(slept, 1);
+  assert.equal(closed, null); // 退避中取消非终态,不上报收尾原因
+  assert.ok(client.lastDelayMs > 0);
+});
+
+test("SseStreamClient:连接抛非 TransportError 原样上抛", async () => {
+  const source = {
+    connect: async () => {
+      throw new Error("boom");
+    },
+  };
+  const client = new SseStreamClient({ source: source as never });
+  await assert.rejects(() => client.run(request(), () => {}), /boom/);
+});
+
+test("SseStreamClient:defaultSleep 定时放行重连(无 sleep 选项)", async () => {
+  const source = new FakeSource();
+  for (let i = 0; i < 5; i++) {
+    source.connections.push(new TransportError("down"));
+  }
+  const client = new SseStreamClient({ source, backoffBaseMs: 1 });
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), 30); // 数次毫秒级重连后取消
+  await client.run(request(), () => {}, null, controller.signal);
+  assert.ok(source.connectCount >= 2, "sleep 放行后应重连,实连 " + source.connectCount);
+});

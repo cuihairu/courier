@@ -9,8 +9,10 @@ import {
   type DiagnosticsCategory,
   type DiagnosticsOptions,
   type DiagnosticsResource,
+  anyEnabled,
   newDiagnosticsOptions,
 } from "../src/diagnostics/diagnosticsTypes.ts";
+import { CrashReporter, TraceReporter } from "../src/diagnostics/httpReporters.ts";
 import { DiagnosticsHub } from "../src/diagnostics/diagnosticsHub.ts";
 
 // 极简假通道:同步完成,请求全部留痕;fallback 可注入故障。
@@ -245,4 +247,39 @@ test("diagnostics:运行时开启要求端点已配;没端点保持关", () => {
   assert.equal(hub.isEnabled("analytics"), false);
   hub.analytics.track("evt", null);
   assert.equal(transport.requests.length, 1);
+});
+
+test("anyEnabled:开启且配端点才建实例(全关/空端点 no-op)", () => {
+  assert.equal(anyEnabled(newDiagnosticsOptions()), false);
+  const half = newDiagnosticsOptions();
+  half.crash.enabled = true;
+  half.crash.endpoint = ""; // 开了但没端点:仍 no-op
+  assert.equal(anyEnabled(half), false);
+  half.crash.endpoint = "https://diag.example.com/crash";
+  assert.equal(anyEnabled(half), true);
+});
+
+test("reporter 空参守卫与 span 去 query", async () => {
+  const transport = new FakeTransport();
+  const crash = new CrashReporter(transport, resource(), "https://diag.example.com/crash");
+  crash.breadcrumb(""); // 空文本丢弃
+  crash.breadcrumb("进入主城");
+  crash.report("boom", null, null);
+  await flush();
+  const payload = JSON.parse(transport.requests[0].jsonBody) as { breadcrumbs: string[] };
+  assert.deepEqual(payload.breadcrumbs, ["进入主城"]); // 空面包屑不进报告
+
+  const trace = new TraceReporter(transport, resource(), "https://diag.example.com/trace");
+  trace.span("", 5, "/x"); // 空名丢弃
+  await flush();
+  assert.equal(transport.requests.length, 1); // 未发送
+
+  trace.span("db.query", 5, "/v1/x?a=1&b=2"); // path 只留路径
+  trace.span("boot", 30, ""); // 空 path 原样
+  await flush();
+  const spans = transport.requests.slice(1)
+    .map((r) => JSON.parse(r.jsonBody) as { name: string; path: string });
+  assert.deepEqual(spans.map((s) => s.name), ["db.query", "boot"]);
+  assert.equal(spans[0].path, "/v1/x");
+  assert.equal(spans[1].path, "");
 });

@@ -473,3 +473,47 @@ test("oauthBind/oauthUnbind/oauthBindings:Bearer wire 形状", async () => {
   assert.equal(list.items[0].provider, "apple");
   assert.ok(!("subject" in list.items[0])); // 不返回 subject,防客户端侧泄露
 });
+
+// ---- 补口:客户端门面守卫与 register/refresh 直连 ----
+
+test("init:gameId/env 空白拒绝(scope 头契约;构造已验,init 复核被改坏的配置)", () => {
+  const transport = new FakeTransport();
+  const client = new CourierClient({
+    config: { ...config }, // 克隆:避免污染模块级共享 config
+    transport,
+    sleep: async () => {},
+  });
+  (client as unknown as { config: { gameId: string } }).config.gameId = "  ";
+  assert.throws(() => client.init(), /gameId\/env 必填/);
+});
+
+test("registerAsync:邮箱注册匿名 POST register,会话返回(与 loginAsync 同走 authFlow)", async () => {
+  const transport = new FakeTransport();
+  const { client } = newClient(transport);
+  client.init();
+  transport.enqueue(200, successRaw(sessionJson));
+
+  const session = await client.registerAsync({ email: "a@b.co", password: "password8" });
+
+  const req = transport.requests[0];
+  assert.equal(req.method, "POST");
+  assert.equal(req.url, "https://api.example.com/v1/identity/register");
+  assert.equal(JSON.parse(req.jsonBody as string).email, "a@b.co");
+  assert.ok(!("Authorization" in req.headers)); // 注册前匿名
+  assert.equal(session.accessToken, "access-1");
+});
+
+test("identity.refresh:轮换 wire 形状(匿名 POST refresh)", async () => {
+  const transport = new FakeTransport();
+  const { client } = newClient(transport);
+  transport.enqueue(200, successRaw(sessionJson));
+
+  const session = await client.identity.refresh("refresh-old");
+
+  const req = transport.requests[0];
+  assert.equal(req.method, "POST");
+  assert.equal(req.url, "https://api.example.com/v1/identity/refresh");
+  assert.equal(JSON.parse(req.jsonBody as string).refreshToken, "refresh-old");
+  assert.ok(!("Authorization" in req.headers)); // 刷新带 refresh token,不带 access
+  assert.equal(session.refreshToken, "refresh-1");
+});
