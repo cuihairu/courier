@@ -52,9 +52,13 @@ func readJSON(path string, v any) {
 	}
 }
 
+// exit 可注入(os.Exit 的测试替身):fatal 走 os.Exit(1) 真退进程,进程内不可测;
+// 测试替换为记录型后,致命分支可断言退出码与 stderr。生产默认即 os.Exit,行为不变。
+var exit = os.Exit
+
 func fatal(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, "contractgen: "+format+"\n", args...)
-	os.Exit(1)
+	exit(1)
 }
 
 // camelName COMMON_INTERNAL → CommonInternal(各端枚举成员命名,语言习惯内统一)。

@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -242,21 +243,196 @@ func strings_contains(s, sub string) bool {
 }
 
 // TestCheckOrWriteRoundTrip 生成→落盘→复核全链:临时根上装 fixtures 后
-// -write 生成,再复查应一致(覆盖 checkOrWrite 写与验两分支;漂移分支走
-// fatal→os.Exit,进程内不可测,不一致时以进程退出码失败暴露)。
+// -write 生成,再复查应一致(覆盖 checkOrWrite 写与验两分支;漂移分支经
+// 记录型 exit 断言,见 TestCheckOrWriteDriftFatal)。
 func TestCheckOrWriteRoundTrip(t *testing.T) {
 	tmp := t.TempDir()
+	stageFixtures(t, tmp)
+	checkOrWrite(tmp, true)  // 生成落盘(写分支)
+	checkOrWrite(tmp, false) // 复核一致(验分支)
+}
+
+// stageFixtures 把仓内契约 fixtures 复制到目标根(临时根驱动生成链的前置)。
+func stageFixtures(t *testing.T, root string) {
+	t.Helper()
 	for _, f := range []string{"errors.json", "scope.json", "dto.json"} {
 		rel := filepath.Join("docs", "contract", "fixtures", f)
-		data := readRepoFile(t, rel)
-		dst := filepath.Join(tmp, rel)
+		dst := filepath.Join(root, rel)
 		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(dst, data, 0o644); err != nil {
+		if err := os.WriteFile(dst, readRepoFile(t, rel), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
-	checkOrWrite(tmp, true)  // 生成落盘(写分支)
-	checkOrWrite(tmp, false) // 复核一致(验分支;有漂移则进程退出)
+}
+
+// TestMainWriteMode 覆盖 main():flag 解析 + 写分支(临时根装 fixtures 后 -write)。
+// 不跑仓根校验模式,避免把仓内漂移变成测试进程 os.Exit(漂移由 TestGeneratedFilesInSync 暴露)。
+func TestMainWriteMode(t *testing.T) {
+	tmp := t.TempDir()
+	stageFixtures(t, tmp)
+	oldArgs := os.Args
+	os.Args = []string{"contractgen", "-root", tmp, "-write"}
+	defer func() { os.Args = oldArgs }()
+
+	main() // 入口全链:flag.Parse → checkOrWrite(write)
+
+	files := generate(tmp)
+	if len(files) == 0 {
+		t.Fatal("generate 未产出任何文件")
+	}
+	for rel := range files {
+		if _, err := os.Stat(filepath.Join(tmp, rel)); err != nil {
+			t.Errorf("-write 后缺 %s: %v", rel, err)
+		}
+	}
+}
+
+// captureIO 把 exit 换成记录型、stdout/stderr 换成内存管道,执行 action 后
+// 返回记录的退出码与两路输出(fatal 不真退进程;生产 exit = os.Exit 行为不变)。
+func captureIO(t *testing.T, action func()) (code int, stdout, stderr string) {
+	t.Helper()
+	oldExit, oldOut, oldErr := exit, os.Stdout, os.Stderr
+	code = 0
+	exit = func(c int) { code = c } // fatal 尾部调用后返回,不真退
+	or, ow, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	er, ew, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout, os.Stderr = ow, ew
+	defer func() {
+		os.Stdout, os.Stderr = oldOut, oldErr
+		exit = oldExit
+	}()
+
+	action()
+	ow.Close()
+	ew.Close()
+	o, err := io.ReadAll(or)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, err := io.ReadAll(er)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return code, string(o), string(e)
+}
+
+// TestGenerateIncompleteFixtureFatal fixtures 不完整(版本<1/码表空前缀空、dto 缺
+// key):致命退出 1 且信息点名缺哪项——fixture 契约的强制分支。
+func TestGenerateIncompleteFixtureFatal(t *testing.T) {
+	t.Run("errors 不完整", func(t *testing.T) {
+		tmp := t.TempDir()
+		stageFixtures(t, tmp)
+		bad := filepath.Join(tmp, "docs", "contract", "fixtures", "errors.json")
+		if err := os.WriteFile(bad, []byte(`{"version":0,"prefixes":["COMMON"],"codes":[]}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		code, _, stderr := captureIO(t, func() { generate(tmp) })
+		if code != 1 {
+			t.Errorf("不完整 errors fixture 应致命退出 1,实得 %d", code)
+		}
+		if !strings.Contains(stderr, "errors fixture 不完整") {
+			t.Errorf("stderr 缺不完整信息: %q", stderr)
+		}
+	})
+	t.Run("dto 缺 key", func(t *testing.T) {
+		tmp := t.TempDir()
+		stageFixtures(t, tmp)
+		bad := filepath.Join(tmp, "docs", "contract", "fixtures", "dto.json")
+		if err := os.WriteFile(bad, []byte(`{"version":1,"keys":{}}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		code, _, stderr := captureIO(t, func() { generate(tmp) })
+		if code != 1 {
+			t.Errorf("缺 key dto fixture 应致命退出 1,实得 %d", code)
+		}
+		if !strings.Contains(stderr, `dto fixture 缺 key "data"`) {
+			t.Errorf("stderr 缺缺 key 信息: %q", stderr)
+		}
+	})
+}
+
+// TestFatalExitsNonZero fatal:stderr 带 contractgen: 前缀写致命信息,退出码 1。
+func TestFatalExitsNonZero(t *testing.T) {
+	code, _, stderr := captureIO(t, func() { fatal("测试触发的致命错误 %d", 42) })
+	if code != 1 {
+		t.Errorf("fatal 退出码应为 1,实得 %d", code)
+	}
+	if !strings.Contains(stderr, "contractgen: 测试触发的致命错误 42") {
+		t.Errorf("stderr 缺致命信息: %q", stderr)
+	}
+}
+
+// TestReadJSONFatalBranches fixture 缺失与 JSON 损坏:各自致命退出码 1,信息可辨。
+func TestReadJSONFatalBranches(t *testing.T) {
+	var sink any
+	t.Run("文件缺失", func(t *testing.T) {
+		code, _, stderr := captureIO(t, func() {
+			readJSON(filepath.Join(t.TempDir(), "无此.json"), &sink)
+		})
+		if code != 1 {
+			t.Errorf("缺失 fixture 应致命退出 1,实得 %d", code)
+		}
+		if !strings.Contains(stderr, "读 fixture") {
+			t.Errorf("stderr 缺读取错误信息: %q", stderr)
+		}
+	})
+	t.Run("JSON 损坏", func(t *testing.T) {
+		bad := filepath.Join(t.TempDir(), "坏.json")
+		if err := os.WriteFile(bad, []byte("{坏"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		code, _, stderr := captureIO(t, func() { readJSON(bad, &sink) })
+		if code != 1 {
+			t.Errorf("损坏 JSON 应致命退出 1,实得 %d", code)
+		}
+		if !strings.Contains(stderr, "解析 "+bad) {
+			t.Errorf("stderr 缺解析错误信息: %q", stderr)
+		}
+	})
+}
+
+// TestCheckOrWriteDriftFatal 缺文件与内容漂移:同一轮各命中一支,汇总致命信息
+// 指回 -write(校验模式下重生成;stdout 逐文件行缺失/漂移)。
+func TestCheckOrWriteDriftFatal(t *testing.T) {
+	tmp := t.TempDir()
+	stageFixtures(t, tmp)
+	checkOrWrite(tmp, true) // 落盘生成物
+
+	files := generate(tmp)
+	rels := make([]string, 0, 2)
+	for rel := range files {
+		rels = append(rels, rel)
+		if len(rels) == 2 {
+			break
+		}
+	}
+	if err := os.Remove(filepath.Join(tmp, rels[0])); err != nil {
+		t.Fatal(err)
+	}
+	corrupted := append([]byte("x"), files[rels[1]]...)
+	if err := os.WriteFile(filepath.Join(tmp, rels[1]), corrupted, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	code, stdout, stderr := captureIO(t, func() { checkOrWrite(tmp, false) })
+	if code != 1 {
+		t.Errorf("漂移应致命退出 1,实得 %d", code)
+	}
+	if !strings.Contains(stdout, "缺失: "+rels[0]) {
+		t.Errorf("stdout 缺缺失行: %q", stdout)
+	}
+	if !strings.Contains(stdout, "漂移: "+rels[1]) {
+		t.Errorf("stdout 缺漂移行: %q", stdout)
+	}
+	if !strings.Contains(stderr, "生成物与仓内文件不一致") {
+		t.Errorf("stderr 缺汇总致命信息: %q", stderr)
+	}
 }
