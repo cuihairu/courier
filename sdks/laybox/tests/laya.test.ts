@@ -129,6 +129,14 @@ test("laya tokenStore:save/load 往返;clear 移除;损坏数据清场;自定义
   assert.equal(storage.store.get("courier.session"), undefined);
 });
 
+test("laya tokenStore:storage 读取异常安全降级返回 null(不反噬)", () => {
+  const storage = new FakeStorage();
+  storage.store.set("courier.session", sessionJson);
+  const store = createLayaboxTokenStore(storage);
+  storage.getItem = () => { throw new Error("storage broken"); };
+  assert.equal(store.load(), null); // 读取异常:按未认证降级,不抛出
+});
+
 // ---- Transport(XMLHttpRequest) ----
 
 test("laya transport:wire 形状(method/url/header/body/timeout);响应头小写归一", async () => {
