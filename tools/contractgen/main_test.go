@@ -67,6 +67,78 @@ func TestErrorsMarkdownMatchesFixture(t *testing.T) {
 	}
 }
 
+// TestErrorCodesWiredOrReserved 错误码接线闭环:errors.json 的每个 code 要么在网关
+// 非测试代码里被引用(已接线),要么在 errors.md「注册保留码」注记里被点名(显式保留)。
+// 两边集合必须相等——新增码忘接线、或接线后忘从注记里摘掉,都在这里失败。
+// 判据说明:只认标识符在聚合层常量表(envelope.go)之外的引用,故 codeTable 里的
+// HTTP 映射不算接线;测试代码不算接线(断言不是运行时行为)。
+func TestErrorCodesWiredOrReserved(t *testing.T) {
+	f := loadErrorsFixture(t)
+
+	// wire code → 聚合层常量名(Code<Name> = "WIRE")。
+	constRe := regexp.MustCompile(`(?m)^\s*(Code[A-Za-z0-9]+)\s*=\s*"([A-Z][A-Z0-9_]*)"`)
+	constOf := map[string]string{}
+	for _, m := range constRe.FindAllStringSubmatch(string(readRepoFile(t, "gateway/aggregation/envelope.go")), -1) {
+		constOf[m[2]] = m[1]
+	}
+
+	// 网关非测试代码里出现过的常量标识符集合。
+	identRe := regexp.MustCompile(`\bCode[A-Za-z0-9]+\b`)
+	referenced := map[string]bool{}
+	root := filepath.Join(repoRoot, "gateway")
+	if err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		if filepath.Base(path) == "envelope.go" {
+			return nil // 常量定义与 HTTP 映射表本身,不算引用
+		}
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		for _, id := range identRe.FindAllString(string(raw), -1) {
+			referenced[id] = true
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("遍历 gateway: %v", err)
+	}
+
+	// errors.md「注册保留码」注记点名的码。
+	reservedRe := regexp.MustCompile("`([A-Z][A-Z0-9_]*)`")
+	reserved := map[string]bool{}
+	for _, line := range strings.Split(string(readRepoFile(t, "docs/contract/errors.md")), "\n") {
+		if !strings.Contains(line, "注册保留码") {
+			continue
+		}
+		for _, m := range reservedRe.FindAllStringSubmatch(line, -1) {
+			reserved[m[1]] = true
+		}
+	}
+	if len(reserved) == 0 {
+		t.Fatal("errors.md 未找到「注册保留码」注记")
+	}
+
+	for _, c := range f.Codes {
+		name, ok := constOf[c.Code]
+		if !ok {
+			t.Errorf("%s 在 errors.json 有,聚合层无对应常量", c.Code)
+			continue
+		}
+		wired := referenced[name]
+		switch {
+		case wired && reserved[c.Code]:
+			t.Errorf("%s 已接线,应从「注册保留码」注记里摘掉", c.Code)
+		case !wired && !reserved[c.Code]:
+			t.Errorf("%s 网关无引用且未在「注册保留码」注记里声明(悄悄保留 = 漂移)", c.Code)
+		}
+	}
+}
+
 // TestScopeAndDtoFixtures 完整性。
 func TestScopeAndDtoFixtures(t *testing.T) {
 	var sf scopeFixture

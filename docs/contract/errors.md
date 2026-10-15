@@ -89,7 +89,20 @@
 
 各域业务错误码随该域契约冻结;本表 code 一经冻结不得改语义。
 
-> **注册保留码(当前无触发点)**:`REALNAME_REQUIRED` / `REALNAME_REJECTED` / `REALNAME_PENDING_REVIEW` / `REALNAME_CURFEW_BLOCKED` / `REALNAME_CHARGE_BLOCKED` 与 `SESSION_CONFLICT` 已注册,但当前网关无触发点——实名域判定经 200 判定态载荷表达(见 [realname.md](./realname.md)),会话冲突语义未实现;错误化触发待设计拍板,客户端按未知码兜底分支处理。
+> **注册保留码(当前无触发点)**:`REALNAME_REQUIRED` / `REALNAME_REJECTED` / `REALNAME_PENDING_REVIEW` / `REALNAME_CURFEW_BLOCKED` / `REALNAME_CHARGE_BLOCKED` / `SESSION_CONFLICT` / `COMMON_PERMISSION_DENIED` / `CONFIG_NOT_FOUND` / `APP_VERSION_UNSUPPORTED` 已注册,当前网关均无触发点;客户端按未知码兜底分支处理(下方逐码说明保留理由)。
+>
+> **保留理由(巡检代决,2026-10-15;原「错误化触发待设计拍板」结案)**:判定类结果一律走
+> 200 载荷,不走错误码——verify / curfew / charge-check 是**判定端点**,返回 403 会把
+> 「查一下能不能充」变成异常路径;且 200 载荷(status.state + isMinor +
+> curfew.playable + charge-check.allowed)能同时表达五种实名态,单个 403 码不能。
+> 逐码:五个 `REALNAME_*` 见 [realname.md](./realname.md) 判定载荷;`SESSION_CONFLICT`
+> 属异地踢出等**玩家可见登录策略**(本仓契约采多端并存:设备上限 5 + 解绑吊销 +
+> 重放另走 `AUTH_REFRESH_REUSED`),单会话策略接入方把设备上限配成 1 即可;
+> `COMMON_PERMISSION_DENIED` 各域一律用更具体的域码且不泄露存在性(工单/公告归属他人
+> 一律 `*_NOT_FOUND`);`CONFIG_NOT_FOUND` 见 [config.md](./config.md)(v1.1 单键查询
+> 预留);`APP_VERSION_UNSUPPORTED` 见 [app.md](./app.md)(版本判定走 forceUpdate)。
+> 这九条由 `tools/contractgen` 的 `TestErrorCodesWiredOrReserved` 逐条核对:新码忘接线,
+> 或接线后忘从本注记摘掉,门禁即失败。
 
 > **messages 域(推送通道,M2 [messages.md](./messages.md))不设专属前缀**:通道层
 > 错误全部复用通用码(关闭 `COMMON_CAPABILITY_DISABLED`、未认证 `COMMON_UNAUTHENTICATED`、

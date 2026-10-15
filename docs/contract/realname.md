@@ -144,6 +144,14 @@ HealthCheck() → bool
 | `REALNAME_CURFEW_BLOCKED` | 403 | false | 不可玩时段(F28;`data` 可带 `nextWindowAt`) |
 | `REALNAME_CHARGE_BLOCKED` | 403 | false | 超出充值额度(F29;`data` 可带限额字段) |
 
+> **本表当前为注册保留码,网关不发**(2026-10-15 巡检代决,判定载荷为唯一真相源):
+> 实名判定经 200 判定态载荷表达——`status.state`(`UNVERIFIED`/`PENDING_REVIEW`/
+> `VERIFIED`/`REJECTED`)+ `isMinor` + `curfew.playable` + `charge-check.allowed`。
+> `verify` / `curfew` / `charge-check` 是判定端点,返回 403 会把「查一下能不能充」
+> 变成异常路径;载荷可同时表达五种状态,单个 403 码不能。上表码保留不删,接入方在
+> 游戏侧执行防沉迷策略时仍可使用(见下文「策略执行不在本契约」);全表同 [errors.md](./errors.md)
+> 「注册保留码」注记,由 `TestErrorCodesWiredOrReserved` 门禁核对。
+
 其余(认证、scope、限流、能力关闭)一律通用码,见 [errors.md](./errors.md)。
 
 ## 客户端要求(各端 SDK)
@@ -151,6 +159,9 @@ HealthCheck() → bool
 - `501 COMMON_CAPABILITY_DISABLED` = 实名未开启:查询接口返回「未启用」,UI 隐藏入口,**不进报错路径**。
 - `PENDING_REVIEW` 是安全态:不引导重试、不放行受保护操作,提示「审核中」;是否转人工由接入方决定。
 - `REALNAME_REQUIRED` → 引导进入实名流程;`REALNAME_CURFEW_BLOCKED` / `REALNAME_CHARGE_BLOCKED` → 按 `data` 字段展示,不得自造文案口径。
+  (网关当前不发这三个码——同一判定在 200 载荷里:`state=UNVERIFIED` → 引导实名;
+  `curfew.playable=false` / `charge-check.allowed=false` → 按载荷 `nextWindowAt`、
+  限额字段展示。接入方在游戏侧执行策略并改用错误码时,客户端映射已就位,照此处理。)
 - 姓名与证件号**只经 `Submit` 传输一次**:不缓存、不重放、不打印;UI 展示一律走 `RealNameMask`。
 
 ## 扩展预留(2026-10-11 补注)

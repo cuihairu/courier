@@ -36,7 +36,13 @@
 | `forceUpdate` | bool | 服务端判定:客户端版本 < minVersion 时为 true |
 
 - 客户端版本经 `appVersion` 查询参数上报(缺省 = 不判定,`forceUpdate` 为 false)。
-- `forceUpdate = true` 时客户端引导更新;受保护操作由服务端以 `426 APP_VERSION_UNSUPPORTED` 拦截(payload 可带 `updateUrl`,见 [errors.md](./errors.md))。
+- `forceUpdate = true` 时客户端引导更新。
+- **版本判定的唯一通道是本端点的 200 载荷,网关当前不发 `426 APP_VERSION_UNSUPPORTED`**
+  (2026-10-15 巡检代决,对齐实现:`checkUpdate` 是查询端点,返回 426 会把「查一下要不要
+  升级」变成异常路径)。受保护操作的服务端拦截由**接入方**在 Courier 之前的一层做,
+  该层沿用 `426 + updateUrl`——码已注册、六端映射已就位,接入方直接用即可;
+  接入方不设这层时,客户端据 `forceUpdate` 引导升级。见 [errors.md](./errors.md)
+  「注册保留码」注记。
 
 ### `GET /v1/app/maintenance`
 
@@ -68,13 +74,16 @@
 | `APP_MAINTENANCE` | 503 | false | 维护中(payload 带预计恢复时间,可选) |
 | `APP_VERSION_UNSUPPORTED` | 426 | false | 版本过旧(payload 带下载地址,可选) |
 
+> `APP_VERSION_UNSUPPORTED` 当前为**注册保留码,网关不发**(见上文「版本判定的唯一通道」);
+> `APP_MAINTENANCE` 由维护门实际下发。保留码全表见 [errors.md](./errors.md)。
+
 其余(认证、scope、限流、能力关闭)一律通用码,见 [errors.md](./errors.md)。
 
 ## 客户端要求(各端 SDK)
 
 - 启动流程:拉 `/v1/app/version` → `forceUpdate` 引导更新;拉 `/v1/app/maintenance` → 维护页;两者通过后进入登录。
 - 收到 `503 APP_MAINTENANCE`:展示维护页并按 `estimatedRecoveryAt` 轮询本端点,不做其他请求。
-- 收到 `426 APP_VERSION_UNSUPPORTED`:按 `updateUrl` 引导;SDK 不自动跳转商店。
+- 收到 `426 APP_VERSION_UNSUPPORTED`(接入方前置层拦截时才有):按 `updateUrl` 引导;SDK 不自动跳转商店。
 - `501 COMMON_CAPABILITY_DISABLED` = App 能力未接:跳过版本/维护检查直接登录(能力安静地不存在)。
 
 ---
