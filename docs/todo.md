@@ -4,6 +4,7 @@
 
 > 只列需求,一行一句;已完成项保留一行证据(commit + 测试)。F01–F76 逐项状态与落点见 [implementation-status.md](./research/implementation-status.md);阶段路线见 [roadmap](./roadmap.md);分层映射见 [layers.md](./layers.md)。
 
+> **复核**(2026-10-16,巡检 P1016AM):逐条复核未完成与待议 3 项(F31/F33/F62),解锁条件均未解除、无合法开工项;`docs/roadmap.md` 仍无未勾选项;不重复长报告——F31 缺出海立项拍板,F33 缺接入方存储形态+保留天数+查询权限边界,F62 缺运营侧实际需求触发。已裁决项未重开。
 > **复核**(2026-10-16,巡检 PATROL1016):3 条未完成项逐条复核解锁条件,结论全部仍成立,无合法开工项——F31 `contract/realname.md:100/171` v1.1 预留「只加不改」口径未变、仓内无出海立项决策;F33 `gateway/audit/audit.go:3` 落库归实现方口径未变、无接入方存储形态输入;F62 `research/implementation-status.md:104` 仍 `⏸ 待议`、无运营需求触发。已裁决项未重开(卡点类型与解锁条件由上轮 498b3ae 就地标注)。
 >
 > **复核**(2026-10-16,巡检 FW1016E):3 条未完成项逐条复核,结论仍成立,无合法开工项(上轮 FW1016D 代决后状态复核)——F31 `contract/realname.md:100/171` v1.1 预留「出海需求触发再冻结」口径未变、仓内仍无出海立项决策(设计面已由 FW1016D 落草案,冻结与实现待拍板);F33 `gateway/audit/audit.go:3`「落库(保留策略 / 查询 / 合规导出)由实现方负责」口径未变、无接入方存储形态(DB/SIEM/OSS)输入(`provider-guide.md:74` 仅描述现有 sink 注入面,非新决策);F62 `research/implementation-status.md:105` 仍 `✅ 已代决`(评估完成,不立项)、无运营需求触发;`docs/roadmap.md` 无未勾选项。已裁决项未重开(FW1016D 代决结论沿用,推翻路径见各自仓内记录)。
