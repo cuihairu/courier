@@ -1,3 +1,5 @@
+[English](./todo.en.md) | [中文](./todo.md)
+
 # Courier TODO — 需求清单
 
 > 只列需求,一行一句;已完成项保留一行证据(commit + 测试)。F01–F76 逐项状态与落点见 [implementation-status.md](./research/implementation-status.md);阶段路线见 [roadmap](./roadmap.md);分层映射见 [layers.md](./layers.md)。
@@ -10,6 +12,7 @@
 
 - [ ] F31 年龄门与同意管理(海外):首启年龄筛查 + VPC 家长同意;realname.md 已预留 consent 扩展位,出海需求拍板后立项;卡点类型=等拍板;解锁条件=出海需求拍板立项后解冻 realname.md v1.1 consent 组(只加不改);FW1016D 已代决(设计):consent 组法域中立草案已落(research/consent-v1.1-draft.md),立项后草案→冻结为机械步骤,剩冻结+实现待出海
 - [ ] F33 审计落库:仓内面已全落(事件面 + 日志半边 + HTTP 直写半边 + 第二实现同形状,批次 62/65/66);剩保留策略与查询面,归接入方存储实现(audit.go:3 已注)——卡点类型=等接入方;解锁条件=接入方定存储形态(DB/SIEM/OSS)+ 保留天数 + 查询权限边界
+- [ ] 文档双语(下一轮):`docs/` 子目录(contract/ research/ public/)实质文档英文版配对 + 双向切换器(根目录 8 篇已于本轮完成:architecture/index/layers/provider-guide/roadmap/sdk-selection/todo/审计-文档一致性);卡点类型=待下一轮排期
 
 ## 待议(边界未定,不立项)
 

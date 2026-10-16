@@ -1,3 +1,5 @@
+[English](./sdk-selection.en.md) | [中文](./sdk-selection.md)
+
 # 按需选装清单(字节实测)
 
 > 用途:回答「哪些能不进、各进哪个省多少、得到什么」。数据口径见末节。

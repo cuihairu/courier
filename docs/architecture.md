@@ -1,3 +1,5 @@
+[English](./architecture.en.md) | [中文](./architecture.md)
+
 # Courier 架构
 
 > **状态**:Current — 随实现维护(2026-10-08 M0 立宪冻结,M1–M5 已全部落地)。分层细化(SDK Contract / Core / Platform Adapter / Service Provider / Gateway)见 [layers.md](./layers.md),分批落地见 [todo.md](./todo.md),契约宪法见 [contract/](./contract/index.md),竞品定位见 [research/competitive.md](./research/competitive.md)。
