@@ -1,3 +1,5 @@
+[English](./mail-cdk-evaluation.en.md) | [中文](./mail-cdk-evaluation.md)
+
 # F62 邮件/礼包码:评估结论
 
 > 状态:**评估完成,不立项** · 2026-10-16 巡检 FW1016D 代决 · 依据 [features.md §10](./features.md)「仅 F62 邮件/礼包码值得优先评估」。

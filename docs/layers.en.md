@@ -2,7 +2,7 @@
 
 # Five-Layer Architecture: L1–L5
 
-> **Status**: Current — maintained alongside the implementation (2026-10-08 M0 constitution frozen; M1–M5 all landed). Principle: **no business stacking — skeleton first**. The master outline lives in [architecture.md](./architecture.en.md) (design principles / Provider principles / capability tree / lifecycle); the contract constitution lives in [contract/index.md](./contract/index.md); batch cadence lives in [todo.md](./todo.en.md).
+> **Status**: Current — maintained alongside the implementation (2026-10-08 M0 constitution frozen; M1–M5 all landed). Principle: **no business stacking — skeleton first**. The master outline lives in [architecture.md](./architecture.en.md) (design principles / Provider principles / capability tree / lifecycle); the contract constitution lives in [contract/index.md](./contract/index.en.md); batch cadence lives in [todo.md](./todo.en.md).
 
 ## Layer Overview
 
@@ -28,13 +28,13 @@ L1–L3 sit on the client side, L4–L5 on the server side; L1 is depended on by
 **Responsibilities**
 
 - Cross-platform shared types and behavior conventions: DTOs, unified error model, scope rules, event envelopes, SDK lifecycle state machine, and the interface shape of each capability.
-- The primitives contract is already chartered: [contract/](./contract/index.md) (primitives / errors / scope / versioning / events); domain contracts freeze along with milestones.
+- The primitives contract is already chartered: [contract/](./contract/index.en.md) (primitives / errors / scope / versioning / events); domain contracts freeze along with milestones.
 
 **Boundaries**
 
 - Contains no implementation or platform details; **aware of no vendor** — the contract describes capabilities, not implementers.
 - The red lines for collection/compliance capabilities (diagnostics, real name) are built into the contract: off by default, explicit opt-in, and enabling must state the data scope.
-- Changes follow the change process in [contract/index.md](./contract/index.md); once frozen, additive-only — breaking changes bump the version.
+- Changes follow the change process in [contract/index.md](./contract/index.en.md); once frozen, additive-only — breaking changes bump the version.
 
 **Interface shape**
 

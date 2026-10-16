@@ -1,3 +1,5 @@
+[English](./diagnostics.en.md) | [中文](./diagnostics.md)
+
 # 诊断契约(Diagnostics)——可选能力
 
 > 状态:**Frozen v1**(2026-10-09,M3)· 可选包(不进核心包)· 默认全关。

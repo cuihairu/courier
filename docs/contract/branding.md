@@ -1,3 +1,5 @@
+[English](./branding.en.md) | [中文](./branding.md)
+
 # 品牌定制契约(Branding)
 
 > 状态:**Frozen v1** · 里程碑 M3(与 Remote Config 同管道)· 冻结日期 2026-10-09。

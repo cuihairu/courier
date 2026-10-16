@@ -1,3 +1,5 @@
+[English](./player.en.md) | [中文](./player.md)
+
 # 玩家档案契约(Player Profile)
 
 > 状态:**Frozen v1** · 里程碑 M3 · 冻结日期 2026-10-09。

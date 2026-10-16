@@ -1,3 +1,5 @@
+[English](./payment.en.md) | [中文](./payment.md)
+
 # 支付契约(Payment)——形态开放
 
 > 状态:**Frozen v1.1** · 里程碑 M5 · v1 冻结日期 2026-10-09;**v1.1(2026-10-09)追加推送事件**(`payment.paid` / `payment.delivered`,附加兼容变更,见「推送事件」)。

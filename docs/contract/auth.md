@@ -1,3 +1,5 @@
+[English](./auth.en.md) | [中文](./auth.md)
+
 # 认证契约(Auth / Identity)
 
 > 状态:**Frozen v1.1** · 里程碑 M1(v1 冻结 2026-10-08;v1.1 2026-10-12 追加账号注销与数据删除,F03)。

@@ -1,3 +1,5 @@
+[English](./implementation-status.en.md) | [中文](./implementation-status.md)
+
 # 实现状态汇总(features.md 76 项对照)
 
 > **口径**(2026-10-11,批次 45):对 [features.md](./features.md) 全量 76 项逐条核对仓库证据;任务条目与状态注记在 [todo.md](../todo.md) 批次 45,本表是汇总视图。

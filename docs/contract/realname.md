@@ -1,3 +1,5 @@
+[English](./realname.en.md) | [中文](./realname.md)
+
 # 实名认证契约(RealName)
 
 > 状态:**Frozen v1** · 合规能力 · 默认关闭 · 里程碑 M2 后段 · 冻结日期 2026-10-08。

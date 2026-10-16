@@ -1,3 +1,5 @@
+[English](./errors.en.md) | [中文](./errors.md)
+
 # 错误契约
 
 > 状态:Frozen v1(2026-10-08,M0 跨端评审冻结;错误码表 **v8**——v2 追加 M2 域码,v3 追加 REALNAME 时段/额度码,v4 追加 M5 PAYMENT 域码,v5 追加 AUTH 注销码,v6 追加 OAUTH 域码,v7 追加 SUPPORT 附件码(2026-10-12),v8 追加 SUPPORT 举报/申诉码(2026-10-13))。跨 Unity / UE / Cocos / Godot 的错误一致性是 Universal SDK 的核心价值:同一 `code` 在各端映射为同一枚举、同一重试语义。

@@ -1,3 +1,5 @@
+[English](./announcement.en.md) | [中文](./announcement.md)
+
 # 公告契约(Announcement)
 
 > 状态:**Frozen v1.1** · 里程碑 M2(v1 冻结 2026-10-08;v1.1 两批追加:2026-10-12 定向过滤 F35,2026-10-13 多语内容 F76)。

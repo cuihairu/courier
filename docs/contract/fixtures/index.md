@@ -1,3 +1,5 @@
+[English](./index.en.md) | [中文](./index.md)
+
 # 契约 Fixtures(机器可读快照)
 
 > 本目录是契约文档的**机器可读快照**,供 [tools/contractgen](https://github.com/cuihairu/courier/tree/main/tools/contractgen) 生成六端契约源(C# / TS / C++ / GDScript),漂移即测试红。约定:**文档先行,fixture 跟随,生成物不手改**。

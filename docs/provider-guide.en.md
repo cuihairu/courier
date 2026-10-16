@@ -46,7 +46,7 @@ sidecar form leaves the contract untouched and belongs to deployment-surface evo
 - `fallbacks` entries that reference an unregistered name are **silently skipped** (not crippled); a misspelled configuration key (an unknown capability domain) errors directly in
   `LoadConfig` rather than failing silently.
 - Management semantics: a capability domain = a routing prefix, and a business name must not become a capability domain; a new capability first registers its domain prefix in
-  [errors.md](./contract/errors.md), then enters `providers/capability.go` and the routing table.
+  [errors.md](./contract/errors.en.md), then enters `providers/capability.go` and the routing table.
 
 ## 3. The Full Set of Capability Domains and Default Vendors
 

@@ -1,3 +1,5 @@
+[English](./oauth.en.md) | [中文](./oauth.md)
+
 # 第三方身份提供方契约(OAuth / SSO)
 
 > 状态:**Frozen v1**(2026-10-12,批次 52 冻结;原 Draft v0.1 提案 2026-10-11 批次 49,按原文冻结不改语义)· 能力域 `oauth`(路由 `/v1/identity/oauth/*`)。

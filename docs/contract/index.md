@@ -1,3 +1,5 @@
+[English](./index.en.md) | [中文](./index.md)
+
 # Courier SDK Contract(M0 立宪)
 
 > **状态**:基元五件 **Frozen v1**(2026-10-08,M0 跨端评审冻结;错误码表现已 **v8**——v2 追加 M2 域码,v3 追加 REALNAME 时段/额度码,v4 追加 M5 PAYMENT 域码,v5 追加 AUTH 注销码,v6 追加 OAUTH 域码,v7 追加 SUPPORT 附件码(2026-10-12),v8 追加 SUPPORT 举报/申诉码(2026-10-13,42 码);**v1.1** 2026-10-10 追加取消与并发纪律两节);auth 域契约 **Frozen v1.1**(M1;v1.1 2026-10-12 追加账号注销与数据删除 F03、登录方式 OAUTH);oauth 域契约 **Frozen v1**(批次 52,2026-10-12,F01);announcement / support 域契约 **Frozen v1.1**(M2;v1.1 追加公告定向过滤 F35 与多语内容 F76、工单上下文 F43、工单附件 F44、举报与处罚申诉 F45);messages 域契约 **Frozen v1.1**(M2,v1.1 追加传输分框硬要求);realname 域契约 **Frozen v1**(M2 后段);config / app / branding / player 域契约 **Frozen v1**(M3,2026-10-09);diagnostics 域契约 **Frozen v1**(M3,可选包默认全关);assistant 域契约 **Frozen v1**(M4,2026-10-09);payment 域契约 **Frozen v1**(M5,2026-10-09;v1.1 追加 payment.paid/delivered 推送事件,2026-10-09)。冻结后进入变更流程管理。

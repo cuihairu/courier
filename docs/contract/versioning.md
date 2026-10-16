@@ -1,3 +1,5 @@
+[English](./versioning.en.md) | [中文](./versioning.md)
+
 # 版本契约
 
 > 状态:Frozen v1(2026-10-08,M0 跨端评审冻结)。

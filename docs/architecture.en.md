@@ -2,7 +2,7 @@
 
 # Courier Architecture
 
-> **Status**: Current — maintained alongside the implementation (2026-10-08 M0 constitutional freeze; M1–M5 have all landed). Layer-by-layer detail (SDK Contract / Core / Platform Adapter / Service Provider / Gateway) is in [layers.md](./layers.en.md), batch-by-batch delivery is in [todo.md](./todo.en.md), the contract constitution is in [contract/](./contract/index.md), and competitive positioning is in [research/competitive.md](./research/competitive.md).
+> **Status**: Current — maintained alongside the implementation (2026-10-08 M0 constitutional freeze; M1–M5 have all landed). Layer-by-layer detail (SDK Contract / Core / Platform Adapter / Service Provider / Gateway) is in [layers.md](./layers.en.md), batch-by-batch delivery is in [todo.md](./todo.en.md), the contract constitution is in [contract/](./contract/index.en.md), and competitive positioning is in [research/competitive.md](./research/competitive.en.md).
 
 ## Design Principle: SDK Contract > Everything
 
@@ -79,7 +79,7 @@ Courier
 
 ## SDK Lifecycle State Machine
 
-The biggest difference between a game SDK and an ordinary REST SDK: lifecycle is a first-class citizen. The state machine is defined in the L1 contract (event surface in [contract/events.md](./contract/events.md)) and implemented in L2 Core:
+The biggest difference between a game SDK and an ordinary REST SDK: lifecycle is a first-class citizen. The state machine is defined in the L1 contract (event surface in [contract/events.md](./contract/events.en.md)) and implemented in L2 Core:
 
 ```text
 Uninitialized → Initializing → Ready → Authenticating → Authenticated → PlayerReady
@@ -143,7 +143,7 @@ gateway/
 
 > Diagnostics bypasses the gateway: the contract red line (diagnostics.md) requires diagnostics data to be sent directly to the integrator's own endpoints; the gateway has no DiagnosticsProvider.
 
-- Unconfigured Providers: the corresponding routes are not registered, and the client gets `COMMON_CAPABILITY_DISABLED` (see [contract/errors.md](./contract/errors.md)).
+- Unconfigured Providers: the corresponding routes are not registered, and the client gets `COMMON_CAPABILITY_DISABLED` (see [contract/errors.md](./contract/errors.en.md)).
 - Names like `accounts` / `announcements` must never appear as first-class business directories in the gateway — they are the default implementations of Providers and live under `providers/`.
 
 ## Provider Governance: Hot-Swap / Degradation Chain / Circuit Breaker
@@ -152,7 +152,7 @@ gateway/
 - **Degradation chain**: primary Provider failure/timeout → fallbacks in order; if all fail, the domain-defined safe state applies (e.g. RealName → `PENDING_REVIEW`).
 - **Circuit breaker** (already landed in the real name domain): driven by call counts — N consecutive failures open the circuit; once open, 30 calls act as half-open probes to recover (no timers); during the open period traffic goes straight to fallback.
 - **HealthCheck**: unhealthy instances are evicted from the registry.
-- RealName ([contract/realname.md](./contract/realname.md)) is the first domain to apply all of this in full; the rules are universal for all Providers.
+- RealName ([contract/realname.md](./contract/realname.en.md)) is the first domain to apply all of this in full; the rules are universal for all Providers.
 
 ### Independent Switching Strategy per Sensitive Domain (Account / Real Name / Payments)
 
@@ -179,15 +179,15 @@ Replaceable interfaces ≠ migratable data; each of the three sensitive domains 
 
 ### Branding (M3)
 
-Brand customization: company name/logo/icon/theme color/about page/support entry, delivered per `game_id+env`, consumed by the optional UI package; Core contains no branding logic. See [contract/branding.md](./contract/branding.md).
+Brand customization: company name/logo/icon/theme color/about page/support entry, delivered per `game_id+env`, consumed by the optional UI package; Core contains no branding logic. See [contract/branding.md](./contract/branding.en.md).
 
 ### RealName (late M2, compliance)
 
-Interface slots for real name verification and anti-addiction hooks; hot-swappable Providers (self-hosted / Alibaba Cloud / Tencent Cloud Huiyan / Yidun / Webhook), off by default. See [contract/realname.md](./contract/realname.md).
+Interface slots for real name verification and anti-addiction hooks; hot-swappable Providers (self-hosted / Alibaba Cloud / Tencent Cloud Huiyan / Yidun / Webhook), off by default. See [contract/realname.md](./contract/realname.en.md).
 
 ### Diagnostics (alongside M3 or later, optional)
 
-Crash/error tracking (Sentry/GlitchTip, self-hostable), OTel Trace (official OTel SDK → any OTLP collector), performance metrics, event analytics; everything off by default, and an unconfigured setup is a no-op with zero overhead. See [contract/diagnostics.md](./contract/diagnostics.md).
+Crash/error tracking (Sentry/GlitchTip, self-hostable), OTel Trace (official OTel SDK → any OTLP collector), performance metrics, event analytics; everything off by default, and an unconfigured setup is a no-op with zero overhead. See [contract/diagnostics.md](./contract/diagnostics.en.md).
 
 ### Payment: Contract Only (M5)
 
@@ -205,10 +205,10 @@ The contract freezes only `Order / Purchase / Receipt` and the security boundary
 
 ## Key Decisions
 
-1. **The contract is the constitution.** Constituted and frozen at M0 ([contract/](./contract/index.md)); the precondition for M1 Auth work. SDK Contract > Everything.
+1. **The contract is the constitution.** Constituted and frozen at M0 ([contract/](./contract/index.en.md)); the precondition for M1 Auth work. SDK Contract > Everything.
 2. **The gateway is the only entry point.** Clients talk only to the Courier Gateway; Providers and backend topology are invisible to the client.
 3. **Protocol: HTTPS JSON first.** Push goes over SSE from M2 on (the frozen selection in messages.md: fully implementable with the standard library, HTTP semantics reused, Unity UnityWebRequest can stream reads; WebSocket is left as a later extension and needs a version bump to write), reusing the session channel of the default push Provider (chirp), and the channel itself is replaceable.
-4. **One scope only.** `game_id + env` is specified once at initialization and injected as a header; see [contract/scope.md](./contract/scope.md).
+4. **One scope only.** `game_id + env` is specified once at initialization and injected as a header; see [contract/scope.md](./contract/scope.en.md).
 5. **The Gateway has no business directories.** Business always arrives via Provider interfaces; `providers/` holds the interfaces and the default implementations.
 6. **Provided by default, swappable and disableable.** Ecosystem projects are just default providers; not connected = capability degradation, not an error.
 7. **Collection/compliance off by default.** The red lines of Diagnostics and RealName are built into the contract.
@@ -235,7 +235,7 @@ CourierClient (facade)
 
 - Each platform = a platform-agnostic Core (DTOs, lifecycle state machine, token storage, retry) + a platform binding (Unity UPM / UE plugin / Cocos TS / WeChat Mini Program / Layabox / Godot — project shapes are in place; plugin-packaged builds follow the engine-integration surface).
 - **Adapters must carry no business logic**: an Adapter only translates "network, storage, lifecycle, threading" for the platform; any business semantics appearing there is an architecture violation (move it up into Core or Service).
-- Public DTOs take [contract/](./contract/index.md) as the single source of truth, generated or hand-aligned per platform; inventing fields per platform is forbidden.
+- Public DTOs take [contract/](./contract/index.en.md) as the single source of truth, generated or hand-aligned per platform; inventing fields per platform is forbidden.
 - Token storage uses platform secure storage (Unity encrypted storage / UE platform credentials / Cocos isolated localStorage / WeChat storage / Layabox LocalStorage / Godot user:// persistent files).
 
 ## Security Boundaries
@@ -243,8 +243,8 @@ CourierClient (facade)
 - The client holds no Provider credentials, internal URLs, or admin interfaces.
 - Rate limiting for sensitive endpoints is built into the account Provider (stricter thresholds for sensitive endpoints such as login/real name); the gateway middleware provides only basic global rate limiting; the real name domain has no rate limiting. During the payments sandbox period, pre-transaction risk controls follow the deployment surface (roadmap M5).
 - Payment callbacks trust only channel signatures, never client-reported amounts/status.
-- Real name: field minimization, encrypted transport, no SDK disk writes, plaintext banned from logs/traces ([contract/realname.md](./contract/realname.md)).
-- Diagnostics: off by default, enabled explicitly, with the data scope stated explicitly when enabled ([contract/diagnostics.md](./contract/diagnostics.md)).
+- Real name: field minimization, encrypted transport, no SDK disk writes, plaintext banned from logs/traces ([contract/realname.md](./contract/realname.en.md)).
+- Diagnostics: off by default, enabled explicitly, with the data scope stated explicitly when enabled ([contract/diagnostics.md](./contract/diagnostics.en.md)).
 - Write operations are auditable: traces span gateway → Provider; the real name domain's critical actions (verify/curfew/charge_check/playtime_report) already land on a structured audit event surface (the `gateway/audit` shared seam, both realname implementations inject the same `AuditSink`, nil = no output; `COURIER_REALNAME_AUDIT=log` turns on the logging half), events contain only account-level metadata (identity inputs never enter events, the realname.md red line), and persistence follows the deployment surface.
 
 ## Boundary with Backend Providers
@@ -264,4 +264,4 @@ CourierClient (facade)
 
 ## Competitive Positioning
 
-Open source has no "service-oriented aggregate SDK" category (Nakama is a server, XtraLife is stalled, AWS is cloud templates); commercial aggregators (MSDK/QuickSDK/XDSDK) prove the demand exists but are closed-source and channel-locked. For a full inventory of Courier's positioning and boundaries (no realtime multiplayer/matching, no channel aggregation), see [research/competitive.md](./research/competitive.md).
+Open source has no "service-oriented aggregate SDK" category (Nakama is a server, XtraLife is stalled, AWS is cloud templates); commercial aggregators (MSDK/QuickSDK/XDSDK) prove the demand exists but are closed-source and channel-locked. For a full inventory of Courier's positioning and boundaries (no realtime multiplayer/matching, no channel aggregation), see [research/competitive.md](./research/competitive.en.md).

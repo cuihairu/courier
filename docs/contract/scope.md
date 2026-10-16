@@ -1,3 +1,5 @@
+[English](./scope.en.md) | [中文](./scope.md)
+
 # Scope 契约:game_id + env
 
 > 状态:Frozen v1(2026-10-08,M0 跨端评审冻结)。与生态(Croupier / Oddsmaker)同一隔离模型。

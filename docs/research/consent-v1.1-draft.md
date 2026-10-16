@@ -1,3 +1,5 @@
+[English](./consent-v1.1-draft.en.md) | [中文](./consent-v1.1-draft.md)
+
 # F31 海外年龄门与家长同意:`consent` 组 v1.1 设计草案
 
 > 状态:**Draft(未冻结)** · 2026-10-16 巡检 FW1016D 代决启动设计 · 冻结仍待出海立项([realname.md:100](../contract/realname.md) 口径不变)。

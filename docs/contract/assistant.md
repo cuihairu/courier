@@ -1,3 +1,5 @@
+[English](./assistant.en.md) | [中文](./assistant.md)
+
 # 小助手契约(Assistant)
 
 > 状态:**Frozen v1** · 里程碑 M4 · 冻结日期 2026-10-09。

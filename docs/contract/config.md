@@ -1,3 +1,5 @@
+[English](./config.en.md) | [中文](./config.md)
+
 # 远程配置契约(Remote Config)
 
 > 状态:**Frozen v1** · 里程碑 M3 · 冻结日期 2026-10-09。

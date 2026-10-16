@@ -1,3 +1,5 @@
+[English](./primitives.en.md) | [中文](./primitives.md)
+
 # 基元契约:Request / Response / Pagination / Timestamp / ID / TraceID
 
 > 状态:Frozen v1(2026-10-08,M0 跨端评审冻结);**v1.1**(2026-10-10,批次 18 追加「取消与超时」「并发纪律」两节——兼容追加,只加不改)。本文档定义所有域契约共用的线格式基元;域契约不得另造。
