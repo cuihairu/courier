@@ -1,4 +1,3 @@
-[English](./index.en.md) | [中文](./index.md)
 
 # 契约 Fixtures(机器可读快照)
 

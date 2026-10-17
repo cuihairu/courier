@@ -1,4 +1,3 @@
-[English](./layers.en.md) | [中文](./layers.md)
 
 # 五层架构:L1–L5
 

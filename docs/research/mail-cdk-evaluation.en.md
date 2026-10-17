@@ -1,4 +1,3 @@
-[English](./mail-cdk-evaluation.en.md) | [中文](./mail-cdk-evaluation.md)
 
 # F62 Mail / Redeem Codes: Evaluation Conclusion
 

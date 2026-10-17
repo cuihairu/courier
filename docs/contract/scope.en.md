@@ -1,4 +1,3 @@
-[English](./scope.en.md) | [中文](./scope.md)
 
 # Scope Contract: game_id + env
 

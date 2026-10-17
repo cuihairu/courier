@@ -1,4 +1,3 @@
-[English](./provider-guide.en.md) | [中文](./provider-guide.md)
 
 # Custom Provider Integration Guide
 

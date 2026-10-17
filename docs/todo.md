@@ -1,4 +1,3 @@
-[English](./todo.en.md) | [中文](./todo.md)
 
 # Courier TODO — 需求清单
 

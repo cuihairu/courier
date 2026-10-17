@@ -1,4 +1,3 @@
-[English](./assistant.en.md) | [中文](./assistant.md)
 
 # Assistant Contract (Assistant)
 

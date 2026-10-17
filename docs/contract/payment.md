@@ -1,4 +1,3 @@
-[English](./payment.en.md) | [中文](./payment.md)
 
 # 支付契约(Payment)——形态开放
 

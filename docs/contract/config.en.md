@@ -1,4 +1,3 @@
-[English](./config.en.md) | [中文](./config.md)
 
 # Remote Config Contract
 

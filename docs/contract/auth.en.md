@@ -1,4 +1,3 @@
-[English](./auth.en.md) | [中文](./auth.md)
 
 # Authentication Contract (Auth / Identity)
 

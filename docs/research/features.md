@@ -1,4 +1,3 @@
-[English](./features.en.md) | [中文](./features.md)
 
 # 功能调研:市面上游戏 SDK 的常见功能清单
 

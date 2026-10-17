@@ -1,4 +1,3 @@
-[English](./index.en.md) | [中文](./index.md)
 
 # Courier SDK Contract (M0 Constitutional)
 

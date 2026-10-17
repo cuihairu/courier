@@ -1,4 +1,3 @@
-[English](./branding.en.md) | [中文](./branding.md)
 
 # 品牌定制契约(Branding)
 

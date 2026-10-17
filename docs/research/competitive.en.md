@@ -1,4 +1,3 @@
-[English](./competitive.en.md) | [中文](./competitive.md)
 
 # Competitive Research: Courier's Positioning and Boundaries
 

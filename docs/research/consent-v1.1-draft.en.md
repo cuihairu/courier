@@ -1,4 +1,3 @@
-[English](./consent-v1.1-draft.en.md) | [中文](./consent-v1.1-draft.md)
 
 # F31 Overseas Age Gate and Parental Consent: the `consent` Group v1.1 Design Draft
 

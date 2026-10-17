@@ -1,4 +1,3 @@
-[English](./player.en.md) | [中文](./player.md)
 
 # Player Profile Contract (Player Profile)
 

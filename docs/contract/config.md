@@ -1,4 +1,3 @@
-[English](./config.en.md) | [中文](./config.md)
 
 # 远程配置契约(Remote Config)
 

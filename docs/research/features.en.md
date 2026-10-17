@@ -1,4 +1,3 @@
-[English](./features.en.md) | [中文](./features.md)
 
 # Feature Survey: A Common Feature Inventory of Game SDKs on the Market
 

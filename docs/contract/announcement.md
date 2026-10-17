@@ -1,4 +1,3 @@
-[English](./announcement.en.md) | [中文](./announcement.md)
 
 # 公告契约(Announcement)
 

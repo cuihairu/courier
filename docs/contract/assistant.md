@@ -1,4 +1,3 @@
-[English](./assistant.en.md) | [中文](./assistant.md)
 
 # 小助手契约(Assistant)
 

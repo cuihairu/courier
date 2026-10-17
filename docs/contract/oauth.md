@@ -1,4 +1,3 @@
-[English](./oauth.en.md) | [中文](./oauth.md)
 
 # 第三方身份提供方契约(OAuth / SSO)
 

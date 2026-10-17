@@ -1,4 +1,3 @@
-[English](./implementation-status.en.md) | [中文](./implementation-status.md)
 
 # Implementation Status Summary (cross-check against the 76 features in features.md)
 

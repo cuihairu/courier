@@ -1,4 +1,3 @@
-[English](./app.en.md) | [中文](./app.md)
 
 # 应用状态契约(App)
 

@@ -1,4 +1,3 @@
-[English](./realname.en.md) | [中文](./realname.md)
 
 # 实名认证契约(RealName)
 

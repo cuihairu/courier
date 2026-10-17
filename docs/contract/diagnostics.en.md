@@ -1,4 +1,3 @@
-[English](./diagnostics.en.md) | [中文](./diagnostics.md)
 
 # Diagnostics Contract (Diagnostics) — Optional Capability
 

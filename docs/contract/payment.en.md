@@ -1,4 +1,3 @@
-[English](./payment.en.md) | [中文](./payment.md)
 
 # Payment Contract (Payment) — Open Forms
 

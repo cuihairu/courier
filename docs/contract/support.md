@@ -1,4 +1,3 @@
-[English](./support.en.md) | [中文](./support.md)
 
 # 客服契约(Support)
 

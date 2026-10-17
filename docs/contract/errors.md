@@ -1,4 +1,3 @@
-[English](./errors.en.md) | [中文](./errors.md)
 
 # 错误契约
 

@@ -1,4 +1,3 @@
-[English](./competitive.en.md) | [中文](./competitive.md)
 
 # 竞品调研:Courier 的取位与边界
 

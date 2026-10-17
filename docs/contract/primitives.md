@@ -1,4 +1,3 @@
-[English](./primitives.en.md) | [中文](./primitives.md)
 
 # 基元契约:Request / Response / Pagination / Timestamp / ID / TraceID
 

@@ -1,4 +1,3 @@
-[English](./implementation-status.en.md) | [中文](./implementation-status.md)
 
 # 实现状态汇总(features.md 76 项对照)
 

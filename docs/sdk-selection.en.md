@@ -1,4 +1,3 @@
-[English](./sdk-selection.en.md) | [中文](./sdk-selection.md)
 
 # Selective Installation Checklist (Measured in Bytes)
 

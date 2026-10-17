@@ -1,4 +1,3 @@
-[English](./messages.en.md) | [中文](./messages.md)
 
 # Push Channel Contract (Messages)
 

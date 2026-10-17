@@ -1,4 +1,3 @@
-[English](./layers.en.md) | [中文](./layers.md)
 
 # Five-Layer Architecture: L1–L5
 

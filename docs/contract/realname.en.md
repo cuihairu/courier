@@ -1,4 +1,3 @@
-[English](./realname.en.md) | [中文](./realname.md)
 
 # Real Name Contract (RealName)
 

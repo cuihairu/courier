@@ -37,5 +37,4 @@ features:
     details: Order/Purchase/Receipt; built-in sandbox channel (teller) fully implemented across the chain, real channels ship with the deployment surface; four forms optional
 ---
 
-[English](./index.en.md) | [中文](./index.md)
 

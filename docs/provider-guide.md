@@ -1,4 +1,3 @@
-[English](./provider-guide.en.md) | [中文](./provider-guide.md)
 
 # 自定义 Provider 接入指南
 

@@ -1,4 +1,3 @@
-[English](./support.en.md) | [中文](./support.md)
 
 # Support Contract
 

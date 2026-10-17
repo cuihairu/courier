@@ -1,4 +1,3 @@
-[English](./primitives.en.md) | [中文](./primitives.md)
 
 # Primitive Contract: Request / Response / Pagination / Timestamp / ID / TraceID
 

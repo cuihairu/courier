@@ -1,4 +1,3 @@
-[English](./sdk-selection.en.md) | [中文](./sdk-selection.md)
 
 # 按需选装清单(字节实测)
 

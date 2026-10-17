@@ -1,4 +1,3 @@
-[English](./oauth.en.md) | [中文](./oauth.md)
 
 # Third-Party Identity Provider Contract (OAuth / SSO)
 

@@ -1,4 +1,3 @@
-[English](./events.en.md) | [中文](./events.md)
 
 # Event Contract
 

@@ -1,4 +1,3 @@
-[English](./player.en.md) | [中文](./player.md)
 
 # 玩家档案契约(Player Profile)
 

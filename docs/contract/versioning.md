@@ -1,4 +1,3 @@
-[English](./versioning.en.md) | [中文](./versioning.md)
 
 # 版本契约
 

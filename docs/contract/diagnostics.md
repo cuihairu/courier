@@ -1,4 +1,3 @@
-[English](./diagnostics.en.md) | [中文](./diagnostics.md)
 
 # 诊断契约(Diagnostics)——可选能力
 

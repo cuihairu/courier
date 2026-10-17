@@ -1,4 +1,3 @@
-[English](./scope.en.md) | [中文](./scope.md)
 
 # Scope 契约:game_id + env
 

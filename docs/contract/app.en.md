@@ -1,4 +1,3 @@
-[English](./app.en.md) | [中文](./app.md)
 
 # App State Contract (App)
 
