@@ -15,4 +15,4 @@
       3) 表三:6 项只评估不实现——F77 订单持久化 / F78 热重载管理入口 / F79 多实例
          共享限流 / F80 UE/Cocos 令牌持久化新登记待议节(docs/todo.md/en,均标需用户拍板);
          consent 端到端=F31、审计可靠交付=F33,已有归属未重开
-      测试:gateway 全量 `go test -race ./...` 30 包全绿;docs:build 绿。commit 后回填 hash。
+      测试:gateway 全量 `go test -race ./...` 30 包全绿;docs:build 绿。commit e39b328(后续台账回填行见 docs/todo.md 批次 95)。
