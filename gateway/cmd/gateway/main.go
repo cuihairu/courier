@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/cuihairu/courier/gateway/audit"
 	"github.com/cuihairu/courier/gateway/auth"
@@ -218,12 +219,28 @@ func main() {
 	}
 
 	// 中间件链:trace → 结构化错误 → 限流 → scope(冻结顺序,批次 2);
-	// 维护门包整个入口(app.md:维护开启 → /v1/* 除本域端点外一律 503,白名单内建)。
+	// 维护门包整个入口(app.md:维护开启 → /v1/* 除本域端点外一律 503,白名单内建);
+	// MaxBody 包最外层,超限请求在读 body 处即 400,不进业务(审核 2026-10-18 表一#2)。
 	chain := middleware.Chain(middleware.NewRateLimiter(120, 60))
-	handler := middleware.Maintenance(maintEnabled)(routing.New(reg, cfg, chain))
+	handler := middleware.MaxBody(middleware.MaxBodyBytes)(
+		middleware.Maintenance(maintEnabled)(routing.New(reg, cfg, chain)))
 
 	log.Printf("courier gateway listening on %s", addr)
-	log.Fatal(http.ListenAndServe(addr, handler))
+	log.Fatal(newServer(addr, handler).ListenAndServe())
+}
+
+// newServer 显式超时的 http.Server(审核 2026-10-18 表一#3:ListenAndServe
+// 默认全零超时 = 慢连接可无限占用 fd)。WriteTimeout 刻意置 0:SSE 流式
+// 端点是长写连接,限时会把活流切断;读侧超时已足够断掉慢连接,SSE 心跳
+// 由各流式端点自管。
+func newServer(addr string, h http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           h,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       60 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
 }
 
 // loadConfig 读取 COURIER_GATEWAY_CONFIG(可选)指向的 JSON 路由表;未设置 = 全部能力降级。

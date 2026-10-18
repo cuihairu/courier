@@ -6,13 +6,13 @@
 // Options 注入(其他供应商实现),热重载经 ReloadFallbacks(路由表原子替换)。
 //
 // 红线(realname.md「字段脱敏与数据红线」):姓名/证件号只在调用栈内存活;
-// 持久化只存 SHA-256 指纹(比对用),不存明文;日志与 trace 禁明文。
+// 持久化零身份派生数据——不存明文,也不存指纹(未密钥化的 SHA-256 可被小
+// 空间离线枚举,自建核验无比对用途即不落盘;审核 2026-10-18 表一#6);
+// 日志与 trace 禁明文。
 package warden
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -364,14 +364,13 @@ func (w *Warden) writeInvalid(resp http.ResponseWriter, req *http.Request, msg s
 
 // --- core:自建核验逻辑(router.RealNameProvider primary)---
 
-// rnRecord 账号实名记录(指纹比对,不存明文——红线;出生段是脱敏口径
-// 保留的生日信息,供年龄分档,非证件号本身)。
+// rnRecord 账号实名记录(零身份派生数据——红线;出生段是脱敏口径保留的
+// 生日信息,供年龄分档,非证件号本身)。
 type rnRecord struct {
-	fingerprint string // SHA-256(name + "|" + idNumber)
-	state       string // UNVERIFIED/PENDING_REVIEW/VERIFIED/REJECTED
-	isMinor     bool
-	birth       time.Time
-	verifiedAt  time.Time
+	state      string // UNVERIFIED/PENDING_REVIEW/VERIFIED/REJECTED
+	isMinor    bool
+	birth      time.Time
+	verifiedAt time.Time
 }
 
 type playKey struct {
@@ -413,11 +412,10 @@ func (c *core) Verify(accountID string, in router.IdentityInput) (router.VerifyO
 		return router.VerifyOutcome{State: rec.state, IsMinor: rec.isMinor}, nil
 	}
 	c.records[accountID] = &rnRecord{
-		fingerprint: fingerprint(in),
-		state:       stateVerified, // 自建核验:格式合法即库内通过
-		isMinor:     minor,
-		birth:       birth,
-		verifiedAt:  c.clock(),
+		state:      stateVerified, // 自建核验:格式合法即库内通过
+		isMinor:    minor,
+		birth:      birth,
+		verifiedAt: c.clock(),
 	}
 	return router.VerifyOutcome{State: stateVerified, IsMinor: minor}, nil
 }
@@ -535,12 +533,6 @@ func (c *core) limitsFor(age int) (single, monthly int) {
 	default:
 		return l.Single16To18Cents, l.Monthly16To18Cents
 	}
-}
-
-// fingerprint 身份指纹(SHA-256;红线:不存明文)。
-func fingerprint(in router.IdentityInput) string {
-	h := sha256.Sum256([]byte(in.Name + "|" + in.IDNumber))
-	return hex.EncodeToString(h[:])
 }
 
 // parseIDNumber 大陆居民身份证号(18 位):提取出生段;不做 GB 11643 校验位

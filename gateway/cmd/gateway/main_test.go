@@ -370,3 +370,40 @@ func TestGatewayLoginRateLimit(t *testing.T) {
 		t.Fatal("429 应带 Retry-After")
 	}
 }
+
+// TestNewServerTimeouts 审核整改(2026-10-18 表一#3):http.Server 必须显式
+// 读侧超时,慢连接不可无限占用 fd;WriteTimeout 刻意为 0 保 SSE 长写连接。
+func TestNewServerTimeouts(t *testing.T) {
+	srv := newServer("127.0.0.1:0", http.NotFoundHandler())
+	if srv.ReadHeaderTimeout != 10*time.Second {
+		t.Fatalf("ReadHeaderTimeout=%v, 期望 10s", srv.ReadHeaderTimeout)
+	}
+	if srv.ReadTimeout != 60*time.Second {
+		t.Fatalf("ReadTimeout=%v, 期望 60s", srv.ReadTimeout)
+	}
+	if srv.IdleTimeout != 120*time.Second {
+		t.Fatalf("IdleTimeout=%v, 期望 120s", srv.IdleTimeout)
+	}
+	if srv.WriteTimeout != 0 {
+		t.Fatalf("WriteTimeout=%v, 期望 0(SSE 长写不限时)", srv.WriteTimeout)
+	}
+	if srv.Handler == nil {
+		t.Fatal("Handler 必须装配")
+	}
+}
+
+// TestGatewayBodyTooLarge 审核整改(2026-10-18 表一#2):公开 JSON 端点请求体
+// 超过 MaxBody 上限时必须 400 INVALID_ARGUMENT,且报文为 too large 而非
+// 泛化的 invalid JSON(便于监控区分攻击面与接入方笔误)。
+func TestGatewayBodyTooLarge(t *testing.T) {
+	baseURL := startGateway(t)
+
+	huge := `{"deviceId":"` + strings.Repeat("a", 2<<20) + `","platform":"ios"}`
+	status, env, _ := postJSON(t, baseURL, "/v1/identity/guest", huge, "")
+	if status != http.StatusBadRequest {
+		t.Fatalf("超大 body: status=%d, 期望 400", status)
+	}
+	if env.Error == nil || env.Error.Code != "COMMON_INVALID_ARGUMENT" || !strings.Contains(env.Error.Message, "too large") {
+		t.Fatalf("错误信封异常: %+v", env.Error)
+	}
+}

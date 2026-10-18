@@ -6,12 +6,14 @@ package wardenalt
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -382,7 +384,7 @@ func TestS2S_Report_MonthlyAccumulation(t *testing.T) {
 func TestWebhookVerifier_Wire(t *testing.T) {
 	var mu sync.Mutex
 	var gotBody string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b, _ := io.ReadAll(r.Body)
 		mu.Lock()
 		gotBody = string(b)
@@ -392,7 +394,7 @@ func TestWebhookVerifier_Wire(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	v, err := WebhookVerifier{Endpoint: srv.URL}.Verify("acc_9", "张三", "X123")
+	v, err := (WebhookVerifier{Endpoint: srv.URL, Client: insecureClient()}).Verify("acc_9", "张三", "X123")
 	if err != nil || v.State != stateVerified || !v.IsMinor || v.AgeBand != Band8To16 {
 		t.Fatalf("verdict = %+v err=%v", v, err)
 	}
@@ -406,24 +408,77 @@ func TestWebhookVerifier_Wire(t *testing.T) {
 	}
 
 	// 非 2xx = 调用失败。
-	srv500 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv500 := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	defer srv500.Close()
-	if _, err := (WebhookVerifier{Endpoint: srv500.URL}).Verify("a", "n", "i"); err == nil {
+	if _, err := (WebhookVerifier{Endpoint: srv500.URL, Client: insecureClient()}).Verify("a", "n", "i"); err == nil {
 		t.Fatal("webhook 500: want error(进治理熔断)")
 	}
 	// 判定非法 = 调用失败(fail-closed,不落库)。
-	srvBad := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srvBad := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"state":"MAYBE"}`))
 	}))
 	defer srvBad.Close()
-	if _, err := (WebhookVerifier{Endpoint: srvBad.URL}).Verify("a", "n", "i"); err == nil {
+	if _, err := (WebhookVerifier{Endpoint: srvBad.URL, Client: insecureClient()}).Verify("a", "n", "i"); err == nil {
 		t.Fatal("webhook bad verdict: want error")
 	}
-	// 连接失败 = 调用失败。
-	if _, err := (WebhookVerifier{Endpoint: "http://127.0.0.1:1/nope"}).Verify("a", "n", "i"); err == nil {
+	// 连接失败 = 调用失败(端口 1 不存在;HTTPS 形状)。
+	if _, err := (WebhookVerifier{Endpoint: "https://127.0.0.1:1/nope"}).Verify("a", "n", "i"); err == nil {
 		t.Fatal("webhook unreachable: want error")
+	}
+}
+
+// insecureClient 测试专用:信任 httptest 自签证书;生产不适用(传输安全由
+// WebhookVerifier 的 HTTPS-only 策略与系统证书栈承担)。
+func insecureClient() *http.Client {
+	return &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}}
+}
+
+// 红线(审核 2026-10-18 表一#1):明文 HTTP 端点 fail-closed 拒绝,不发起任何请求。
+func TestWebhookVerifier_PlainHTTPRejected(t *testing.T) {
+	_, err := (WebhookVerifier{Endpoint: "http://example.invalid/webhook"}).Verify("a", "n", "i")
+	if err == nil || !strings.Contains(err.Error(), "HTTPS") {
+		t.Fatalf("plain http endpoint: want HTTPS rejection, got %v", err)
+	}
+}
+
+// 红线:https → http 降级重定向 fail-closed(明文目标零请求)。
+func TestWebhookVerifier_DowngradeRedirectBlocked(t *testing.T) {
+	var plainHits int32
+	plain := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt32(&plainHits, 1)
+		_, _ = w.Write([]byte(`{"state":"VERIFIED"}`))
+	}))
+	defer plain.Close()
+	tlsSrv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Location", plain.URL+"/leak")
+		w.WriteHeader(http.StatusFound)
+	}))
+	defer tlsSrv.Close()
+	_, err := (WebhookVerifier{Endpoint: tlsSrv.URL, Client: insecureClient()}).Verify("a", "n", "i")
+	if err == nil || !strings.Contains(err.Error(), "downgrades") {
+		t.Fatalf("downgrade redirect: want error, got %v", err)
+	}
+	if n := atomic.LoadInt32(&plainHits); n != 0 {
+		t.Fatalf("plain target received %d requests, want 0", n)
+	}
+}
+
+// https → https 同协议跳转允许(重定向策略只挡降级与超深)。
+func TestWebhookVerifier_SameSchemeRedirectAllowed(t *testing.T) {
+	tlsSrv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/jump" {
+			w.Header().Set("Location", "/ok")
+			w.WriteHeader(http.StatusFound)
+			return
+		}
+		_, _ = w.Write([]byte(`{"state":"VERIFIED","isMinor":false}`))
+	}))
+	defer tlsSrv.Close()
+	v, err := (WebhookVerifier{Endpoint: tlsSrv.URL + "/jump", Client: insecureClient()}).Verify("a", "n", "i")
+	if err != nil || v.State != stateVerified {
+		t.Fatalf("same-scheme redirect verdict = %+v err=%v", v, err)
 	}
 }
 

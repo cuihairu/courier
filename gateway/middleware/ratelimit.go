@@ -48,6 +48,12 @@ func (l *RateLimiter) Allow(key string) (bool, time.Duration) {
 	if !ok {
 		if len(l.buckets) >= maxBuckets {
 			l.prune(now)
+			// prune 后仍满 = 全桶活跃(如万级 IP 并发持续请求),prune 挡不住
+			// 增长;淘汰最久未活跃的桶保上限(审核 2026-10-18 表一#4)。被
+			// 淘汰者下次请求重建满桶,等效一次短暂重置,换取桶数有界。
+			if len(l.buckets) >= maxBuckets {
+				l.evictOldest()
+			}
 		}
 		b = &bucket{tokens: l.burst, last: now}
 		l.buckets[key] = b
@@ -73,6 +79,22 @@ func (l *RateLimiter) prune(now time.Time) {
 		if now.Sub(b.last) > 10*time.Minute {
 			delete(l.buckets, k)
 		}
+	}
+}
+
+// evictOldest 淘汰最久未活跃的一个桶。仅在桶满且无闲置可清时触发,
+// O(n) 扫描换桶数有界,频率极低。
+func (l *RateLimiter) evictOldest() {
+	var oldestKey string
+	var oldest time.Time
+	first := true
+	for k, b := range l.buckets {
+		if first || b.last.Before(oldest) {
+			oldestKey, oldest, first = k, b.last, false
+		}
+	}
+	if !first {
+		delete(l.buckets, oldestKey)
 	}
 }
 

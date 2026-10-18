@@ -142,7 +142,7 @@ gateway/
 
 > 诊断不经网关:契约红线(diagnostics.md)规定诊断数据直发接入方自有端点,网关无 DiagnosticsProvider。
 
-- 未配置的 Provider:对应路由不注册,客户端得到 `COMMON_CAPABILITY_DISABLED`(见 [contract/errors.md](./contract/errors.md))。
+- 未配置的 Provider:路由照常注册(`/v1/<能力域>/` 前缀全挂载),请求时网关以 501 降级信封返回 `COMMON_CAPABILITY_DISABLED`(见 [contract/errors.md](./contract/errors.md))——客户端以此探测能力开关,而非得到 404。
 - `accounts` / `announcements` 这类名字不得作为 gateway 一级业务目录出现——它们是 Provider 的默认实现,住在 `providers/` 下。
 
 ## Provider 治理:热插拔 / 降级链 / 熔断
@@ -173,7 +173,7 @@ gateway/
 
 ### Courier.App(M3)
 
-- `GetVersion / CheckUpdate / CheckMaintenance / GetEnvironment`。
+- `CheckUpdate / CheckMaintenance / GetEnvironment`(Unity 门面 `CheckUpdateAsync` / `CheckMaintenanceAsync` / `GetEnvironmentAsync`,对应 `GET /v1/app/version|maintenance|environment` 三个端点;无独立 GetVersion 门面)。
 - 典型启动序列:Game Start → Initialize → CheckMaintenance → CheckVersion → Auth → Player → Game。
 
 ### Branding(M3)
@@ -235,7 +235,7 @@ CourierClient(门面)
 - 每端 = 平台无关 Core(DTO、生命周期状态机、token 存储、重试)+ 平台 binding(Unity UPM / UE 插件 / Cocos TS / 微信小程序 / Layabox / Godot——项目形态已落位,插件化打包随引擎集成面)。
 - **Adapter 禁带业务**:Adapter 只做「网络、存储、生命周期、线程」的平台翻译;任何业务语义出现即架构违规(上移 Core 或 Service)。
 - 公共 DTO 以 [contract/](./contract/index.md) 为唯一事实源,多端生成或手写对齐,禁止各自发明字段。
-- token 存储走平台安全存储(Unity 加密存储 / UE 平台凭证 / Cocos localStorage 隔离 / 微信 storage / Layabox LocalStorage / Godot user:// 持久文件)。
+- token 存储接口统一(`ITokenStore` / `TokenStore`),按端落地:Unity 加密存储、微信 storage(miniprogram `platform/wechat`)、Layabox LocalStorage、Godot `user://` 持久文件已实现;UE 平台凭证与 Cocos localStorage 未落仓——仓内默认 `MemoryTokenStore`(进程结束即失效),持久适配随引擎/接入面提供(详见 [layers.md](./layers.md))。
 
 ## 安全边界
 

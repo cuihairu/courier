@@ -2,7 +2,8 @@
 // 托管核验形状——判定全部来自注入的核验服务(CloudVerifier:接入方对接
 // 阿里云/腾讯云慧眼/易盾/自有 Webhook 的适配,契约「自定义 Webhook」行),
 // 本包不解析证件号(连出生段都不提取)、不存指纹(本地只留判定结果),与
-// warden(自建核验:本地格式判定恒 VERIFIED + SHA-256 指纹落库)同契约异构:
+// warden(自建核验:本地格式判定,零身份派生数据落库——指纹已移除,审核
+// 2026-10-18 表一#6)同契约异构:
 // 自建恒通过 vs 托管可 REJECTED/PENDING_REVIEW,是可观察的 wire 差异面。
 //
 // 一致性证明:e2e/realname_conformance_test.go——两实现同一 wire 场景同断言
@@ -13,7 +14,8 @@
 // 治理引擎);未配核验服务 = fail-closed(HealthCheck 不过,不进路由)。
 //
 // 红线(realname.md「字段脱敏与数据红线」):姓名/证件号只在调用栈内存活并
-// 仅透传给核验服务;本地持久化零身份派生数据(比 warden 的指纹口径更小);
+// 仅透传给核验服务;本地持久化零身份派生数据(与 warden 同口径;本实现
+// 连出生段都不落地,口径更小);
 // 日志与 trace 禁明文——错误信息不含输入原文。
 package wardenalt
 
@@ -24,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -76,24 +79,50 @@ func (f VerifierFunc) Verify(accountID, name, idNumber string) (Verdict, error) 
 // POST JSON {accountId,name,idNumber} 到接入方核验服务,2xx 响应体即 Verdict;
 // 非 2xx / 非法判定 = 调用失败(进治理熔断,fallback 接管)。
 type WebhookVerifier struct {
-	// Endpoint 接入方核验服务 URL(HTTPS,契约传输红线)。
+	// Endpoint 接入方核验服务 URL(必须 HTTPS——realname.md 传输红线;
+	// 调用时 fail-closed 校验,明文地址直接拒绝,不发任何请求)。
 	Endpoint string
 	// Client HTTP 客户端;nil = 缺省 5s 超时(核验调用必须有界,不拖垮降级链)。
+	// 提供时重定向策略仍被 HTTPS-only 覆盖(红线不受注入 Client 影响)。
 	Client *http.Client
+}
+
+// httpsOnly 重定向策略:每一跳必须保持 https,降级重定向 fail-closed
+// (审核 2026-10-18 表一#1:姓名/证件号绝不经明文跳转外泄)。
+func httpsOnly(req *http.Request, via []*http.Request) error {
+	if req.URL.Scheme != "https" {
+		return fmt.Errorf("wardenalt: webhook redirect downgrades to %q (HTTPS-only)", req.URL.Scheme)
+	}
+	if len(via) >= 3 {
+		return fmt.Errorf("wardenalt: webhook too many redirects")
+	}
+	return nil
+}
+
+// webhookClient 归一 HTTP 客户端:注入 Client 只保留其传输面(超时/Transport),
+// 重定向策略恒为 httpsOnly。
+func webhookClient(c *http.Client) *http.Client {
+	if c == nil {
+		return &http.Client{Timeout: 5 * time.Second, CheckRedirect: httpsOnly}
+	}
+	cc := *c // 浅拷贝:Transport/Jar 只读共享,不触碰原 Client
+	cc.CheckRedirect = httpsOnly
+	return &cc
 }
 
 // Verify 实现 CloudVerifier。
 func (w WebhookVerifier) Verify(accountID, name, idNumber string) (Verdict, error) {
+	if u, err := url.Parse(w.Endpoint); err != nil || u.Scheme != "https" || u.Host == "" {
+		return Verdict{}, fmt.Errorf(
+			"wardenalt: webhook endpoint must be HTTPS (realname.md 传输红线): got %q", w.Endpoint)
+	}
 	body, err := json.Marshal(map[string]string{
 		"accountId": accountID, "name": name, "idNumber": idNumber,
 	})
 	if err != nil {
 		return Verdict{}, err
 	}
-	client := w.Client
-	if client == nil {
-		client = &http.Client{Timeout: 5 * time.Second}
-	}
+	client := webhookClient(w.Client)
 	resp, err := client.Post(w.Endpoint, "application/json", bytes.NewReader(body))
 	if err != nil {
 		return Verdict{}, err
@@ -448,7 +477,7 @@ func (p *Provider) writeInvalid(resp http.ResponseWriter, req *http.Request, msg
 // --- cloudCore:托管核验(router.RealNameProvider primary)---
 
 // bandRecord 判定记录:只存服务判定结果(state/isMinor/年龄段),零身份派生
-// 数据——与 warden 的指纹口径互为异构面(本实现连出生段都不落地)。
+// 数据(本实现连出生段都不落地,与 warden 的零派生口径互为异构面)。
 type bandRecord struct {
 	state      string
 	isMinor    bool

@@ -508,3 +508,37 @@ func TestCreateOrderInvalidBody(t *testing.T) {
 		}
 	}
 }
+
+// TestCreateOrder_UniqueOrderIDs 审核整改(2026-10-18 表一#5):订单 ID 为
+// UUIDv7(契约 payment.md),同毫秒连续下单不碰撞、不覆盖已有订单。
+func TestCreateOrder_UniqueOrderIDs(t *testing.T) {
+	p, acc := harness(t, "s3cret", nil, nil)
+	seedSkus(p)
+	seen := make(map[string]bool)
+	for i := 0; i < 50; i++ {
+		env, rec := createOrder(t, p, acc, "sku_gem_60")
+		if rec.Code != http.StatusOK || env.Error != nil {
+			t.Fatalf("第 %d 单: status=%d body=%s", i, rec.Code, rec.Body.String())
+		}
+		var got struct {
+			ID string `json:"id"`
+		}
+		if err := json.Unmarshal(env.Data, &got); err != nil || got.ID == "" {
+			t.Fatalf("解析订单 id 失败: %v data=%s", err, env.Data)
+		}
+		u := strings.TrimPrefix(got.ID, "order_")
+		if len(u) != 36 || strings.Count(u, "-") != 4 || u[14] != '7' {
+			t.Fatalf("订单 id 非 UUIDv7 形状: %q", got.ID)
+		}
+		if seen[got.ID] {
+			t.Fatalf("订单 id 重复(碰撞): %q", got.ID)
+		}
+		seen[got.ID] = true
+	}
+	p.mu.Lock()
+	n := len(p.orders)
+	p.mu.Unlock()
+	if n != 50 {
+		t.Fatalf("订单落库 %d 条, 期望 50(碰撞不得覆盖)", n)
+	}
+}

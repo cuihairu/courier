@@ -292,11 +292,17 @@ func (p *AccountProvider) writeStoreError(w http.ResponseWriter, r *http.Request
 }
 
 // decode 严格只校验类型,容忍未知字段(契约 versioning:未知字段必须容忍)。
+// 超过 MaxBody 上限的请求体(MaxBytesReader 触发 *http.MaxBytesError)与
+// JSON 语法错误分开报,便于监控区分攻击面与接入方笔误。
 func decode[T any](w http.ResponseWriter, r *http.Request) (T, bool) {
 	var req T
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		aggregation.WriteError(w, middleware.TraceID(r.Context()), aggregation.CodeInvalidArgument,
-			"invalid JSON body")
+		var tooLarge *http.MaxBytesError
+		msg := "invalid JSON body"
+		if errors.As(err, &tooLarge) {
+			msg = "request body too large"
+		}
+		aggregation.WriteError(w, middleware.TraceID(r.Context()), aggregation.CodeInvalidArgument, msg)
 		return req, false
 	}
 	return req, true

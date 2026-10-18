@@ -304,7 +304,6 @@ func (p *PaymentsProvider) handleCreateOrder(w http.ResponseWriter, r *http.Requ
 
 	now := p.clock()
 	o := &orderRecord{
-		ID:        "order_" + newOrderID(now, id.AccountID, req.SkuID),
 		Owner:     id.AccountID,
 		Status:    StatusCreated,
 		Sku:       sku,
@@ -313,6 +312,9 @@ func (p *PaymentsProvider) handleCreateOrder(w http.ResponseWriter, r *http.Requ
 		PayToken:  "sbox_" + hexfnv(now, id.AccountID+"|"+req.SkuID),
 	}
 	p.mu.Lock()
+	// ID 在锁内生成并查重,与落库原子(审核 2026-10-18 表一#5:旧 hexfnv 16 hex
+	// 碰撞会覆盖已有订单;UUIDv7 + 查重后不可能覆盖)。
+	o.ID = p.nextOrderID(now)
 	p.orders[o.ID] = o
 	p.byOwner[o.Owner] = append(p.byOwner[o.Owner], o.ID)
 	p.mu.Unlock()
@@ -456,8 +458,17 @@ func hexfnv(t time.Time, seed string) string {
 	})
 }
 
-func newOrderID(t time.Time, owner, skuID string) string {
-	return hexfnv(t, owner+"|"+skuID)[:16]
+// nextOrderID 生成未被占用的订单号(UUIDv7,契约 payment.md「订单 ID」;
+// 审核整改 2026-10-18 表一#5)。须持 p.mu 调用;重试只作兜底,UUIDv7 的
+// 74 位随机下碰撞概率可忽略。
+func (p *PaymentsProvider) nextOrderID(t time.Time) string {
+	for i := 0; i < 5; i++ {
+		id := "order_" + newUUIDv7(t)
+		if _, exists := p.orders[id]; !exists {
+			return id
+		}
+	}
+	return "order_" + newUUIDv7(t.Add(time.Millisecond)) // 理论不可达;绝不覆盖
 }
 
 // ---- wire DTO(契约数据模型,camelCase;缺省边界输出 null/不下发) ----

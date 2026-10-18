@@ -654,44 +654,47 @@ func TestProjectionEquivalenceWithTeller(t *testing.T) {
 	tp.AddSku("sku_gem_60", "com.demo.gem60", "DIRECT_PURCHASE", 600, "CNY")
 	ap.AddSku("sku_gem_60", "com.demo.gem60", "DIRECT_PURCHASE", 600, "CNY")
 
-	// 步骤 1:下单——同一 clock 下两实现应产出同一 ID/token/快照。
+	// 步骤 1:下单——同一 clock 下 token/时间/状态等状态字段必须逐字段一致;
+	// 订单 ID 是 UUIDv7 随机位(审核 2026-10-18 表一#5),两实例各自生成,
+	// 等价证明比对去 id 快照(比的是投影语义,不是随机标识)。
 	idT, idA := createVia(t, tp), createVia(t, ap)
-	if idT != idA {
-		t.Fatalf("订单 ID 分叉: teller=%s alt=%s", idT, idA)
-	}
-	assertSnapEq(t, "after-create", getOrder(t, tp, idT), getOrder(t, ap, idA))
+	assertSnapEq(t, "after-create", snapWOD(t, tp, idT), snapWOD(t, ap, idA))
 
-	// 步骤 2:签名回调(发货成功)→ DELIVERED。
-	body := `{"orderId":"` + idT + `","paidAt":"2026-10-09T12:00:30Z"}`
-	hdr := map[string]string{"X-Payment-Signature": sign("s3cret", []byte(body))}
-	for _, pr := range []interface {
-		ServeHTTP(http.ResponseWriter, *http.Request)
-	}{tp, ap} {
+	// 步骤 2:签名回调(发货成功)→ DELIVERED。回调体带各自订单 ID。
+	for _, pair := range []struct {
+		pr interface {
+			ServeHTTP(http.ResponseWriter, *http.Request)
+		}
+		id string
+	}{{tp, idT}, {ap, idA}} {
+		body := `{"orderId":"` + pair.id + `","paidAt":"2026-10-09T12:00:30Z"}`
 		rec := httptest.NewRecorder()
 		req, _ := http.NewRequest(http.MethodPost, "/v1/payments/callback", strings.NewReader(body))
-		for k, v := range hdr {
-			req.Header.Set(k, v)
-		}
-		pr.ServeHTTP(rec, req)
+		req.Header.Set("X-Payment-Signature", sign("s3cret", []byte(body)))
+		pair.pr.ServeHTTP(rec, req)
 		if rec.Code != 200 {
 			t.Fatalf("回调 = %d %s", rec.Code, rec.Body.String())
 		}
 	}
-	assertSnapEq(t, "after-callback", getOrder(t, tp, idT), getOrder(t, ap, idA))
+	assertSnapEq(t, "after-callback", snapWOD(t, tp, idT), snapWOD(t, ap, idA))
 
 	// 步骤 3:重复回调(幂等)——快照不变、不二次发货由各自单测承载,此处比快照。
-	for _, pr := range []interface {
-		ServeHTTP(http.ResponseWriter, *http.Request)
-	}{tp, ap} {
+	for _, pair := range []struct {
+		pr interface {
+			ServeHTTP(http.ResponseWriter, *http.Request)
+		}
+		id string
+	}{{tp, idT}, {ap, idA}} {
+		body := `{"orderId":"` + pair.id + `","paidAt":"2026-10-09T12:00:30Z"}`
 		rec := httptest.NewRecorder()
 		req, _ := http.NewRequest(http.MethodPost, "/v1/payments/callback", strings.NewReader(body))
 		req.Header.Set("X-Payment-Signature", sign("s3cret", []byte(body)))
-		pr.ServeHTTP(rec, req)
+		pair.pr.ServeHTTP(rec, req)
 		if rec.Code != 200 {
 			t.Fatalf("重复回调 = %d", rec.Code)
 		}
 	}
-	assertSnapEq(t, "after-replay", getOrder(t, tp, idT), getOrder(t, ap, idA))
+	assertSnapEq(t, "after-replay", snapWOD(t, tp, idT), snapWOD(t, ap, idA))
 
 	// 步骤 4:断单链路(独立实现对)——deliver 挂→停 PAID→对账恢复。
 	failT := true
@@ -711,29 +714,29 @@ func TestProjectionEquivalenceWithTeller(t *testing.T) {
 	tp2.AddSku("sku_gem_60", "com.demo.gem60", "DIRECT_PURCHASE", 600, "CNY")
 	ap2.AddSku("sku_gem_60", "com.demo.gem60", "DIRECT_PURCHASE", 600, "CNY")
 	idT2, idA2 := createVia(t, tp2), createVia(t, ap2)
-	body2 := `{"orderId":"` + idT2 + `"}`
-	hdr2 := map[string]string{"X-Payment-Signature": sign("s3cret", []byte(body2))}
-	for _, pr := range []interface {
-		ServeHTTP(http.ResponseWriter, *http.Request)
-	}{tp2, ap2} {
+	for _, pair := range []struct {
+		pr interface {
+			ServeHTTP(http.ResponseWriter, *http.Request)
+		}
+		id string
+	}{{tp2, idT2}, {ap2, idA2}} {
+		body2 := `{"orderId":"` + pair.id + `"}`
 		rec := httptest.NewRecorder()
 		req, _ := http.NewRequest(http.MethodPost, "/v1/payments/callback", strings.NewReader(body2))
-		for k, v := range hdr2 {
-			req.Header.Set(k, v)
-		}
-		pr.ServeHTTP(rec, req)
+		req.Header.Set("X-Payment-Signature", sign("s3cret", []byte(body2)))
+		pair.pr.ServeHTTP(rec, req)
 		if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"status":"PAID"`) {
 			t.Fatalf("断单回调 = %d %s", rec.Code, rec.Body.String())
 		}
 	}
-	assertSnapEq(t, "stuck-paid", getOrder(t, tp2, idT2), getOrder(t, ap2, idA2))
+	assertSnapEq(t, "stuck-paid", snapWOD(t, tp2, idT2), snapWOD(t, ap2, idA2))
 	failT, failA = false, false
 	atT, deT := tp2.Reconcile()
 	atA, deA := ap2.Reconcile()
 	if atT != atA || deT != deA {
 		t.Fatalf("对账计数分叉: teller=(%d,%d) alt=(%d,%d)", atT, deT, atA, deA)
 	}
-	assertSnapEq(t, "recovered", getOrder(t, tp2, idT2), getOrder(t, ap2, idA2))
+	assertSnapEq(t, "recovered", snapWOD(t, tp2, idT2), snapWOD(t, ap2, idA2))
 
 	// 步骤 5:关单(独立 CREATED 单)→ CLOSED,快照同。
 	tp3, ap3 := newTeller(okDeliverT), newAlt(okDeliverA)
@@ -746,7 +749,18 @@ func TestProjectionEquivalenceWithTeller(t *testing.T) {
 	if err := ap3.CloseOrder(idA3); err != nil {
 		t.Fatalf("teller-alt 关单: %v", err)
 	}
-	assertSnapEq(t, "closed", getOrder(t, tp3, idT3), getOrder(t, ap3, idA3))
+	assertSnapEq(t, "closed", snapWOD(t, tp3, idT3), snapWOD(t, ap3, idA3))
+}
+
+// snapWOD 取详情快照并去掉 id 字段:订单 ID 是 UUIDv7 随机位(审核
+// 2026-10-18 表一#5),两实现实例各自生成;等价证明比对状态语义。
+func snapWOD(t *testing.T, p interface {
+	ServeHTTP(http.ResponseWriter, *http.Request)
+}, id string) map[string]any {
+	t.Helper()
+	m := getOrder(t, p, id)
+	delete(m, "id")
+	return m
 }
 
 // createVia 经 wire 下单返回订单 ID(两实现调用形状一致)。
@@ -812,5 +826,39 @@ func TestCreateOrderInvalidBody(t *testing.T) {
 		if rec.Code != http.StatusBadRequest {
 			t.Fatalf("body %q: %d, want 400", body, rec.Code)
 		}
+	}
+}
+
+// TestCreateOrder_UniqueOrderIDs 审核整改(2026-10-18 表一#5):订单 ID 为
+// UUIDv7(契约 payment.md),同毫秒连续下单不碰撞、不覆盖已有订单。
+func TestCreateOrder_UniqueOrderIDs(t *testing.T) {
+	p, acc := harness(t, "s3cret", nil, nil)
+	seedSkus(p)
+	seen := make(map[string]bool)
+	for i := 0; i < 50; i++ {
+		env, rec := createOrder(t, p, acc, "sku_gem_60")
+		if rec.Code != http.StatusOK || env.Error != nil {
+			t.Fatalf("第 %d 单: status=%d body=%s", i, rec.Code, rec.Body.String())
+		}
+		var got struct {
+			ID string `json:"id"`
+		}
+		if err := json.Unmarshal(env.Data, &got); err != nil || got.ID == "" {
+			t.Fatalf("解析订单 id 失败: %v data=%s", err, env.Data)
+		}
+		u := strings.TrimPrefix(got.ID, "order_")
+		if len(u) != 36 || strings.Count(u, "-") != 4 || u[14] != '7' {
+			t.Fatalf("订单 id 非 UUIDv7 形状: %q", got.ID)
+		}
+		if seen[got.ID] {
+			t.Fatalf("订单 id 重复(碰撞): %q", got.ID)
+		}
+		seen[got.ID] = true
+	}
+	p.mu.Lock()
+	n := len(p.orders)
+	p.mu.Unlock()
+	if n != 50 {
+		t.Fatalf("订单落库 %d 条, 期望 50(碰撞不得覆盖)", n)
 	}
 }

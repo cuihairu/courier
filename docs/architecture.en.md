@@ -142,7 +142,7 @@ gateway/
 
 > Diagnostics bypasses the gateway: the contract red line (diagnostics.md) requires diagnostics data to be sent directly to the integrator's own endpoints; the gateway has no DiagnosticsProvider.
 
-- Unconfigured Providers: the corresponding routes are not registered, and the client gets `COMMON_CAPABILITY_DISABLED` (see [contract/errors.md](./contract/errors.en.md)).
+- Unconfigured Providers: routes are still registered (all `/v1/<capability>/` prefixes mount); a request returns a 501 degradation envelope with `COMMON_CAPABILITY_DISABLED` (see [contract/errors.md](./contract/errors.en.md)) — clients probe capability switches this way instead of getting a 404.
 - Names like `accounts` / `announcements` must never appear as first-class business directories in the gateway — they are the default implementations of Providers and live under `providers/`.
 
 ## Provider Governance: Hot-Swap / Degradation Chain / Circuit Breaker
@@ -173,7 +173,7 @@ Replaceable interfaces ≠ migratable data; each of the three sensitive domains 
 
 ### Courier.App (M3)
 
-- `GetVersion / CheckUpdate / CheckMaintenance / GetEnvironment`.
+- `CheckUpdate / CheckMaintenance / GetEnvironment` (Unity facade `CheckUpdateAsync` / `CheckMaintenanceAsync` / `GetEnvironmentAsync`, mapped to the `GET /v1/app/version|maintenance|environment` endpoints; no separate GetVersion facade).
 - Typical startup sequence: Game Start → Initialize → CheckMaintenance → CheckVersion → Auth → Player → Game.
 
 ### Branding (M3)
@@ -235,7 +235,7 @@ CourierClient (facade)
 - Each platform = a platform-agnostic Core (DTOs, lifecycle state machine, token storage, retry) + a platform binding (Unity UPM / UE plugin / Cocos TS / WeChat Mini Program / Layabox / Godot — project shapes are in place; plugin-packaged builds follow the engine-integration surface).
 - **Adapters must carry no business logic**: an Adapter only translates "network, storage, lifecycle, threading" for the platform; any business semantics appearing there is an architecture violation (move it up into Core or Service).
 - Public DTOs take [contract/](./contract/index.en.md) as the single source of truth, generated or hand-aligned per platform; inventing fields per platform is forbidden.
-- Token storage uses platform secure storage (Unity encrypted storage / UE platform credentials / Cocos isolated localStorage / WeChat storage / Layabox LocalStorage / Godot user:// persistent files).
+- Token storage keeps a unified interface (`ITokenStore` / `TokenStore`) landed per platform: Unity encrypted storage, WeChat storage (miniprogram `platform/wechat`), Layabox LocalStorage, and Godot `user://` persistent files are implemented; UE platform credentials and Cocos localStorage are not in-repo yet — the in-repo default is `MemoryTokenStore` (lost on process exit), with persistent adapters following the engine/integration surface (see [layers.md](./layers.en.md)).
 
 ## Security Boundaries
 

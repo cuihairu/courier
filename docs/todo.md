@@ -17,6 +17,11 @@
 ## 待议(边界未定,不立项)
 
 - [ ] F62 邮件/礼包码:与消息面相邻,按需优先评估(features.md §10 定性「值得优先评估」,需运营侧实际需求触发);卡点类型=等运营需求;解锁条件=运营侧实际需求触发、按评估草图冻结立项;FW1016D 已代决(评估):评估完成(research/mail-cdk-evaluation.md)——契约面同构度高、按草图低成本可立;运营需求未触发维持不立项,解锁条件不变
+- [ ] F77 支付订单持久化与重启恢复(2026-10-18 审核表三评估,只评估不立项):现状订单全进程内存(teller/telleralt `orders` map),重启 = 未完结订单丢失、回调来单 404;payment.md 未把重启恢复写进契约,属实现方部署语义。分期建议:一期进程退出/定期快照 + 启动重放(零外部依赖);二期按接入方存储形态注入 Options Store 接缝——需用户拍板(涉部署形态选型)
+- [ ] F78 Provider 配置热重载管理入口(2026-10-18 审核表三评估,只评估不立项):治理引擎已备(router.Reload 进程内接缝,实名域在用;architecture.md「管理面重载端点未实现,main.go 启动读一次 COURIER_GATEWAY_CONFIG」)。分期建议:一期 SIGHUP/文件 watch 重载(零新攻击面);二期管理端点(前置=管理面鉴权契约)——需用户拍板
+- [ ] F79 多实例共享限流(2026-10-18 审核表三评估,只评估不立项):middleware/ratelimit.go 进程内令牌桶,多实例下全局阈值=实例数×单机阈值、`RATE_LIMITED` 语义失真;单实例部署无影响。建议:接入方有 Redis/LB 限流优先用接入方设施;仓内做共享限流=引入外部依赖,架构方向需用户拍板
+- [ ] F80 UE/Cocos 持久化令牌存储适配器(2026-10-18 审核表三评估,只评估不立项):layers.md 已注「UE 平台凭证与 Cocos localStorage 未落仓,仓内仅 MemoryTokenStore」,现状=进程结束会话失效;接入方可自实现 TokenStore 接缝补齐。建议随引擎集成面(UE HttpModule 后续)一并落位,不单独提前做
+- 审核表三另两项已有归属,不另开:F31(consent 端到端,未完成节,卡点=等开工拍板)、F33(审计可靠交付/保留/查询,未完成节,卡点=等接入方存储形态)——未重开已裁决条目
 
 ## Provider 口径(能力归 Provider,不进核心契约)
 
@@ -138,3 +143,4 @@ F13 云存档/进度同步——player.md:5,11 红线「进度不经 Courier,角
 - [x] 批次 92 docs 根目录双语配对(8 篇中文文档英文版 + 双向切换器;README.md 中文正文红线修复——「本地测试口径」节译英) | eef3c95 | docs:build 绿(16 页)
 - [x] 批次 93 docs 子目录双语配对(contract 20 篇 + research 5 篇英文版;双语切换器 50 文件全覆盖;英文页互链改指 .en.md;代码围栏/JSON 样例数据/SQL 注释按判据原样保留) | 2f59807 | docs:build 绿(66 页) + go test -race ./tools/... 绿(errors.md 为 contractgen 测试输入,实证无漂移)
 - [x] 批次 94 F31 契约面代决立项:consent 组按草案冻结为 realname v1.1(realname.md 新增「同意管理」节,只加不改、零新增错误码;errors.md 与 fixtures 未动;实现面登记为新待办行) | f7a14a0 | docs-only:中英 8 文件同步改;本地无 node_modules,docs:build 由 CI Deploy Docs 兜底,仓内链接完整性检查绿
+- [x] 批次 95 2026-10-18 独立审核整改:表一 6 缺陷全修(#1 webhook 强制 HTTPS+重定向 fail-closed;#2 请求体 1MiB 上限中间件+decode MaxBytesError 分流;#3 http.Server 显式读侧超时、写 0 保 SSE;#4 限流桶上限加最久未活跃淘汰;#5 订单 ID hexfnv→UUIDv7+锁内查重防碰撞覆盖,等价测试改去 id 比对;#6 删除 warden 无比对用途 SHA-256 指纹);表二 5 项全消(2 项被 #5/#1 消解,3 项以代码为准改 architecture.md/en——未配置 Provider=全挂载 501 降级、token 存储四端落地 UE/Cocos 内存态、App 门面无 GetVersion);表三 6 项只评估不实现(F77–F80 新登记待议节,F31/F33 已有归属) | PENDING | cd gateway && go test -race ./... 30 包全绿 + middleware/cmd/teller/telleralt/warden/wardenalt 新测试 8 例 + docs:build 绿

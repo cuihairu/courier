@@ -2,11 +2,13 @@ package middleware
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -205,5 +207,73 @@ func TestPruneRemovesIdleBuckets(t *testing.T) {
 	l2.mu.Unlock()
 	if ok, retry := l2.Allow("new"); !ok || retry != 0 {
 		t.Fatalf("满表 Allow = ok=%v retry=%v, want true/0", ok, retry)
+	}
+}
+
+func TestMaxBody(t *testing.T) {
+	h := MaxBody(16)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, err := io.ReadAll(r.Body)
+		if err != nil {
+			var tooLarge *http.MaxBytesError
+			w.WriteHeader(http.StatusBadRequest)
+			if errors.As(err, &tooLarge) {
+				_, _ = w.Write([]byte("request body too large"))
+			} else {
+				_, _ = w.Write([]byte(err.Error()))
+			}
+			return
+		}
+		_, _ = w.Write(b)
+	}))
+	// 超限:读取时报 *http.MaxBytesError,业务侧得以及时 400
+	r := httptest.NewRequest(http.MethodPost, "/v1/x", strings.NewReader(strings.Repeat("x", 64)))
+	out := do(t, h, r)
+	if out.status != http.StatusBadRequest || !strings.Contains(string(out.body), "too large") {
+		t.Fatalf("超限 body: status=%d body=%q, 期望 400 too large", out.status, out.body)
+	}
+	// 未超限原样放行
+	r2 := httptest.NewRequest(http.MethodPost, "/v1/x", strings.NewReader("ok"))
+	out2 := do(t, h, r2)
+	if out2.status != http.StatusOK || string(out2.body) != "ok" {
+		t.Fatalf("合法 body: status=%d body=%q", out2.status, out2.body)
+	}
+	// GET 无 body 零影响
+	out3 := do(t, h, httptest.NewRequest(http.MethodGet, "/v1/x", nil))
+	if out3.status != http.StatusOK {
+		t.Fatalf("GET: status=%d body=%q", out3.status, out3.body)
+	}
+	// limit<=0 = 不限制
+	h0 := MaxBody(0)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		_, _ = w.Write(b)
+	}))
+	out4 := do(t, h0, httptest.NewRequest(http.MethodPost, "/v1/x", strings.NewReader(strings.Repeat("x", 64))))
+	if out4.status != http.StatusOK || len(out4.body) != 64 {
+		t.Fatalf("limit=0 应不限制: status=%d len=%d", out4.status, len(out4.body))
+	}
+}
+
+// TestRateLimiterBoundedBuckets 审核整改(2026-10-18 表一#4):全活跃桶持续
+// 新增时,桶数必须封顶(prune 清不掉活跃桶 → 淘汰最久未活跃者)。
+func TestRateLimiterBoundedBuckets(t *testing.T) {
+	l := NewRateLimiter(1_000_000, 10)
+	for i := 0; i < maxBuckets+200; i++ {
+		l.Allow(fmt.Sprintf("10.%d.%d.%d", i>>16&0xff, i>>8&0xff, i&0xff))
+	}
+	l.mu.Lock()
+	n := len(l.buckets)
+	l.mu.Unlock()
+	if n != maxBuckets {
+		t.Fatalf("桶数 %d, 期望封顶 %d", n, maxBuckets)
+	}
+	// 再来一波,上限依然成立(淘汰可持续)
+	for i := 0; i < 500; i++ {
+		l.Allow(fmt.Sprintf("11.%d.%d.%d", i>>8&0xff, i&0xff, i%251))
+	}
+	l.mu.Lock()
+	n = len(l.buckets)
+	l.mu.Unlock()
+	if n != maxBuckets {
+		t.Fatalf("二次压入后桶数 %d, 期望封顶 %d", n, maxBuckets)
 	}
 }
