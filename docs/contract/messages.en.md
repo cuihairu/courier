@@ -64,6 +64,12 @@ M5 v1.1 additions (payment domain; broadcast hints carrying no business fields â
 | `payment.paid` | `{ "orderId": "order_..." }` ([payment.md](./payment.en.md)) | A channel callback is accepted and the order moves to `PAID` |
 | `payment.delivered` | `{ "orderId": "order_..." }` | The order moves to `DELIVERED` (including re-sends on reconciliation recovery) |
 
+realname v1.1 additions (frozen 2026-10-18, **not implemented**, implementation surface F31; reuses this channel, same pattern as `config.updated` â€” minimal field + client re-pull; no sensitive data such as birth dates enters events, per the realname data red lines):
+
+| event | data | Trigger |
+| --- | --- | --- |
+| `realname.consent.updated` | same pattern as `config.updated` (minimal field, client re-pulls; [realname.md](./realname.en.md) consent section) | Consent status changed |
+
 New events are registered here as their domain contracts freeze; a `type` does not change once frozen, and a deprecated event is stopped by the server while its type is retained.
 
 ## Semantic Rules

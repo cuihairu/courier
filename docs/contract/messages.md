@@ -64,6 +64,12 @@ M5 v1.1 追加(payment 域;广播提示,不含业务字段——金额/SKU 归�
 | `payment.paid` | `{ "orderId": "order_..." }`([payment.md](./payment.md)) | 渠道回调受理,订单转 `PAID` |
 | `payment.delivered` | `{ "orderId": "order_..." }` | 订单转 `DELIVERED`(含对账恢复重发) |
 
+realname v1.1 追加(2026-10-18 冻结,**未实现**,实现面 F31;复用本通道,同 `config.updated` 模式——最小字段 + 客户端重拉;出生日期等敏感数据不进事件,同 realname 数据红线):
+
+| event | data | 触发 |
+| --- | --- | --- |
+| `realname.consent.updated` | 同 `config.updated` 模式(最小字段,客户端重拉;[realname.md](./realname.md) consent 节) | 同意状态变化 |
+
 新事件随域契约冻结在此登记;`type` 冻结后不改,废弃事件服务端停发、类型保留。
 
 ## 语义规则
