@@ -23,8 +23,11 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -70,6 +73,12 @@ type Options struct {
 	// Notify 推送钩子(v1.1 推送事件:payment.paid / payment.delivered,接 chirp.Hub)。
 	// 载荷只含 orderId(广播提示,业务字段归拉取端点);nil = 不推送。
 	Notify func(eventType string, data any)
+	// StateFile 订单状态快照路径(可选,空 = 纯内存态,与历史行为一致)。
+	// 设置后:每次订单状态变更原子写全量快照(临时文件 + rename),构造时文件
+	// 存在即回放——重启不再丢未完结订单(审核 2026-10-18 表三 F77 一期,
+	// 零外部依赖;二期改 Options Store 接缝)。快照损坏 → HealthCheck
+	// fail-closed,不静默从空态启动丢单。SKU 价格表不快照:管理面启动时登记。
+	StateFile string
 }
 
 // 推送事件 type(契约 payment.md v1.1「推送事件」;events.md 登记)。
@@ -124,6 +133,9 @@ type PaymentsProvider struct {
 	skuSeq  []string             // 登记序(列表投影序)
 	orders  map[string]*orderRecord
 	byOwner map[string][]string // accountID → 登记序 orderIDs
+
+	stateFile string // StateFile 快照路径(空 = 纯内存)
+	stateErr  error  // 快照回放/写入失败(HealthCheck fail-closed,不静默丢单)
 }
 
 // New 构造支付 Provider。
@@ -147,7 +159,7 @@ func New(opts Options) *PaymentsProvider {
 	if opts.Notify == nil {
 		opts.Notify = func(string, any) {} // 默认 no-op:未接通道 = 不推送(拉取兜底)
 	}
-	return &PaymentsProvider{
+	p := &PaymentsProvider{
 		name:          opts.Name,
 		clock:         opts.Clock,
 		auth:          authMW,
@@ -155,9 +167,90 @@ func New(opts Options) *PaymentsProvider {
 		deliver:       opts.Deliver,
 		riskCheck:     opts.RiskCheck,
 		notify:        opts.Notify,
+		stateFile:     opts.StateFile,
 		skus:          make(map[string]skuRecord),
 		orders:        make(map[string]*orderRecord),
 		byOwner:       make(map[string][]string),
+	}
+	p.loadState()
+	return p
+}
+
+// snapshot 快照形状:orders 全量(重启回放即恢复未完结/已完结订单)。
+// SKU 价格表不快照(管理面启动登记)。
+type snapshot struct {
+	Orders map[string]*orderRecord `json:"orders"`
+}
+
+// loadState 回放快照(StateFile 配置时)。不存在 = 首次启动;损坏/不可读 =
+// 记 stateErr → HealthCheck fail-closed,不静默从空态启动丢单;运维删文件重启。
+func (p *PaymentsProvider) loadState() {
+	if p.stateFile == "" {
+		return
+	}
+	b, err := os.ReadFile(p.stateFile)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			p.stateErr = err
+		}
+		return
+	}
+	var s snapshot
+	if err := json.Unmarshal(b, &s); err != nil {
+		p.stateErr = err
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.restoreLocked(s.Orders)
+}
+
+// restoreLocked 用快照重建订单表与归属索引(须持 p.mu)。
+func (p *PaymentsProvider) restoreLocked(orders map[string]*orderRecord) {
+	p.orders = make(map[string]*orderRecord, len(orders))
+	p.byOwner = make(map[string][]string)
+	for id, o := range orders {
+		if o == nil {
+			continue
+		}
+		o.ID = id // 以快照键为准,防键与记录 ID 不一致
+		p.orders[id] = o
+		p.byOwner[o.Owner] = append(p.byOwner[o.Owner], id)
+	}
+}
+
+// persistLocked 原子写全量快照(临时文件 + rename;须持 p.mu)。失败记
+// stateErr → HealthCheck fail-closed。stateErr 非 nil 后不再重试(避免反复写坏),
+// 由 HealthCheck 暴露给运维。
+func (p *PaymentsProvider) persistLocked() {
+	if p.stateFile == "" || p.stateErr != nil {
+		return
+	}
+	b, err := json.Marshal(snapshot{Orders: p.orders})
+	if err != nil {
+		p.stateErr = err
+		return
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(p.stateFile), ".courier-orders-*.tmp")
+	if err != nil {
+		p.stateErr = err
+		return
+	}
+	name := tmp.Name()
+	if _, werr := tmp.Write(b); werr != nil {
+		_ = tmp.Close()
+		_ = os.Remove(name)
+		p.stateErr = werr
+		return
+	}
+	if cerr := tmp.Close(); cerr != nil {
+		_ = os.Remove(name)
+		p.stateErr = cerr
+		return
+	}
+	if ren := os.Rename(name, p.stateFile); ren != nil {
+		_ = os.Remove(name)
+		p.stateErr = ren
 	}
 }
 
@@ -168,7 +261,14 @@ func (p *PaymentsProvider) Name() string { return p.name }
 func (p *PaymentsProvider) Capability() providers.Capability { return providers.CapPayments }
 
 // HealthCheck 内存存储常驻可用。
-func (p *PaymentsProvider) HealthCheck(_ context.Context) error { return nil }
+func (p *PaymentsProvider) HealthCheck(_ context.Context) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.stateErr != nil {
+		return fmt.Errorf("teller: order state snapshot unavailable: %w", p.stateErr)
+	}
+	return nil
+}
 
 // ---- 管理面(价格表登记 / 对账;不经玩家路由) ----
 
@@ -202,6 +302,7 @@ func (p *PaymentsProvider) Reconcile() (attempted, delivered int) {
 			recovered = append(recovered, o.ID)
 		}
 	}
+	p.persistLocked()
 	p.mu.Unlock()
 	// 对账恢复的发货同样推送 delivered(v1.1:含对账恢复的重发)。
 	for _, id := range recovered {
@@ -228,6 +329,7 @@ func (p *PaymentsProvider) CloseOrder(orderID string) error {
 	}
 	o.Status = StatusClosed
 	o.UpdatedAt = p.clock()
+	p.persistLocked()
 	return nil
 }
 
@@ -317,6 +419,7 @@ func (p *PaymentsProvider) handleCreateOrder(w http.ResponseWriter, r *http.Requ
 	o.ID = p.nextOrderID(now)
 	p.orders[o.ID] = o
 	p.byOwner[o.Owner] = append(p.byOwner[o.Owner], o.ID)
+	p.persistLocked()
 	p.mu.Unlock()
 	aggregation.WriteData(w, orderDTOOf(o, true))
 }
@@ -398,6 +501,7 @@ func (p *PaymentsProvider) handleCallback(w http.ResponseWriter, r *http.Request
 	o.PaidAt = &paidAt
 	o.UpdatedAt = paidAt
 	deliveredNow := p.deliverOrderLocked(o, paidAt) // 发货失败不回滚 PAID:停 PAID 等对账(契约红线 6)
+	p.persistLocked()
 	p.mu.Unlock()
 
 	// 推送只报状态转移,不报受理(幂等重复回调走上面提前返回,不重发事件)。

@@ -166,6 +166,7 @@ func main() {
 		RequireAuth:   reqAuth,
 		ChannelSecret: os.Getenv("COURIER_PAYMENTS_CHANNEL_SECRET"),
 		Notify:        publish,
+		StateFile:     os.Getenv("COURIER_PAYMENTS_STATE"),
 	})
 	// 支付域第二实现(批次 72):teller-alt(追加式事件账本——每次状态转移追加
 	// 不可变事件,status/时间戳=投影重放)与 teller(可变状态表)同契约异构;
@@ -175,6 +176,7 @@ func main() {
 		RequireAuth:   reqAuth,
 		ChannelSecret: os.Getenv("COURIER_PAYMENTS_CHANNEL_SECRET"),
 		Notify:        publish,
+		StateFile:     os.Getenv("COURIER_PAYMENTS_STATE_ALT"),
 	})
 	for _, h := range []providers.Handler{acc, accAlt, heraldP, heraldAltP, croupierP, croupierAltP, chirpP, chirpAltP, wardenP, wardenAltP, scribeP, scribeAltP, archivistP, archivistAltP, sageP, sageAltP, tellerP, tellerAltP} {
 		if err := reg.Register(h); err != nil {

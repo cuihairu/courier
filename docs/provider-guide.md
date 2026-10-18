@@ -71,7 +71,7 @@ sidecar 形态契约不动,属部署面演进。
 | identity·oauth | `OAuthDisabled: true` 关闭 oauth 域(501);第三方凭证校验器经 providers/oauth 装配,未注册 = `OAUTH_PROVIDER_UNKNOWN` | fail-closed |
 | support | `croupier.Options.AttachmentSigner`(F44 附件直传)、`PenaltyStore`(F45 处罚投影源:List/Get/Appeal) | nil = 附件 / 处罚能力 501(不内置假存储假风控到生产);`croupieralt.Options` 同名字段同口径 |
 | support | `Notify`(坐席回复 → chirp 广播)、`TicketRatePerMinute/Burst`(默认 5/分钟) | nil = 不推送 |
-| payments | `teller.Options.ChannelSecret`(回调 HMAC-SHA256)、`Deliver` 发货钩子(按订单幂等,接入方落库) | 密钥空 = 回调一律 403 `PAYMENT_INVALID_SIGNATURE` |
+| payments | `teller.Options.ChannelSecret`(回调 HMAC-SHA256)、`Deliver` 发货钩子(按订单幂等,接入方落库)、`StateFile`(F77 一期订单快照:每次状态变更原子写全量 temp+rename,启动回放;空 = 纯内存与历史行为一致;`telleralt.Options.StateFile` 同形状,快的是事件账本) | 密钥空 = 回调一律 403 `PAYMENT_INVALID_SIGNATURE`;快照损坏 = HealthCheck fail-closed → 支付域 503(不静默从空态启动丢单),运维删除快照文件重启即恢复 |
 | realname | `warden.Options.S2SToken`、`AuditSink`(F33 审计事件面:verify/curfew/charge_check/playtime_report,事件只含账号维度元数据;接缝在共享包 `gateway/audit`,内置 `LogSink` 日志半边与 `HTTPSink` 直写半边,SIEM 摄取端 / 自建落库代理按部署面注入;两实现同形状,`wardenalt.Options.AuditSink` 同);`wardenalt.Options.Cloud`(托管核验:核验服务按 `CloudVerifier` 接口注入,`WebhookVerifier` 为契约「自定义 Webhook」形态适配;地址经 `COURIER_REALNAME_VERIFY_WEBHOOK`) | S2S 缺省 = fail-closed 401;sink 缺省 = 不产出——`COURIER_REALNAME_AUDIT_WEBHOOK`(+ `COURIER_REALNAME_AUDIT_TOKEN`)开直写半边(尽力交付:超时/网络失败/非 2xx 只记日志,不阻断实名请求;保留策略归接入方存储),`COURIER_REALNAME_AUDIT=log` 开日志半边,两实现经 main.go 同源注入;warden-alt Cloud 缺省 = HealthCheck 不就绪 → 503(fail-closed,配置缺失 ≠ 能力关闭 501) |
 | 级联 | `hooks.Register(hooks.AccountDeleted, fn)`(契约 auth.md v1.1 注册制:注销数据清理由下游 Provider 自订) | 网关不认识任何下游存储 |
 
@@ -82,7 +82,9 @@ Provider 的密钥一律**环境变量注入、进程内 fail-closed**(`COURIER_
 网关侧另有装配 env:`COURIER_GATEWAY_ADDR`(监听地址,缺省 `:8080`)、
 `COURIER_OAUTH_DISABLED=1`(关闭 oauth 域,501 降级)、`COURIER_GATEWAY_CONFIG`(JSON
 路由表路径,覆盖内置默认)、`COURIER_REALNAME_AUDIT_WEBHOOK`(+ `COURIER_REALNAME_AUDIT_TOKEN`,
-审计直写半边端点与凭证)、`COURIER_REALNAME_AUDIT=log`(日志半边开关)。
+审计直写半边端点与凭证)、`COURIER_REALNAME_AUDIT=log`(日志半边开关)、
+`COURIER_PAYMENTS_STATE`(teller 订单快照文件路径,缺省空 = 纯内存)、
+`COURIER_PAYMENTS_STATE_ALT`(teller-alt 事件账本快照路径,缺省空 = 纯内存)。
 持久化(落库 / 对账 / 审计 / 对象存储)随部署面——trace 贯穿 gateway→Provider 已内建
 ([layers.md](./layers.md) L5),内存实现在单机与测试场景即为完整功能。
 

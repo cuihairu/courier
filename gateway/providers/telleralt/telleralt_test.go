@@ -11,6 +11,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -861,4 +863,128 @@ func TestCreateOrder_UniqueOrderIDs(t *testing.T) {
 	if n != 50 {
 		t.Fatalf("订单落库 %d 条, 期望 50(碰撞不得覆盖)", n)
 	}
+}
+
+// fixedStateHarness 构造带固定 clock + 快照路径的 Provider(重启语义测试)。
+func fixedStateHarness(t *testing.T, stateFile string) *PaymentsProvider {
+	t.Helper()
+	p := New(Options{
+		Clock:         func() time.Time { return time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC) },
+		ChannelSecret: "s3cret",
+		StateFile:     stateFile,
+		RequireAuth: func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				ctx := auth.WithIdentity(r.Context(), auth.Identity{AccountID: "acc_1", SessionID: "ses_1"})
+				next.ServeHTTP(w, r.WithContext(ctx))
+			})
+		},
+	})
+	seedSkus(p)
+	return p
+}
+
+// TestOrdersPersistAcrossRestart 审核整改 2026-10-18 表三 F77(已代决一期):
+// 事件账本快照 + 启动重放——重启不丢未完结订单,投影重放恢复状态机。
+func TestOrdersPersistAcrossRestart(t *testing.T) {
+	stateFile := filepath.Join(t.TempDir(), "orders.json")
+
+	p1 := fixedStateHarness(t, stateFile)
+	env1, rec1 := createOrder(t, p1, new(string), "sku_gem_60")
+	if rec1.Code != http.StatusOK {
+		t.Fatalf("下单: %d %s", rec1.Code, rec1.Body.String())
+	}
+	id1 := orderIDOf(t, env1)
+	env2, rec2 := createOrder(t, p1, new(string), "sku_gem_60")
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("下单2: %d %s", rec2.Code, rec2.Body.String())
+	}
+	id2 := orderIDOf(t, env2)
+	if err := p1.CloseOrder(id2); err != nil {
+		t.Fatalf("关单: %v", err)
+	}
+
+	// 第二代 = 重启:同一快照文件重新构造,事件账本回放。
+	p2 := fixedStateHarness(t, stateFile)
+	if s, code := statusOf(t, p2, id1); code != http.StatusOK || s != StatusCreated {
+		t.Fatalf("重启后未完结订单: status=%q code=%d, 期望 CREATED", s, code)
+	}
+	if s, code := statusOf(t, p2, id2); code != http.StatusOK || s != StatusClosed {
+		t.Fatalf("重启后关单订单: status=%q code=%d, 期望 CLOSED", s, code)
+	}
+	body := `{"orderId":"` + id1 + `","paidAt":"2026-10-09T12:00:30Z"}`
+	rec := call(t, p2, http.MethodPost, "/v1/payments/callback", body,
+		map[string]string{"X-Payment-Signature": sign("s3cret", []byte(body))})
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"status":"DELIVERED"`) {
+		t.Fatalf("重启后回调 = %d %s", rec.Code, rec.Body.String())
+	}
+
+	// 第三代:DELIVERED 状态保留。
+	p3 := fixedStateHarness(t, stateFile)
+	if s, code := statusOf(t, p3, id1); code != http.StatusOK || s != StatusDelivered {
+		t.Fatalf("三代重启: status=%q code=%d, 期望 DELIVERED", s, code)
+	}
+}
+
+// TestOrdersNoStateFileMemoryOnly 未配置 StateFile = 纯内存历史行为。
+func TestOrdersNoStateFileMemoryOnly(t *testing.T) {
+	p := fixedStateHarness(t, "")
+	env, rec := createOrder(t, p, new(string), "sku_gem_60")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("下单: %d %s", rec.Code, rec.Body.String())
+	}
+	id := orderIDOf(t, env)
+
+	p2 := fixedStateHarness(t, "")
+	if _, code := statusOf(t, p2, id); code != http.StatusNotFound {
+		t.Fatalf("未配置 StateFile 时重启应丢单(code=%d), 与历史内存态一致", code)
+	}
+}
+
+// TestOrdersCorruptSnapshotFailClosed 快照损坏不静默从空态启动(会丢单);
+// HealthCheck fail-closed,运维删文件即可恢复。
+func TestOrdersCorruptSnapshotFailClosed(t *testing.T) {
+	stateFile := filepath.Join(t.TempDir(), "orders.json")
+	if err := os.WriteFile(stateFile, []byte("{not json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	p := fixedStateHarness(t, stateFile)
+	if err := p.HealthCheck(context.Background()); err == nil {
+		t.Fatal("损坏快照应使 HealthCheck fail-closed")
+	}
+	if err := os.Remove(stateFile); err != nil {
+		t.Fatal(err)
+	}
+	p2 := fixedStateHarness(t, stateFile)
+	if err := p2.HealthCheck(context.Background()); err != nil {
+		t.Fatalf("无快照时应就绪: %v", err)
+	}
+}
+
+// orderIDOf 取下单响应里的订单 ID。
+func orderIDOf(t *testing.T, env *envelope) string {
+	t.Helper()
+	var got struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(env.Data, &got); err != nil || got.ID == "" {
+		t.Fatalf("解析订单 id 失败: %v data=%s", err, env.Data)
+	}
+	return got.ID
+}
+
+// statusOf 经 wire 取订单状态;不存在返回空串与 404。
+func statusOf(t *testing.T, p *PaymentsProvider, id string) (string, int) {
+	t.Helper()
+	rec := call(t, p, http.MethodGet, "/v1/payments/orders/"+id, "", nil)
+	if rec.Code != http.StatusOK {
+		return "", rec.Code
+	}
+	var env struct {
+		Data map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("解析状态失败: %v body=%s", err, rec.Body.String())
+	}
+	s, _ := env.Data["status"].(string)
+	return s, rec.Code
 }
