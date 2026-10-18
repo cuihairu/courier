@@ -96,7 +96,7 @@
 | F55 | Crash and performance monitoring | The diagnostics optional package reports directly to self-hosted endpoints (Sentry/GlitchTip/OTLP) |
 | F57 | Data export | Provider |
 
-## Under Discussion (1 item) · Delegated Decision (2 items) and Not Doing (13 items)
+## Delegated Decision (3 items) and Not Doing (13 items)
 
 | ID | Feature | Disposition |
 | --- | --- | --- |

@@ -102,7 +102,7 @@ RealName
 
 ## 同意管理(consent,v1.1)
 
-> v1.1 新增,只加不改:现有 `verify` / `status` / `curfew` / `charge-check` / `playtime-report` 端点与字段一律不动。2026-10-18 巡检 PATROL1018E 代决冻结(设计草案见 [research/consent-v1.1-draft.md](../research/consent-v1.1-draft.md))。**冻结 ≠ 实现**:网关与六端 SDK 实现面待开工拍板。
+> v1.1 新增,只加不改:现有 `verify` / `status` / `curfew` / `charge-check` / `playtime-report` 端点与字段一律不动。2026-10-18 巡检 PATROL1018E 代决冻结(设计草案见 [research/consent-v1.1-draft.md](../research/consent-v1.1-draft.md))。**冻结 ≠ 实现**:网关与六端 SDK 实现面待开工拍板(F31,登记见 [todo.md](../todo.md))。
 
 - **默认关闭**:未配置 consent 通道 = 能力关闭语义(`501 COMMON_CAPABILITY_DISABLED`),查询返回「未启用」,接入方隐藏年龄门 UI,**不进报错路径**(同 v1)。
 - **判定经 200 载荷**:同意态进 `data` 不进错误码,**零新增错误码**。

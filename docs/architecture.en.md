@@ -115,7 +115,8 @@ gateway/
 ├── scope/         game_id + env injection and validation
 ├── routing/       routing and the Provider registry
 ├── aggregation/   cross-Provider aggregation
-├── middleware/    rate limiting / trace / recovery / scope / maintenance gate
+├── audit/         realname audit event seam (AuditSink / LogSink / HTTPSink)
+├── middleware/    rate limiting / trace / recovery / scope / maintenance gate / 1MiB body cap (outermost)
 └── providers/     Provider interface + default implementations (capability domain → registered name)
     ├── account/        AccountProvider(identity)   default: courier-account (self-hosted
     │                   accounts/sessions)
@@ -150,7 +151,7 @@ gateway/
 - **Configuration-driven**: each Provider is declared by configuration as `primary` + `fallbacks[]`; a runtime config reload takes effect without a restart (the routing table is swapped atomically; in-flight requests complete against the old table). Current boundary: the atomic swap lives at the in-process seam `providers/router.Reload` (already used by the real name domain); the admin-plane reload endpoint is not implemented — `main.go` still reads `COURIER_GATEWAY_CONFIG` only once at startup.
 - **Degradation chain**: primary Provider failure/timeout → fallbacks in order; if all fail, the domain-defined safe state applies (e.g. RealName → `PENDING_REVIEW`).
 - **Circuit breaker** (already landed in the real name domain): driven by call counts — N consecutive failures open the circuit; once open, 30 calls act as half-open probes to recover (no timers); during the open period traffic goes straight to fallback.
-- **HealthCheck**: unhealthy instances are evicted from the registry.
+- **HealthCheck**: per-request probe; on failure the chain falls through, and a fully unhealthy chain returns 503 — the registry does no instance eviction (reserved seam).
 - RealName ([contract/realname.md](./contract/realname.en.md)) is the first domain to apply all of this in full; the rules are universal for all Providers.
 
 ### Independent Switching Strategy per Sensitive Domain (Account / Real Name / Payments)
@@ -240,7 +241,7 @@ CourierClient (facade)
 ## Security Boundaries
 
 - The client holds no Provider credentials, internal URLs, or admin interfaces.
-- Rate limiting for sensitive endpoints is built into the account Provider (stricter thresholds for sensitive endpoints such as login/real name); the gateway middleware provides only basic global rate limiting; the real name domain has no rate limiting. During the payments sandbox period, pre-transaction risk controls follow the deployment surface (roadmap M5).
+- Rate limiting for sensitive endpoints is built into the account Provider (stricter thresholds for sensitive endpoints such as register/login/guest/bind/refresh); the gateway middleware provides only basic global rate limiting; the real name domain has no rate limiting. During the payments sandbox period, pre-transaction risk controls follow the deployment surface (roadmap M5).
 - Payment callbacks trust only channel signatures, never client-reported amounts/status.
 - Real name: field minimization, encrypted transport, no SDK disk writes, plaintext banned from logs/traces ([contract/realname.md](./contract/realname.en.md)).
 - Diagnostics: off by default, enabled explicitly, with the data scope stated explicitly when enabled ([contract/diagnostics.md](./contract/diagnostics.en.md)).

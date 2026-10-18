@@ -56,7 +56,7 @@ sdks/miniprogram/
                      (公告栏/客服/助手):纯文本产出经回调交游戏侧渲染,不绑死 UI 框架
     diagnostics/     可选诊断包(契约 diagnostics.md):crash/trace/performance/analytics
                      四类独立开关,默认全关零开销;直发接入方自有端点,失败静默
-  tests/           node --test 123 例(契约 6 / core+lifecycle 60 / service 17 / stream 9 / wechat 12 / ui 8 / diagnostics 11)
+  tests/           node --test 12 文件 199 例(契约 / core / lifecycle / service / stream / wechat / ui / diagnostics)
 ```
 
 ## 运行测试

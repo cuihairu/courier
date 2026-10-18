@@ -31,11 +31,10 @@ packages/
   com.courier.service/     L2 域服务(九域 + DTO + messages SSE 流客户端,CourierServices 门面)
   com.courier.ui/          可选 UI 包(brandingCatalog + 公告/客服/助手/实名面板)
   com.courier.diagnostics/ 可选诊断包(crash/trace/performance/analytics,默认全关)
-tests/
-  ContractTests~/          契约测试(8 例,xunit)
-  CoreTests~/              内核测试(48 例,xunit)
-  ServiceTests~/           域服务测试(77 例,xunit)
-  DiagnosticsTests~/       诊断包测试(11 例,xunit)
+ContractTests~/           契约测试(8 例,xunit)
+CoreTests~/               内核测试(65 例,xunit)
+ServiceTests~/            域服务测试(88 例,xunit)
+DiagnosticsTests~/        诊断包测试(11 例,xunit)
 ```
 
 ## 运行测试

@@ -115,7 +115,8 @@ gateway/
 ├── scope/         game_id + env 注入与校验
 ├── routing/       路由与 Provider 注册表
 ├── aggregation/   跨 Provider 聚合
-├── middleware/    限流 / trace / 恢复 / scope / 维护门
+├── audit/         实名审计事件接缝(AuditSink / LogSink / HTTPSink)
+├── middleware/    限流 / trace / 恢复 / scope / 维护门 / 1MiB 请求体上限(最外层)
 └── providers/     Provider 接口 + 默认实现(能力域 → 注册名)
     ├── account/        AccountProvider(identity)   默认:courier-account(自建
     │                   accounts/sessions)
@@ -150,7 +151,7 @@ gateway/
 - **配置驱动**:每个 Provider 由配置声明 `primary` + `fallbacks[]`;运行时配置重载即生效,不重启(路由表原子替换,在途请求按旧表完成)。现状边界:原子替换在 `providers/router.Reload` 进程内接缝(实名域已用),管理面重载端点未实现——`main.go` 仍只在启动时读一次 `COURIER_GATEWAY_CONFIG`。
 - **降级链**:主 Provider 失败/超时 → 依序 fallback;全部失败按域定义安全态(如 RealName → `PENDING_REVIEW`)。
 - **熔断**(实名域已落地):按调用次数驱动——连续 N 次失败开路,开路后 30 次调用半开探测恢复(无定时器);熔断期直接走 fallback。
-- **HealthCheck**:注册表剔除不健康实例。
+- **HealthCheck**:逐请求探活,失败落 fallback、全链不健康 503;注册表不做实例剔除(接缝预留)。
 - RealName([contract/realname.md](./contract/realname.md))是第一个完整适用方;规则对所有 Provider 通用。
 
 ### 敏感域独立切换策略(账号 / 实名 / 支付)
@@ -240,7 +241,7 @@ CourierClient(门面)
 ## 安全边界
 
 - 客户端不持有任何 Provider 凭证、内部 URL、管理接口。
-- 敏感端点限流内建 account Provider(登录/实名等敏感端点更严口径);网关 middleware 仅全局基础限流;实名域无限流。支付沙箱期前置风控随部署面(roadmap M5)。
+- 敏感端点限流内建 account Provider(register/login/guest/bind/refresh 等敏感端点更严口径);网关 middleware 仅全局基础限流;实名域无限流。支付沙箱期前置风控随部署面(roadmap M5)。
 - 支付回调只认渠道签名,不认客户端上报金额/状态。
 - 实名:字段最小化、传输加密、SDK 不落盘、日志/trace 禁明文([contract/realname.md](./contract/realname.md))。
 - 诊断:默认关闭、显式开启、开启明示数据范围([contract/diagnostics.md](./contract/diagnostics.md))。

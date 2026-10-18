@@ -119,7 +119,7 @@ L1–L3 sit on the client side, L4–L5 on the server side; L1 is depended on by
 
 **Responsibilities**
 
-- Single entry point: auth / session / scope / routing / aggregation / middleware (rate limiting, trace, recovery, scope, maintenance gate); auditing relies on trace running end to end — the real-name domain has landed a structured audit event surface (`gateway/audit` shared seam: both realname implementations inject the same `AuditSink`, nil = emits nothing; `COURIER_REALNAME_AUDIT=log` turns on the logging half), with persistence waiting on the deployment side.
+- Single entry point: auth / session / scope / routing / aggregation / middleware (rate limiting, trace, recovery, scope, maintenance gate, 1MiB request-body cap); auditing relies on trace running end to end — the real-name domain has landed a structured audit event surface (`gateway/audit` shared seam: both realname implementations inject the same `AuditSink`, nil = emits nothing; `COURIER_REALNAME_AUDIT=log` turns on the logging half), with persistence waiting on the deployment side.
 - Provider registry management: routes for all known capability domains are mounted in full; routes for unconfigured capabilities return `COMMON_CAPABILITY_DISABLED` (501) at dispatch time — not a missing route.
 
 **Boundaries**

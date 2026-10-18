@@ -22,6 +22,7 @@
 
 - From M2, WebSocket push, reusing the session channel of the default push Provider (chirp); **the channel itself is also a Provider capability**, and integrators may swap or disable it (once disabled, fetch only).
 - **Correction (2026-10-10)**: the transport choice follows [messages.md](./messages.en.md) (frozen in M2) — **SSE** (text/event-stream), not the WebSocket tentatively chosen when this document was frozen (M0); WebSocket is left for a later extension (a version bump is needed when both directions must write).
+- **Correction (2026-10-19)**: the envelope above is the conceptual shape; the on-the-wire form follows [messages.md](./messages.en.md) — SSE frame `id` is the server-side (hub-level) monotonically increasing sequence number (not a global `evt_` ID), and `data` is a single-line JSON isomorphic to that domain's fetch-endpoint DTO (no `payload` wrapper, no `occurredAt`); consume as "the list is authoritative, pushes are hints" and do not rely on envelope ids for dedup.
 - Fetch as fallback: every push event has a corresponding fetch endpoint; a lost push is compensated by fetching, and at-least-once is not promised.
 - Semantics: at-most-once push + fetch compensation = clients consume with "the list is authoritative, push is a hint".
 
@@ -45,10 +46,12 @@ The state machine is defined in [architecture.md](../architecture.en.md) "SDK Li
 | `announcement.published` | announcements (M2) | New announcement |
 | `support.ticket_replied` | support (M2) | New ticket reply |
 | `config.updated` | config (M3) | Remote config changed |
-| `app.maintenance_changed` | app (M3) | Maintenance status changed |
-| `app.force_update` | app (M3) | Force-update notice |
+| `branding.updated` | branding (M3) | Branding assets changed (payload `{version}` registered in [messages.md](./messages.en.md)) |
 | `payment.paid` | payment (M5, v1.1) | Order paid (a hint; the payload contains only orderId; [payment.md](./payment.en.md)) |
 | `payment.delivered` | payment (M5, v1.1) | Order delivered (including reconciliation recovery; a hint; the payload contains only orderId) |
+| `realname.consent.updated` | realname (v1.1) | Consent status changed (same shape as `config.updated`; frozen but not implemented, [realname.md](./realname.en.md), implementation surface F31) |
+
+Correction (2026-10-19): removed the two rows provisionally listed in M3, `app.maintenance_changed` / `app.force_update` — never registered in app.md / messages.md and no emitter exists; registration is governed by [messages.md](./messages.en.md).
 
 Registering a new event = a domain contract change; follow the change process in the [master document](./index.en.md).
 

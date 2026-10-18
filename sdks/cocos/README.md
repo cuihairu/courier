@@ -67,7 +67,7 @@ src/
                         直发接入方自有端点(不经网关,不复用认证 Transport 语义);
                         失败静默不重试不缓存,breadcrumb 环形 20 关闭即清空,
                         trace 只记 path 去 query,埋点 props 原始类型单条 ≤1KB 违例抛使用方错
-tests/                  零依赖 node --test(契约 6 / core+lifecycle 60 / service 17 / stream 9 / wechat 12 / ui 8 / diagnostics 11,共 123 例)
+tests/                  零依赖 node --test(契约 / core / lifecycle / service / stream / wechat / ui / diagnostics,12 文件共 199 例)
 ```
 
 ## 运行测试

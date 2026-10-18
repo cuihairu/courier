@@ -1,7 +1,7 @@
 # Courier SDK 端到端示例(六端)
 
 六端各一份最小示例,同一条链路:**接入 → 游客登录 → 拉公告 → 提工单 → 拉工单详情**,
-全部对着本仓 gateway 实测可跑(2026-10-13 验证,预期输出见各节)。SDK 纯逻辑层
+全部对着本仓 gateway 实测可跑(2026-10-19 复验,预期输出见各节)。SDK 纯逻辑层
 零引擎依赖,引擎端(Unity/UE/Godot)也能在进程内直跑;进引擎只需把传输/存储
 换成平台实现,业务代码不变。
 
@@ -71,9 +71,10 @@ UE 端暂无 `CourierServices` 门面,域服务直接以 `ApiClient*` 构造。
 ## Godot 4.3(GDScript,headless 直跑)
 
 ```sh
-godot --headless --path sdks/godot \
+COURIER_ENDPOINT=http://127.0.0.1:18099 godot --headless --path sdks/godot \
     --script <仓库绝对路径>/examples/godot/example.gd
-# 端点可用环境变量 COURIER_ENDPOINT 覆盖(--script 相对路径按 res:// 解析,故用绝对路径)
+# 端点用环境变量 COURIER_ENDPOINT 指定(缺省 :8080,本机常有 nginx 等占用;
+# --script 相对路径按 res:// 解析,故用绝对路径)
 ```
 
 传输用平台件 `CourierHTTPTransport`(Godot HTTPClient,与游戏内同一份代码);

@@ -16,10 +16,22 @@
          共享限流 / F80 UE/Cocos 令牌持久化新登记待议节(docs/todo.md/en,均标需用户拍板);
          consent 端到端=F31、审计可靠交付=F33,已有归属未重开
       测试:gateway 全量 `go test -race ./...` 30 包全绿;docs:build 绿。commit e39b328(后续台账回填行见 docs/todo.md 批次 95)。
-- [ ] 文档时效性清理（2026-10-18 用户令：很多文档已过时）：
-      在本轮审核整改完成之后执行，避免与整改冲突。
-      1) 通读 README / docs，找出与当前代码不符的描述（能力、配置项、命令、路径、版本）
-      2) 以代码为准修正文档；**禁止为对齐文档去改业务代码**
-      3) 已废弃但仍留在文档里的功能，明确标注「已移除」或删除，不要留成"看起来还能用"
-      4) 命令行示例逐条跑一遍，跑不通的改掉或删掉
-      5) 构建通过后 commit+push，回报改动文件清单
+- [x] 文档时效性清理（2026-10-18 用户令；2026-10-19 完成）：三路并行比对文档↔代码，
+      23 处漂移全修（以代码为准，业务代码零改动；见 docs/todo.md 批次 97）。
+      1) 测试数与目录结构：unity README(core 48→65、service 77→88 例,`dotnet test` 实测)、
+         cocos/miniprogram 123→199 例、laybox 123→201 例(`node --test` 实测)、
+         删去 unity 目录树里不存在的 `tests/` 节点
+      2) 字节实测：unity core 77,851→79,759 B、TS core 44,448→44,570 B、
+         UE 241,095→279,852 B（`du -sb`，口径注同步刷新至 2026-10-19）
+      3) 网关描述：architecture.md/en 补 `audit/` 目录与 1MiB MaxBody（最外层）、
+         HealthCheck 改为逐请求探活（无注册表剔除）、敏感端点列表按 account.go 改为
+         register/login/guest/bind/refresh；layers.md/en middleware 枚举补 1MiB 请求体上限
+      4) 契约面：events.md/en 删无发射方幽灵行 `app.maintenance_changed` / `app.force_update`
+         （加更正注）、补 `branding.updated` 与 `realname.consent.updated`、
+         信封形态加更正注指向 messages.md 的 SSE 帧；index.md/en realname→Frozen v1.1、
+         payment→Frozen v1.1；realname.md/en consent 节标注冻结≠实现（F31）
+      5) 状态文档：implementation-status.md/en 标题计数 1 待议/2 已代决 → 3 已代决
+      6) 命令行示例六端逐条实测（gateway 构建 + 起服务后）：cocos/miniprogram/laybox/
+         unity/ue/godot 全部跑出预期输出；examples/README.md godot 节补
+         `COURIER_ENDPOINT`（默认 :8080 本机与 nginx 冲突，正是初次误判的根因）
+      构建：docs:build 绿；未动版本号、未打 tag。
