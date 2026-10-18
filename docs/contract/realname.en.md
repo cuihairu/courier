@@ -1,7 +1,7 @@
 
 # Real Name Contract (RealName)
 
-> Status: **Frozen v1** · compliance capability · off by default · late in milestone M2 · freeze date 2026-10-08.
+> Status: **Frozen v1.1** · compliance capability · off by default · late in milestone M2 · v1 frozen 2026-10-08 / v1.1 frozen 2026-10-18 (delegated decision PATROL1018E: the `consent` group, additive-only).
 > The domain prefix `REALNAME` is registered ([errors.md](./errors.en.md)); once frozen it is additive-only, and breaking changes bump the version (see [versioning.md](./versioning.en.md)).
 > Red line: real-name data is the highest-sensitivity personal data. This capability is off by default; integrating it counts as the integrator collecting real-name information from players, and **the obligation to disclose the data scope lies with the integrator** — the data scope table in this document is the single source of truth for the external wording.
 
@@ -98,7 +98,92 @@ Collected field list (complete): `name`, `idNumber`, verification result, adult/
 
 - `Status().isMinor` and `Curfew().playable` are the only two decision outputs; policy execution is not in this contract (the integrator's game side, or a future standalone anti-addiction module).
 - Reserved: the `OnRealNameVerified` client callback; the server-side Provider result keeps the `policyExtension` extension slot, and unknown fields must currently be ignored.
-- v1.1 reserved (additive-only): the overseas age gate / parental consent `consent` group (research F31, frozen again once an overseas requirement triggers; the jurisdiction-neutral design draft has landed at [research/consent-v1.1-draft.md](../research/consent-v1.1-draft.en.md), delegated decision FW1016D).
+- Frozen in v1.1: the overseas age gate / parental consent `consent` group — see the "Consent Management (consent, v1.1)" section below (research F31; frozen 2026-10-18 by delegated decision PATROL1018E, additive-only; the design history is in [research/consent-v1.1-draft.md](../research/consent-v1.1-draft.en.md)).
+
+## Consent Management (consent, v1.1)
+
+> Added in v1.1, additive-only: the existing `verify` / `status` / `curfew` / `charge-check` / `playtime-report` endpoints and fields are untouched. Frozen 2026-10-18 by patrol PATROL1018E delegated decision (design draft: [research/consent-v1.1-draft.md](../research/consent-v1.1-draft.en.md)). **Frozen ≠ implemented**: the gateway and the six-SDK implementation surface awaits a go-ahead call.
+
+- **Off by default**: with no consent channel configured, the capability-disabled semantics apply (`501 COMMON_CAPABILITY_DISABLED`) — queries return "not enabled", the integrator hides the age-gate UI, and **no error path is entered** (same as v1).
+- **Verdicts ride the 200 payload**: consent state goes in `data`, not in error codes; **zero new error codes**.
+- **The client must not infer on its own**: both the age verdict and the consent verdict are server-issued (same principle as v1 `isMinor`).
+- **Data red lines align with v1**: the birth date travels only once through the declare endpoint — never cached, never persisted, never sent to diagnostics collection; UI display shows the year only.
+
+### State machine (consent state)
+
+| state | Semantics | Game-side handling |
+| --- | --- | --- |
+| `UNDECLARED` | Age not declared | First-launch age gate (protected operations are not released until declared) |
+| `ADULT` | Adult | Terminal state; no consent is ever required |
+| `PENDING_PARENT` | Minor and consent undecided | Gate closed; VPC requests may be issued / reissued, prompt per `requestExpiresAt` |
+| `GRANTED` | Parental consent established | Gate opens |
+| `DENIED` | Parent refused | Gate closed; whether re-requesting is allowed is Provider policy |
+| `REVOKED` | Consent later withdrawn | Gate closed; withdrawal stops diagnostics (see "Diagnostics linkage") |
+
+- **No rollback**: repeated age declarations only ever tighten (adult → minor allowed, never the reverse); corrections go through the Provider ops surface, not the player contract.
+
+### Endpoints (mounted at `/v1/realname/consent/*`)
+
+| Endpoint | Auth | Notes |
+| --- | --- | --- |
+| `GET /v1/realname/consent/status` | Bearer | Consent status query |
+| `POST /v1/realname/consent/declare-age` | Bearer | First-launch age declaration `{ birthDate: "YYYY-MM-DD" }`; response `data` = the status table below (declaration immediately yields the verdict) |
+| `POST /v1/realname/consent/parent-consent/request` | Bearer | Initiate a VPC request `{}` → `{ requestId, requestExpiresAt }`; idempotent while `PENDING_PARENT` (same request returned before expiry, new `requestId` after) |
+| Push event `realname.consent.updated` | SSE | State-change notification (reuses the M3 push channel, same shape as `config.updated`) |
+
+- Player-side endpoint auth and scope requirements follow [auth.md](./auth.en.md); account-dimension (same as v1, not player-dimension).
+- Parental verification itself is **not in this contract** (Provider territory: credit-card verification / signed forms / government ID / email step-up and other jurisdictional mechanisms); this contract only expresses "request initiation + resulting state + change push".
+
+### Data model: status (consent status)
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `state` | enum | The six states above |
+| `declaredAt` | timestamp? | Age declaration time |
+| `grantedAt` | timestamp? | Consent establishment time (sent under `GRANTED`) |
+| `revokedAt` | timestamp? | Withdrawal time (sent under `REVOKED`) |
+| `requestExpiresAt` | timestamp? | Expiry of the current VPC request (sent under `PENDING_PARENT`) |
+
+Requests / responses use the primitives envelope ([primitives.md](./primitives.en.md)).
+
+### Jurisdiction-neutral: thresholds and rules belong to Provider config
+
+| Config | Notes | Contract relation |
+| --- | --- | --- |
+| `minimumAge` | Minimum play age (below it, always `DENIED` semantics; expression decided by the Provider) | Not in the contract |
+| `digitalConsentAge` | Digital consent age (GDPR-K member states 13–16; COPPA 13) | Not in the contract |
+| `vpc.mechanism / ttl` | Parental-verification mechanism and request validity period | Not in the contract |
+
+- The verdict input = `birthDate` + Provider threshold config; switching jurisdictions = switching config, with the contract and the six SDKs untouched.
+
+### Provider interface extension (additive; v1 methods untouched)
+
+```text
+RealNameProvider adds:
+  ConsentStatus(accountId) → ConsentState
+  DeclareAge(accountId, birthDate) → ConsentState        // no rollback: only tightening takes effect
+  RequestParentConsent(accountId) → ConsentRequest{ requestId, expiresAt }
+```
+
+- Hot-swap / fallback chain / circuit breaking follow the v1 general Provider governance rules; the degraded safe state = `PENDING_PARENT` (neither releases nor refuses; escalate to a human).
+- Audit: new events `realname.consent.declared / parent_requested / granted / denied / revoked` carry account-dimension metadata only; birth dates and parental identity inputs **never enter any event** (same red line as v1); they go through the shared seam `gateway/audit.AuditSink`, same shape for both implementations.
+- Consent records are **stored separately from identity data, with an independent retention period** (compliance can evidence each separately); retention days belong to the integrator's compliance stance (same boundary as F33).
+
+### SDK surface (L2/L4 projection)
+
+```text
+RealName.Consent
+  .Status()                  → { state, declaredAt?, grantedAt?, revokedAt?, requestExpiresAt? }
+  .DeclareAge(birthDate)     → status
+  .RequestParentConsent()    → { requestId, requestExpiresAt }
+OnConsentChanged callback reserved (consumes the realname.consent.updated push)
+```
+
+- On `REVOKED` → the SDK internally triggers the diagnostics stop-sending linkage ([diagnostics.md](./diagnostics.en.md) reserved slot), no per-event wiring by the integrator; the "off takes effect immediately" red line is built in.
+
+### Error codes
+
+**Zero additions** — all verdicts ride the 200 payload (the 2026-10-15 delegated stance). If, during implementation review, an integrator's game-side policy execution genuinely needs codes, add them via the "registered reserved codes" process ([errors.md](./errors.en.md) + the `TestErrorCodesWiredOrReserved` gate); none are pre-registered.
 
 ## Provider Hot-Swap (server side; first complete application of the governance)
 
@@ -170,7 +255,7 @@ Everything else (authentication, scope, rate limiting, capability disabled) uses
 
 | Possible extension | Compatible handling |
 | --- | --- |
-| Overseas age gate / parental consent (F31) | `consent` endpoint group reserved in v1.1 (see the "Anti-Addiction Hooks" section above; frozen again once an overseas requirement triggers; draft at [research/consent-v1.1-draft.md](../research/consent-v1.1-draft.en.md)); existing fields and endpoints are untouched |
+| Overseas age gate / parental consent (F31) | The `consent` endpoint group is frozen in v1.1 (2026-10-18 delegated decision PATROL1018E; see the "Consent Management (consent, v1.1)" section); existing fields and endpoints are untouched, the implementation surface awaits a go-ahead call |
 | Provider result extension | The `policyExtension` extension slot is reserved; unknown fields must be ignored; new policy fields = additive compatibility |
 | Verification-passed callback | The `OnRealNameVerified` client callback is reserved; refining the trigger timing = an add-parameter proposal |
 | Third-party verification ecosystem | The `RealNameProvider` interface is pluggable + routing-table hot-switching is frozen; onboarding a new vendor = a new adapter, the contract is unchanged |

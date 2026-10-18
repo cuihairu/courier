@@ -10,7 +10,7 @@
 
 ## 未完成
 
-- [ ] F31 年龄门与同意管理(海外):首启年龄筛查 + VPC 家长同意;realname.md 已预留 consent 扩展位,出海需求拍板后立项;卡点类型=等拍板;解锁条件=出海需求拍板立项后解冻 realname.md v1.1 consent 组(只加不改);FW1016D 已代决(设计):consent 组法域中立草案已落(research/consent-v1.1-draft.md),立项后草案→冻结为机械步骤,剩冻结+实现待出海
+- [ ] F31 实现面(网关两实现 + 六端 SDK + e2e):consent 组契约已于 2026-10-18 代决冻结为 realname v1.1(批次 94,只加不改、零新增错误码);按 research/consent-v1.1-draft.md 冻结清单 2–4 步落地——卡点类型=等开工拍板;解锁条件=接入方确认真接入 consent 流程或用户指示开工(无接入方开工会产生无人验收的实现维护面)
 - [ ] F33 审计落库:仓内面已全落(事件面 + 日志半边 + HTTP 直写半边 + 第二实现同形状,批次 62/65/66);剩保留策略与查询面,归接入方存储实现(audit.go:3 已注)——卡点类型=等接入方;解锁条件=接入方定存储形态(DB/SIEM/OSS)+ 保留天数 + 查询权限边界
 - [x] 文档双语:根目录 8 篇(eef3c95)+ 子目录 25 篇(contract 20 + research 5,批次 93)英文版配对 + 双向切换器 50 文件全覆盖;public/ 仅 logo 无文档
 
@@ -137,3 +137,4 @@ F13 云存档/进度同步——player.md:5,11 红线「进度不经 Courier,角
 - [x] 批次 91 contractgen 入口覆盖收口(fatal 加可测性接缝 var exit = os.Exit,生产默认即 os.Exit 行为不变;fatal 真退进程致子进程覆盖不并入父 profile,改进程内:记录型 exit + 双管道 captureIO,断言退出码 1 与 stderr contractgen: 前缀;补 fatal 调用点——readJSON 缺失/损坏 fixture、checkOrWrite 缺文件+漂移同轮双支与汇总致命信息、generate fixture 不完整双支(version<1/码表空前缀空与 dto 缺 key);main 进程内 -write 驱动;零覆盖函数全仓归零:todo 三功能项(F31/F33/F62)均外部卡点,本项为覆盖率收尾——tools/contractgen 模块 90.1%→96.9%,根模块归并 profile 零覆盖函数 0(原 2:fatal/main);余 camelName 空段 continue(需畸形码形,合法 fixture 不可达)与 checkOrWrite 权限类 fatal(需 chmod/root)为防御分支,批次 79 函数级零覆盖口径达标) | 7941938 | go test -race ./tools/... 绿 + 根/网关双 vet 绿 + gateway -race 全绿 + 归并 profile 零覆盖函数 0
 - [x] 批次 92 docs 根目录双语配对(8 篇中文文档英文版 + 双向切换器;README.md 中文正文红线修复——「本地测试口径」节译英) | eef3c95 | docs:build 绿(16 页)
 - [x] 批次 93 docs 子目录双语配对(contract 20 篇 + research 5 篇英文版;双语切换器 50 文件全覆盖;英文页互链改指 .en.md;代码围栏/JSON 样例数据/SQL 注释按判据原样保留) | 2f59807 | docs:build 绿(66 页) + go test -race ./tools/... 绿(errors.md 为 contractgen 测试输入,实证无漂移)
+- [x] 批次 94 F31 契约面代决立项:consent 组按草案冻结为 realname v1.1(realname.md 新增「同意管理」节,只加不改、零新增错误码;errors.md 与 fixtures 未动;实现面登记为新待办行) | PENDING | docs-only:中英 8 文件同步改;本地无 node_modules,docs:build 由 CI Deploy Docs 兜底,仓内链接完整性检查绿

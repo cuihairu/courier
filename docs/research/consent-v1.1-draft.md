@@ -1,7 +1,7 @@
 
 # F31 海外年龄门与家长同意:`consent` 组 v1.1 设计草案
 
-> 状态:**Draft(未冻结)** · 2026-10-16 巡检 FW1016D 代决启动设计 · 冻结仍待出海立项([realname.md:100](../contract/realname.md) 口径不变)。
+> 状态:**已冻结(v1.1)** · 2026-10-16 FW1016D 代决启动设计 → 2026-10-18 巡检 PATROL1018E 代决冻结,已落 [contract/realname.md](../contract/realname.md)「同意管理(consent,v1.1)」节(只加不改)。实现面(冻结清单 2–4 步)待开工拍板。
 > 定性:本草案把「出海拍板后从零设计」变成「按草案评审冻结」;法域中立(阈值不进契约,归 Provider 配置),不绑死 COPPA / GDPR-K 单一形状。
 > 调研依据:F31 行([features.md §5](./features.md):首启年龄筛查;低于数字同意年龄走可验证家长同意 VPC;同意记录单独留存)。
 
@@ -10,6 +10,13 @@
 - **决定**:`consent` 组按法域中立设计,草案先行;冻结与实现待出海立项。
 - **理由**:F31 属「待拍板」卡点(出海需求触发再冻结)。契约先行仓的既定打法是设计风险前置——草案不改变 realname v1 冻结态、不产生实现维护面;出海立项后「草案 → 冻结评审 → 落地」是机械步骤。
 - **推翻路径**:拍板人推翻即废本草案,恢复「触发再从零设计」原口径;本档从 docs 移除即可,无任何实现面牵连。
+
+## 代决记录(2026-10-18,巡检 PATROL1018E)
+
+- **决定**:契约面立项——按本草案把 `consent` 组冻结为 realname **v1.1**(realname.md 新增「同意管理」节,只加不改,零新增错误码)。
+- **理由**:1018E 单授权「待拍板」项代决;冻结动作可逆(纯加法、git 可回滚、不触碰 v1 字段/端点/码)、在本仓范围内;FW1016D 已确立「设计风险前置」打法,本步是其机械延伸。**商业出海与否仍归用户**,本代决只解契约面。
+- **明确不代决**:冻结清单 2–4 步(fixtures 再生 / warden+wardenalt 实现 / 六端 SDK+e2e)——无真实接入方开工会产生无人验收的实现维护面,仍标卡点,解锁钥匙=接入方确认接入或用户开工指令。
+- **推翻路径**:拍板人一句话即废——realname.md「同意管理」节回退为 v1.1 预留态,本档改回 Draft,零实现牵连。
 
 ## 设计原则(继承 realname v1)
 
@@ -118,9 +125,11 @@ OnConsentChanged 回调预留(消费 realname.consent.updated 推送)
 
 - **零新增**:全部判定经 200 载荷表达(2026-10-15 代决口径)。若冻结评审时接入方游戏侧策略执行需要码,按「注册保留码」流程补(errors.md + `TestErrorCodesWiredOrReserved` 门禁),不预注册。
 
-## 冻结清单(出海立项时)
+## 冻结清单与落地状态
 
-1. 本草案评审定稿 → realname.md 升 v1.1(新增 `consent` 节,现有节不动)。
-2. fixtures 增补(如需)→ `go run ./tools/contractgen -write` 六端再生成。
-3. 网关:warden / wardenalt 两实现同形状(Provider 方法 + 审计事件 + 降级安全态)。
-4. 六端 SDK(unity / cocos / miniprogram / laybox / ue / godot)+ e2e;errors.md 仅在需要码时升版。
+1. ✅ 草案评审定稿 → realname.md 升 v1.1(2026-10-18 PATROL1018E 代决,新增「同意管理(consent,v1.1)」节,现有节不动)。
+2. ⏳ fixtures 增补(如需)→ `go run ./tools/contractgen -write` 六端再生成。
+3. ⏳ 网关:warden / wardenalt 两实现同形状(Provider 方法 + 审计事件 + 降级安全态)。
+4. ⏳ 六端 SDK(unity / cocos / miniprogram / laybox / ue / godot)+ e2e;errors.md 仅在需要码时升版。
+
+> 2–4 步=实现面,统一卡在「开工拍板」:等接入方确认真接入 consent 流程,或用户直接指示开工。

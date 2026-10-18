@@ -18,6 +18,7 @@
 > **更新**(2026-10-14,批次 71):config 域第二实现 scribe-alt(写时维度索引:Publish 时条件切片转维度→允许值索引,投影按请求维度分阶段过滤,与 scribe 读时逐条目条件 AND 短路同契约异构)落地——单测含索引结构/分阶段过滤/两求值方向等价显式证明,e2e 一致性(两实现同 wire 场景同断言),main 注册 + 维护门回调跟随 app 域 primary 重指(同推送源先例);零新错误码。
 > **更新**(2026-10-14,批次 72):payments 域第二实现 teller-alt(追加式事件账本:状态转移追加不可变事件,status/时间戳=投影重放,与 teller 可变状态表同契约异构)落地——单测含账本追加只读/投影重放/两模型操作序列等价显式证明,e2e 一致性(两实现同 wire 场景同断言),main 注册;零新错误码。
 > **更新**(2026-10-14,批次 73):support 域第二实现 croupier-alt(写时属主有序索引:建单/追加/回复/关单/附件登记即时重排,游标=`<毫秒>|<工单ID>` 键集锚点,与 croupier 读时全表扫描+偏移游标同契约异构)落地——单测含索引重排/整轮翻页/游标校验/锚点失效空页 + 跨实现分页等价显式证明(同脚本两实现同页序),e2e 一致性(两实现同 wire 场景同断言),main 注册;九域全部两实现,阶段 C「每域至少两种实现」收口;零新错误码。
+> **更新**(2026-10-18,巡检 PATROL1018E 代决):F31 契约面立项——`consent` 组冻结为 realname **v1.1**([contract/realname.md](../contract/realname.md) 新增「同意管理(consent,v1.1)」节,只加不改、零新增错误码);实现面(网关两实现+六端 SDK+e2e,冻结清单 2–4 步)仍 ⏸ 等开工拍板(接入方确认接入或用户开工指令)。
 > **更新**(2026-10-16,巡检 FW1016D 代决):F31 设计面 / F62 评估面推进——F31 `consent` 组法域中立 v1.1 草案已落([consent-v1.1-draft.md](./consent-v1.1-draft.md);状态仍 ❌:冻结与实现待出海立项,realname.md:100 口径不变);F62 由 ⏸ 待议 → ✅ 已代决(评估完成,不立项,见 [mail-cdk-evaluation.md](./mail-cdk-evaluation.md))。待议 1→0。
 > **更新**(2026-10-14,巡检 R1 代决):F14/F15 由 ⏸ 待议 → ✅ 已代决——F14 分级读写权限:当前契约即本人/仅服务端两层(Bearer 自持),公开层与社交非目标冲突,不立项;F15 写锁与冲突合并:唯一写字段 displayName 服务端修剪,无并发写冲突面,版本号待第二写字段出现再评估。待议 3→1(F62 留待议)。
 > **更新**(2026-10-13,批次 56):F45 由 ❌ → ✅(support.md v1.1 举报与处罚申诉节 Frozen → 网关 → SDK 六端 → e2e 分批落地,证据 commit 见行内);F11 错误码表 v7→v8(+SUPPORT 举报/申诉 2 码,42 码)。
@@ -53,7 +54,7 @@
 | F28 | 时段限制 | ✅ | curfew F28 窗口;批次 7 |
 | F29 | 充值限额 | ✅ | charge-check F29 分龄限额;批次 7 |
 | F30 | 防沉迷上报 | ✅ | playtime-report S2S 幂等月累计;批次 7 |
-| F31 | 年龄门/同意(海外) | ❌(设计面 ✅ 草案) | v1.1 consent 组法域中立草案已落([consent-v1.1-draft.md](./consent-v1.1-draft.md),FW1016D 代决);realname.md:100 口径不变——冻结与实现待出海立项 |
+| F31 | 年龄门/同意(海外) | ❌(契约面 ✅ v1.1 已冻结;实现面 ⏸ 等开工) | consent 组已冻结进 [contract/realname.md](../contract/realname.md)「同意管理」节(2026-10-18 PATROL1018E 代决;设计:[consent-v1.1-draft.md](./consent-v1.1-draft.md));实现面(网关两实现+六端 SDK+e2e)待接入方/用户开工拍板 |
 | F33 | 审计留痕 | ❌(仓内面 ✅) | trace 贯穿已有(layers.md L5);事件面已落(共享接缝 `gateway/audit.AuditSink` 注入,nil = 不产出;事件只含账号维度元数据,身份输入红线不进事件,批次 62);内置两个接收面:`LogSink`(`COURIER_REALNAME_AUDIT=log`)+ `HTTPSink`(`COURIER_REALNAME_AUDIT_WEBHOOK`(+ `_TOKEN`),SIEM/自建落库代理,尽力交付不阻断请求,批次 65);两实现(warden / warden-alt)同形状注入、同事件序列(批次 66);保留策略与查询面归接入方存储实现(audit.go:3 已注)——仓内面已全落,余归接入方 |
 | F34 | 公告系统 | ✅ | announcement.md Frozen+herald;批次 6(`38fe759`);第二实现 herald-alt(写时索引,同契约可换 + 一致性 e2e)批次 69 |
 | F35 | 公告定向过滤 | ✅ | announcement.md Frozen v1.1 `filters` 开集 map + 四查询维度;herald 匹配 + SDK list 参数(`53eaa7c`)+ e2e 命中/未命中/详情 404;批次 51(`5317802`/`f20e9ab`);herald-alt 匹配同源 + 两实现一致性 e2e 批次 69 |
@@ -112,5 +113,5 @@
 
 | ID | 缺口 | 建议落点 |
 | --- | --- | --- |
-| F31 | 年龄门/家长同意(海外) | realname v1.1 consent 组(realname.md:100 已预留;法域中立草案已落 research/consent-v1.1-draft.md,FW1016D 代决——冻结与实现待出海立项) |
+| F31 | 年龄门/家长同意(海外) | 契约面已冻结:realname v1.1 consent 组(2026-10-18 PATROL1018E 代决,realname.md「同意管理」节);余实现面(网关两实现+六端 SDK+e2e)待开工拍板——卡点=等接入方/用户 |
 | F33 | 审计落库 | 仓内面已全落(批次 62/65/66:`gateway/audit.AuditSink` + `LogSink` + `HTTPSink`,两实现同形状);剩保留策略与查询面,归接入方存储实现(audit.go:3 已注)——卡接入方存储形态拍板 |

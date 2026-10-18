@@ -1,7 +1,7 @@
 
 # F31 Overseas Age Gate and Parental Consent: the `consent` Group v1.1 Design Draft
 
-> Status: **Draft (not frozen)** · design started under the delegated decision of the 2026-10-16 patrol FW1016D · freezing still awaits the overseas expansion proposal ([realname.md:100](../contract/realname.en.md) position unchanged).
+> Status: **Frozen (v1.1)** · design started under the 2026-10-16 FW1016D delegated decision → frozen on 2026-10-18 by patrol PATROL1018E, landed in [contract/realname.md](../contract/realname.en.md) "Consent Management (consent, v1.1)" (additive-only). The implementation surface (freeze checklist steps 2–4) awaits a go-ahead call.
 > Characterization: this draft turns "design from scratch after the overseas decision" into "freeze upon draft review"; jurisdiction-neutral (thresholds are not in the contract, they belong to Provider configuration), and it is not pinned to a single COPPA / GDPR-K shape.
 > Research basis: the F31 row ([features.md §5](./features.en.md): first-launch age screening; below the digital consent age go through verifiable parental consent VPC; consent records retained separately).
 
@@ -10,6 +10,13 @@
 - **Decision**: the `consent` group is designed jurisdiction-neutral, draft first; freezing and implementation await the overseas expansion proposal.
 - **Reasoning**: F31 is a "pending decision" blocker (freeze only after the overseas requirement is triggered). The established play of the contract-first repo is to front-load design risk — the draft does not change realname v1's frozen state and creates no implementation maintenance surface; once the overseas proposal lands, "draft → freeze review → implementation" is a mechanical step.
 - **Overturn path**: the decision-maker can overturn this and void the draft, restoring the original position of "design from scratch after the trigger"; removing this file from docs is all it takes, with no implementation surface entangled.
+
+## Delegated-decision record (2026-10-18, patrol PATROL1018E)
+
+- **Decision**: charter on the contract side — freeze the `consent` group as realname **v1.1** per this draft (a new "Consent Management" section in realname.md; additive-only, zero new error codes).
+- **Rationale**: the 1018E order authorizes delegating "awaiting-a-call" items; freezing is reversible (purely additive, revertible in git, touches no v1 field/endpoint/code) and sits inside this repo; FW1016D already established the "front-load design risk" approach, and this step is its mechanical continuation. **Whether the studio actually goes overseas stays with the user** — this delegation only clears the contract side.
+- **Explicitly not delegated**: freeze-checklist steps 2–4 (fixtures regen / warden + wardenalt implementation / six SDKs + e2e) — starting those without a real integrator would create an unowned implementation surface, so they stay blocked; the unlock key is an integrator confirming adoption or a direct user go-ahead.
+- **Overturn path**: one sentence from the decision-maker — the "Consent Management" section reverts to a v1.1 reservation, this file goes back to Draft, and nothing on the implementation side is touched.
 
 ## Design Principles (inherited from realname v1)
 
@@ -118,9 +125,11 @@ OnConsentChanged callback reserved (consumes the realname.consent.updated push)
 
 - **Zero new codes**: all verdicts are expressed in the 200 payload (2026-10-15 delegated-decision position). If the freeze review finds that the integrator's game-side policy execution needs codes, add them through the "registered reserved codes" process (errors.md + the `TestErrorCodesWiredOrReserved` gate); they are not pre-registered.
 
-## Freeze Checklist (when the overseas expansion is proposed)
+## Freeze Checklist and Landing Status
 
-1. Review and finalize this draft → realname.md bumps to v1.1 (new `consent` section, existing sections untouched).
-2. Add fixtures (if needed) → `go run ./tools/contractgen -write` regenerates the six platforms.
-3. Gateway: warden / wardenalt, both implementations in the same shape (Provider methods + audit events + degradation safe state).
-4. Six-platform SDKs (unity / cocos / miniprogram / laybox / ue / godot) + e2e; errors.md bumps only when codes are needed.
+1. ✅ Draft reviewed and finalized → realname.md bumped to v1.1 (2026-10-18 patrol PATROL1018E; new "Consent Management (consent, v1.1)" section, existing sections untouched).
+2. ⏳ Add fixtures (if needed) → `go run ./tools/contractgen -write` regenerates the six platforms.
+3. ⏳ Gateway: warden / wardenalt, both implementations in the same shape (Provider methods + audit events + degradation safe state).
+4. ⏳ Six-platform SDKs (unity / cocos / miniprogram / laybox / ue / godot) + e2e; errors.md bumps only when codes are needed.
+
+> Steps 2–4 are the implementation surface, all gated on the same "go-ahead call": an integrator confirming adoption of the consent flow, or a direct instruction from the user to start.

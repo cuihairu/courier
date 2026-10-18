@@ -1,7 +1,7 @@
 
 # 实名认证契约(RealName)
 
-> 状态:**Frozen v1** · 合规能力 · 默认关闭 · 里程碑 M2 后段 · 冻结日期 2026-10-08。
+> 状态:**Frozen v1.1** · 合规能力 · 默认关闭 · 里程碑 M2 后段 · v1 冻结 2026-10-08 / v1.1 冻结 2026-10-18(PATROL1018E 代决:`consent` 组,只加不改)。
 > 域前缀 `REALNAME` 已注册([errors.md](./errors.md));冻结后只加不改,破坏性变更升版本(见 [versioning.md](./versioning.md))。
 > 红线:实名数据是最高敏感级个人数据。本能力默认关闭;接入即视为接入方向玩家收集实名信息,**数据范围明示义务在接入方**,本文档的数据范围表即对外口径的事实源。
 
@@ -98,7 +98,92 @@ RealName
 
 - `Status().isMinor` 与 `Curfew().playable` 是唯二判定输出;策略执行不在本契约(接入方游戏侧,或未来独立防沉迷模块)。
 - 预留:`OnRealNameVerified` 客户端回调;服务端 Provider 结果中保留 `policyExtension` 扩展位,当前必须忽略未知字段。
-- v1.1 预留(只加不改):海外年龄门/家长同意 `consent` 组(调研 F31,出海需求触发再冻结;法域中立设计草案已落 [research/consent-v1.1-draft.md](../research/consent-v1.1-draft.md),FW1016D 代决)。
+- v1.1 已冻结:海外年龄门/家长同意 `consent` 组,见下文「同意管理(consent,v1.1)」节(调研 F31;2026-10-18 PATROL1018E 代决冻结,只加不改;设计过程见 [research/consent-v1.1-draft.md](../research/consent-v1.1-draft.md))。
+
+## 同意管理(consent,v1.1)
+
+> v1.1 新增,只加不改:现有 `verify` / `status` / `curfew` / `charge-check` / `playtime-report` 端点与字段一律不动。2026-10-18 巡检 PATROL1018E 代决冻结(设计草案见 [research/consent-v1.1-draft.md](../research/consent-v1.1-draft.md))。**冻结 ≠ 实现**:网关与六端 SDK 实现面待开工拍板。
+
+- **默认关闭**:未配置 consent 通道 = 能力关闭语义(`501 COMMON_CAPABILITY_DISABLED`),查询返回「未启用」,接入方隐藏年龄门 UI,**不进报错路径**(同 v1)。
+- **判定经 200 载荷**:同意态进 `data` 不进错误码,**零新增错误码**。
+- **客户端不得自行推断**:年龄与同意判定均服务端下发(同 v1 `isMinor` 原则)。
+- **数据红线对齐 v1**:出生日期只经申报接口传输一次,不缓存、不落盘、不进诊断采集;UI 展示仅年份。
+
+### 状态机(consent 状态)
+
+| state | 语义 | 游戏侧处理 |
+| --- | --- | --- |
+| `UNDECLARED` | 未申报年龄 | 首启年龄门(申报前不放行受保护操作) |
+| `ADULT` | 成年 | 终态,不再要求同意 |
+| `PENDING_PARENT` | 未成年且同意未决 | 门槛关闭;可发起 / 重发 VPC 请求,按 `requestExpiresAt` 提示 |
+| `GRANTED` | 家长同意成立 | 门槛放行 |
+| `DENIED` | 家长拒绝 | 门槛关闭;是否允许再次请求归 Provider 策略 |
+| `REVOKED` | 同意后被撤回 | 门槛关闭;撤回即停发诊断(见「诊断联动」) |
+
+- **防回拨**:重复申报年龄仅「趋严」生效(成年 → 未成年可,反向不行);纠错走 Provider 运维面,不进玩家契约。
+
+### 端点(挂载 `/v1/realname/consent/*`)
+
+| 端点 | 认证 | 说明 |
+| --- | --- | --- |
+| `GET /v1/realname/consent/status` | Bearer | 同意状态查询 |
+| `POST /v1/realname/consent/declare-age` | Bearer | 首启年龄申报 `{ birthDate: "YYYY-MM-DD" }`,响应 `data` = 下表 status(申报即得判定) |
+| `POST /v1/realname/consent/parent-consent/request` | Bearer | 发起 VPC 请求 `{}` → `{ requestId, requestExpiresAt }`;`PENDING_PARENT` 期间幂等(未过期返回同一请求,过期换新 `requestId`) |
+| 推送事件 `realname.consent.updated` | SSE | 状态变化通知(复用 M3 推送通道,同 `config.updated` 形状) |
+
+- 玩家侧端点认证与 scope header 要求同 [auth.md](./auth.md);账号维度(同 v1,非 player 维度)。
+- 家长验证本身**不在本契约**(归 Provider:信用卡验证 / 签署表单 / 政府证件 / 邮件增强等法域机制);本契约只表达「请求发起 + 结果状态 + 变化推送」。
+
+### 数据模型:status(同意状态)
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `state` | 枚举 | 上表六态 |
+| `declaredAt` | timestamp? | 年龄申报时间 |
+| `grantedAt` | timestamp? | 同意成立时间(`GRANTED` 下发) |
+| `revokedAt` | timestamp? | 撤回时间(`REVOKED` 下发) |
+| `requestExpiresAt` | timestamp? | 当前 VPC 请求到期点(`PENDING_PARENT` 下发) |
+
+请求 / 响应走 primitives 信封([primitives.md](./primitives.md))。
+
+### 法域中立:阈值与规则归 Provider 配置
+
+| 配置 | 说明 | 契约关系 |
+| --- | --- | --- |
+| `minimumAge` | 最低游玩年龄(低于则始终 `DENIED` 语义,由 Provider 决定表达) | 不进契约 |
+| `digitalConsentAge` | 数字同意年龄(GDPR-K 各成员国 13–16;COPPA 13) | 不进契约 |
+| `vpc.mechanism / ttl` | 家长验证机制与请求有效期 | 不进契约 |
+
+- 判定输入 = `birthDate` + Provider 阈值配置;换法域 = 换配置,契约与六端 SDK 不动。
+
+### Provider 接口扩展(加法,不动 v1 方法)
+
+```text
+RealNameProvider 追加:
+  ConsentStatus(accountId) → ConsentState
+  DeclareAge(accountId, birthDate) → ConsentState        // 防回拨:仅趋严生效
+  RequestParentConsent(accountId) → ConsentRequest{ requestId, expiresAt }
+```
+
+- 热插拔 / 降级链 / 熔断沿用 v1 通用 Provider 治理规则;降级安全态 = `PENDING_PARENT`(不放行不拒绝,转人工)。
+- 审计:新增事件 `realname.consent.declared / parent_requested / granted / denied / revoked`,只含账号维度元数据;出生日期与家长身份输入**永不进事件**(同 v1 红线);经共享接缝 `gateway/audit.AuditSink`,两实现同形状。
+- 同意记录与身份数据**分存储、独立保留期**(合规要求可分别举证);保留天数归接入方合规口径(F33 同款边界)。
+
+### SDK 面(L2/L4 投影)
+
+```text
+RealName.Consent
+  .Status()                  → { state, declaredAt?, grantedAt?, revokedAt?, requestExpiresAt? }
+  .DeclareAge(birthDate)     → status
+  .RequestParentConsent()    → { requestId, requestExpiresAt }
+OnConsentChanged 回调预留(消费 realname.consent.updated 推送)
+```
+
+- `REVOKED` 到达 → SDK 内部触发诊断停发联动([diagnostics.md](./diagnostics.md) 预留位),无需接入方逐事件接线;「关闭立即生效」红线已内建。
+
+### 错误码
+
+**零新增**——全部判定经 200 载荷表达(2026-10-15 代决口径)。实现面评审时若接入方游戏侧策略执行确需错误码,按「注册保留码」流程补([errors.md](./errors.md) + `TestErrorCodesWiredOrReserved` 门禁),不预注册。
 
 ## Provider 热插拔(服务端,治理首个完整适用方)
 
@@ -169,7 +254,7 @@ HealthCheck() → bool
 
 | 可能的扩展 | 兼容处理方式 |
 | --- | --- |
-| 海外年龄门/家长同意(F31) | `consent` 端点组 v1.1 预留(上文「防沉迷钩子」节,出海需求触发再冻结;草案见 [research/consent-v1.1-draft.md](../research/consent-v1.1-draft.md));现有字段与端点不动 |
+| 海外年龄门/家长同意(F31) | `consent` 端点组已于 v1.1 冻结(2026-10-18 PATROL1018E 代决,见「同意管理(consent,v1.1)」节);现有字段与端点不动,实现面待开工拍板 |
 | Provider 结果扩展 | `policyExtension` 扩展位已预留,未知字段必须忽略;新策略字段 = 加法兼容 |
 | 验证通过回调 | `OnRealNameVerified` 客户端回调已预留;触发时机细化 = 加参数提案 |
 | 第三方核验生态 | `RealNameProvider` 接口可插拔 + 路由表热切换已冻结;接新供应商 = 新适配,契约不动 |
