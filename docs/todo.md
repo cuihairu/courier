@@ -16,11 +16,11 @@
 ## 待议(边界未定,不立项)
 
 - [ ] F62 邮件/礼包码:与消息面相邻,按需优先评估(features.md §10 定性「值得优先评估」,需运营侧实际需求触发);卡点类型=等运营需求;解锁条件=运营侧实际需求触发、按评估草图冻结立项;FW1016D 已代决(评估):评估完成(research/mail-cdk-evaluation.md)——契约面同构度高、按草图低成本可立;运营需求未触发维持不立项,解锁条件不变
-- [ ] F77 支付订单持久化与重启恢复(2026-10-18 审核表三评估;一期 2026-10-19 已代决落地,二期仍需用户拍板):现状订单全进程内存(teller/telleralt `orders` map),重启 = 未完结订单丢失、回调来单 404;payment.md 未把重启恢复写进契约,属实现方部署语义。**一期已代决**(巡检推进单授权,取 ledger 建议方案:零外部依赖):`Options.StateFile` opt-in(空 = 纯内存,历史行为零变化),每次订单状态变更原子写全量快照(临时文件 + rename,无停机钩子依赖),构造时回放;快照损坏 → HealthCheck fail-closed → 支付域 503,不静默从空态启动丢单;SKU 价格表不快照(管理面启动登记);teller(可变状态表)/ telleralt(事件账本)同构落地,main.go 经 `COURIER_PAYMENTS_STATE` / `COURIER_PAYMENTS_STATE_ALT` 注入。**二期待议**:按接入方存储形态注入 Options Store 接缝——需用户拍板(涉部署形态选型)
+- [ ] F77 支付订单持久化与重启恢复(2026-10-18 审核表三评估;一期 2026-10-19 已代决落地,二期仍需用户拍板):评估基线(批次 96 前)订单全进程内存,重启丢未完结订单;一期落地后未配 `StateFile` 仍纯内存(历史行为不变),配置即快照持久化 + 重启回放 + 损坏 fail-closed(teller.go:81/137-138/185、telleralt.go:87、main.go:202/212;测试 teller_test.go:598/633/645、telleralt_test.go:929/945;2026-10-19 FIRE1019D 复核);payment.md 未把重启恢复写进契约,属实现方部署语义(provider-guide.md:89-90 登记 env),复核未变。**一期已代决**(巡检推进单授权,取 ledger 建议方案:零外部依赖):`Options.StateFile` opt-in(空 = 纯内存,历史行为零变化),每次订单状态变更原子写全量快照(临时文件 + rename,无停机钩子依赖),构造时回放;快照损坏 → HealthCheck fail-closed → 支付域 503,不静默从空态启动丢单;SKU 价格表不快照(管理面启动登记);teller(可变状态表)/ telleralt(事件账本)同构落地,main.go 经 `COURIER_PAYMENTS_STATE` / `COURIER_PAYMENTS_STATE_ALT` 注入。**二期待议**:按接入方存储形态注入 Options Store 接缝——需用户拍板(涉部署形态选型)
 - [ ] F78 Provider 配置热重载管理入口(2026-10-18 审核表三评估):**一期已代决落地**(2026-10-19 巡检推进单代决条款,取台账分期建议:零新攻击面)——`routing.Hot` 全域路由表原子换表(在途按旧表完成),`SIGHUP` 重读 COURIER_GATEWAY_CONFIG、失败保留旧表 fail-safe;跟随 primary 三接缝(身份验证器/推送源/维护门)随重载双向重指(原启动单向重指重构为启动/重载共用 apply 路径,指回默认不再残留旧实现);architecture/layers/provider-guide(zh+en)同步。**二期待议**:管理端点(前置=管理面鉴权契约)与文件 watch——需用户拍板
 - [x] F79 多实例共享限流(2026-10-18 审核表三评估):**已代决不立项**(2026-10-19 巡检推进单代决条款,取台账建议方案:接入方设施优先)——多实例部署时限流经接入方 Redis/LB 设施承担,仓内不引入外部依赖做共享限流(单实例部署本就无影响);rates 语义红线(单机阈值)已在 architecture/middleware 注明。若接入方无 Redis/LB 且需多实例,重新立项再议
-- [ ] F80 UE/Cocos 持久化令牌存储适配器(2026-10-18 审核表三评估):**已代决不提前做**(2026-10-19 巡检推进单代决条款,取台账建议方案)——随引擎集成面(UE HttpModule 后续)一并落位,不单独提前;现状=仓内仅 MemoryTokenStore、接入方可自实现 TokenStore 接缝补齐(layers.md 已注)。卡点类型=等引擎集成面;解锁条件=UE HttpModule 集成启动或接入方自适配
-- 审核表三另两项已有归属,不另开:F31(consent 端到端,未完成节,卡点=等开工拍板)、F33(审计可靠交付/保留/查询,未完成节,卡点=等接入方存储形态)——未重开已裁决条目
+- [ ] F80 UE/Cocos 持久化令牌存储适配器(2026-10-18 审核表三评估):**已代决不提前做**(2026-10-19 巡检推进单代决条款,取台账建议方案)——随引擎集成面(UE HttpModule 后续)一并落位,不单独提前;现状=UE/Cocos 端仓内仅内存态(cocos src/core/tokenStore.ts:12 MemoryTokenStore、UE core/token_store.hpp 接缝;unity/微信/laya/godot 平台持久化已落,layers.md:79 已注),接入方可自实现 TokenStore 补齐(2026-10-19 FIRE1019D 复核)。卡点类型=等引擎集成面;解锁条件=UE HttpModule 集成启动或接入方自适配
+- 审核表三遗留归属(2026-10-19 FIRE1019D 复核):F31(consent 端到端)已随批次 102 完成销项(六端 SDK + 一致性 e2e);F33(审计可靠交付/保留/查询)仍在未完成节,卡点=等接入方存储形态——未重开已裁决条目
 
 ## Provider 口径(能力归 Provider,不进核心契约)
 
