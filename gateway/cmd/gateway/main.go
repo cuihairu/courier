@@ -9,6 +9,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/cuihairu/courier/gateway/audit"
@@ -57,18 +59,21 @@ func main() {
 	// 见 e2e/identity_conformance_test.go:两实现同一 wire 场景全绿)。
 	accAlt := accountalt.New(accountalt.Options{DeleteGrace: accountalt.DefaultDeleteGrace, OAuthDisabled: oauthDisabled})
 	// 会话校验器:经可重定向包装供 M2+ 域共享(通道/工单都为已认证玩家服务);
-	// 身份源切换时随之重指(下方读配置后),否则换身份源后 M2 域验不了新令牌。
-	sessVerifier := auth.NewSwitchable(acc.Verifier())
+	// 身份源切换时随之重指(启动装配与 SIGHUP 重载共用 reload.go 的 apply 路径),
+	// 否则换身份源后 M2 域验不了新令牌。
+	idVerifier := acc.Verifier()
+	sessVerifier := auth.NewSwitchable(idVerifier)
 	reqAuth := auth.RequireAuth(sessVerifier)
 	chirpP := chirp.New(chirp.Options{RequireAuth: reqAuth})
 	// 推送域第二实现(批次 68):chirp-alt(共享环形日志 + 每连接游标拉取)与
 	// chirp(每订阅者独立缓冲扇出)同契约异构;切换 = {"messages":{"primary":"chirp-alt"}}
 	// (一致性 e2e 见 e2e/messages_conformance_test.go:两实现同一 wire 场景全绿)。
 	chirpAltP := chirpalt.New(chirpalt.Options{RequireAuth: reqAuth})
-	// 域 Provider 的 Notify 钩子经此重指(同 sessVerifier.SetTarget 先例):
+	// 域 Provider 的 Notify 钩子经原子函数指针重指(同 sessVerifier.SetTarget
+	// 先例;F78 一期起运行期可重指,闭包捕获普通变量会数据竞争):
 	// primary 换到 chirp-alt 时事件发往第二枢纽,流端点与事件源同源。
-	notifyTarget := chirpP.Hub().Publish
-	publish := func(eventType string, data any) { notifyTarget(eventType, data) }
+	notifyFn := newAtomicFn(chirpP.Hub().Publish)
+	publish := func(eventType string, data any) { notifyFn.Get()(eventType, data) }
 	heraldP := herald.New(herald.Options{RequireAuth: reqAuth, Notify: publish})
 	// 公告域第二实现(批次 69):herald-alt(写时索引——map 详情 O(1) +
 	// 发布时维护 publishedAt 升序切片,列表倒序遍历输出)与 herald(读时线性
@@ -135,10 +140,10 @@ func main() {
 	// 逐条目条件 AND 短路)同契约异构;切换 = {"app":{"primary":"scribe-alt"}}
 	// (一致性 e2e 见 e2e/config_conformance_test.go:两实现同一 wire 场景全绿)。
 	scribeAltP := scribealt.New(scribealt.Options{RequireAuth: reqAuth, Notify: publish})
-	// 维护门回调跟随 app 域 primary(同推送源先例):赋值先于 ListenAndServe,
-	// 无数据竞争;不重指则换源后维护开关仍在旧源上。
-	maintenanceSource := scribeP.InMaintenance
-	maintEnabled := func() bool { return maintenanceSource() }
+	// 维护门回调跟随 app 域 primary(同推送源先例),经原子函数指针重指
+	// (F78 一期起运行期可重指);不重指则换源后维护开关仍在旧源上。
+	maintFn := newAtomicFn(scribeP.InMaintenance)
+	maintEnabled := func() bool { return maintFn.Get()() }
 	// 玩家档案(M3,批次 8):archivist(自建轻量)——账号档案 + 账号↔角色映射
 	// (按 scope 隔离;角色数据归各游戏,本域不存)。
 	archivistP := archivist.New(archivist.Options{RequireAuth: reqAuth})
@@ -188,7 +193,7 @@ func main() {
 	// announcements/support/messages → 各默认供应商)+
 	// COURIER_GATEWAY_CONFIG(可选,JSON,覆盖默认);未配置的域保持降级
 	// (501 COMMON_CAPABILITY_DISABLED),见 routing 包文档。
-	cfg := providers.Config{
+	defaults := providers.Config{
 		providers.CapIdentity:      {Primary: account.DefaultName},
 		providers.CapAnnouncements: {Primary: herald.DefaultName},
 		providers.CapSupport:       {Primary: croupier.DefaultName},
@@ -198,34 +203,52 @@ func main() {
 		providers.CapAssistant:     {Primary: sage.DefaultName},
 		providers.CapPayments:      {Primary: teller.DefaultName},
 	}
-	if userCfg, err := loadConfig(); err != nil {
+	userCfg, err := loadConfig()
+	if err != nil {
 		log.Fatalf("courier gateway: 加载路由表配置失败: %v", err)
-	} else if userCfg != nil {
-		for cap, cc := range userCfg {
-			cfg[cap] = cc // 接入方配置覆盖内置默认
-		}
-		// 身份源切换:验证器与主存同源,primary 换到第二实现即重指
-		// (跟随 identity 域 primary;fallbacks 不参与)。
-		if cc, ok := userCfg[providers.CapIdentity]; ok && cc.Primary == accountalt.DefaultName {
-			sessVerifier.SetTarget(accAlt.Verifier())
-		}
-		// 推送源切换:Notify 钩子跟随 messages 域 primary(同身份源先例;
-		// 赋值先于 ListenAndServe,无数据竞争)。
-		if cc, ok := userCfg[providers.CapMessages]; ok && cc.Primary == chirpalt.DefaultName {
-			notifyTarget = chirpAltP.Publish
-		}
-		// 维护门源切换:跟随 app 域 primary(同推送源先例)。
-		if cc, ok := userCfg[providers.CapApp]; ok && cc.Primary == scribealt.DefaultName {
-			maintenanceSource = scribeAltP.InMaintenance
-		}
 	}
+	// 跟随 primary 的运行期接缝(身份验证器/推送源/维护门):启动装配与
+	// SIGHUP 重载共用同一条 apply 路径(reload.go)——重载回默认 primary
+	// 必须能指回,单向重指会在换表后残留旧实现。
+	targets := &followTargets{
+		identity:      sessVerifier,
+		idVerifier:    idVerifier,
+		idAltVerifier: accAlt.Verifier(),
+		publish:       notifyFn,
+		pubDefault:    chirpP.Hub().Publish,
+		pubAlt:        chirpAltP.Publish,
+		maint:         maintFn,
+		maintDefault:  scribeP.InMaintenance,
+		maintAlt:      scribeAltP.InMaintenance,
+	}
+	targets.apply(userCfg)
 
 	// 中间件链:trace → 结构化错误 → 限流 → scope(冻结顺序,批次 2);
 	// 维护门包整个入口(app.md:维护开启 → /v1/* 除本域端点外一律 503,白名单内建);
 	// MaxBody 包最外层,超限请求在读 body 处即 400,不进业务(审核 2026-10-18 表一#2)。
 	chain := middleware.Chain(middleware.NewRateLimiter(120, 60))
+	hot := routing.NewHot(reg, chain, mergeConfig(defaults, userCfg))
 	handler := middleware.MaxBody(middleware.MaxBodyBytes)(
-		middleware.Maintenance(maintEnabled)(routing.New(reg, cfg, chain)))
+		middleware.Maintenance(maintEnabled)(hot))
+
+	// SIGHUP 热重载(F78 一期,已代决):重读 COURIER_GATEWAY_CONFIG,失败
+	// 保留旧表只记日志(fail-safe);成功则重指接缝 + 原子换表(routing.Hot,
+	// 在途按旧表完成)。信号驱动,零新攻击面——不设管理端点;文件 watch 与
+	// 管理端点(前置=管理面鉴权契约)留二期。
+	sigHup := make(chan os.Signal, 1)
+	signal.Notify(sigHup, syscall.SIGHUP)
+	go func() {
+		for range sigHup {
+			cfg, err := loadConfig()
+			if err != nil {
+				log.Printf("courier gateway: reload skipped, keep old config: %v", err)
+				continue
+			}
+			targets.apply(cfg)
+			hot.Reload(mergeConfig(defaults, cfg))
+			log.Printf("courier gateway: config reloaded")
+		}
+	}()
 
 	log.Printf("courier gateway listening on %s", addr)
 	log.Fatal(newServer(addr, handler).ListenAndServe())

@@ -81,7 +81,7 @@ Provider 的密钥一律**环境变量注入、进程内 fail-closed**(`COURIER_
 `COURIER_REALNAME_S2S_TOKEN` 等,见 main.go);不落配置文件、不进契约。
 网关侧另有装配 env:`COURIER_GATEWAY_ADDR`(监听地址,缺省 `:8080`)、
 `COURIER_OAUTH_DISABLED=1`(关闭 oauth 域,501 降级)、`COURIER_GATEWAY_CONFIG`(JSON
-路由表路径,覆盖内置默认)、`COURIER_REALNAME_AUDIT_WEBHOOK`(+ `COURIER_REALNAME_AUDIT_TOKEN`,
+路由表路径,覆盖内置默认;`SIGHUP` 重读生效,失败保留旧表,批次 99/F78 一期)、`COURIER_REALNAME_AUDIT_WEBHOOK`(+ `COURIER_REALNAME_AUDIT_TOKEN`,
 审计直写半边端点与凭证)、`COURIER_REALNAME_AUDIT=log`(日志半边开关)、
 `COURIER_PAYMENTS_STATE`(teller 订单快照文件路径,缺省空 = 纯内存)、
 `COURIER_PAYMENTS_STATE_ALT`(teller-alt 事件账本快照路径,缺省空 = 纯内存)。

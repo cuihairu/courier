@@ -105,7 +105,7 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 **边界**
 
 - 不做入口治理(鉴权/限流归 L5);不做 UI;Provider 未配置 = 能力降级(`COMMON_CAPABILITY_DISABLED`),不报错、不拖垮其他能力。
-- 治理规则:配置驱动路由表(`primary`+`fallbacks[]`)、降级链、HealthCheck 全 Provider 通用;运行时热重载与熔断实名域已落地(`providers/router`),其余域为预留接缝(详见 architecture.md「Provider 治理」)。
+- 治理规则:配置驱动路由表(`primary`+`fallbacks[]`)、降级链、HealthCheck 全 Provider 通用;全域路由表热重载经 `routing.Hot` 落地(SIGHUP 重读 COURIER_GATEWAY_CONFIG,批次 99/F78 一期);域内细粒度熔断仍实名域专属(`providers/router`),其余域为预留接缝(详见 architecture.md「Provider 治理」)。
 
 **接口形状**
 

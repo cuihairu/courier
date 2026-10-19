@@ -148,7 +148,7 @@ gateway/
 
 ## Provider 治理:热插拔 / 降级链 / 熔断
 
-- **配置驱动**:每个 Provider 由配置声明 `primary` + `fallbacks[]`;运行时配置重载即生效,不重启(路由表原子替换,在途请求按旧表完成)。现状边界:原子替换在 `providers/router.Reload` 进程内接缝(实名域已用),管理面重载端点未实现——`main.go` 仍只在启动时读一次 `COURIER_GATEWAY_CONFIG`。
+- **配置驱动**:每个 Provider 由配置声明 `primary` + `fallbacks[]`;运行时配置重载即生效,不重启(路由表原子替换,在途请求按旧表完成)。现状:全域路由表热重载经 `routing.Hot` 落地(批次 99,F78 一期)——`SIGHUP` 重读 `COURIER_GATEWAY_CONFIG`,失败保留旧表(fail-safe);跟随 primary 的接缝(身份验证器/推送源/维护门)随重载双向重指;实名域另有域内细粒度治理 `providers/router.Reload`(降级链/熔断,批次 7)。管理面重载端点未实现(二期,前置=管理面鉴权契约)。
 - **降级链**:主 Provider 失败/超时 → 依序 fallback;全部失败按域定义安全态(如 RealName → `PENDING_REVIEW`)。
 - **熔断**(实名域已落地):按调用次数驱动——连续 N 次失败开路,开路后 30 次调用半开探测恢复(无定时器);熔断期直接走 fallback。
 - **HealthCheck**:逐请求探活,失败落 fallback、全链不健康 503;注册表不做实例剔除(接缝预留)。

@@ -81,7 +81,7 @@ Provider secrets are always **injected via environment variables and fail-closed
 `COURIER_REALNAME_S2S_TOKEN`, etc., see main.go); they never land in configuration files or enter the contract.
 The gateway side has its own assembly env vars: `COURIER_GATEWAY_ADDR` (listen address, default `:8080`),
 `COURIER_OAUTH_DISABLED=1` (turn the oauth domain off, 501 degradation), `COURIER_GATEWAY_CONFIG` (path to the JSON
-routing table, overriding the built-in defaults), `COURIER_REALNAME_AUDIT_WEBHOOK` (+ `COURIER_REALNAME_AUDIT_TOKEN`,
+routing table, overriding the built-in defaults; `SIGHUP` re-reads it, failures keep the old table, batch 99 / F78 phase 1), `COURIER_REALNAME_AUDIT_WEBHOOK` (+ `COURIER_REALNAME_AUDIT_TOKEN`,
 the audit direct-write-half endpoint and credentials), `COURIER_REALNAME_AUDIT=log` (the log-half switch),
 `COURIER_PAYMENTS_STATE` (teller order snapshot file path, default empty = in-memory only),
 `COURIER_PAYMENTS_STATE_ALT` (teller-alt event-journal snapshot path, default empty = in-memory only).

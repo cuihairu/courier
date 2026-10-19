@@ -105,7 +105,7 @@ L1–L3 sit on the client side, L4–L5 on the server side; L1 is depended on by
 **Boundaries**
 
 - No entry governance (authentication / rate limiting belong to L5); no UI; an unconfigured Provider = capability degraded (`COMMON_CAPABILITY_DISABLED`), raising no error and dragging down no other capability.
-- Governance rules: config-driven routing table (`primary`+`fallbacks[]`), degradation chain, HealthCheck common to all Providers; runtime hot-reload and circuit breaking have landed for the real-name domain (`providers/router`), the other domains are reserved seams (see "Provider governance" in architecture.md).
+- Governance rules: config-driven routing table (`primary`+`fallbacks[]`), degradation chain, HealthCheck common to all Providers; whole-table hot reload across all domains landed via `routing.Hot` (SIGHUP re-reads COURIER_GATEWAY_CONFIG, batch 99 / F78 phase 1); in-domain fine-grained circuit breaking remains realname-specific (`providers/router`), the other domains are reserved seams (see "Provider governance" in architecture.md).
 
 **Interface shape**
 
