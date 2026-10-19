@@ -1,6 +1,6 @@
 # M3/M4/M5 服务域单测(cocos service2.test.ts 同构):app/config/branding/player/
-# assistant/payment/realname 的 wire 形状、501 降级语义(data:null)、typed 错误、
-# 缓存判据。运行(从仓库根):
+# assistant/payment/realname(含 consent v1.1)的 wire 形状、501 降级语义(data:null)、
+# typed 错误、缓存判据。运行(从仓库根):
 #   godot --headless --path sdks/godot --script tests/test_service2.gd
 extends SceneTree
 
@@ -266,6 +266,56 @@ func t_realname() -> void:
 	check(bool(off.get("ok", true)) and off["data"] == null, "501 应 data:null(隐藏实名 UI)")
 
 
+# ---- RealName.Consent 域(v1.1,F31) ----
+
+func t_realname_consent() -> void:
+	var transport := FakeTransport.new(self)
+	var svc := await new_services(transport)
+
+	# 申报即判定:响应 data = 同意状态(六态原样下发,SDK 不推断)。
+	transport.enqueue(200, success('{"state":"PENDING_PARENT","declaredAt":"t1"}'))
+	var declared: Dictionary = await svc.realname.consent.declare_age("2015-06-20")
+
+	check(str(transport.requests[1]["method"]) == "POST", "申报应为 POST")
+	check(str(transport.requests[1]["url"]) == "https://api.example.com/v1/realname/consent/declare-age",
+			"申报 URL 不符:" + str(transport.requests[1]["url"]))
+	check(sent_body(transport.requests[1]) == {"birthDate": "2015-06-20"},
+			"申报 body 不符(出生日期只在传输链)")
+	check(str(declared["data"]["state"]) == "PENDING_PARENT", "申报即判定应解析")
+	check(str(declared["data"]["declaredAt"]) == "t1", "申报时间应透传")
+
+	transport.enqueue(200, success('{"state":"GRANTED","declaredAt":"t1","grantedAt":"t2"}'))
+	var status_r: Dictionary = await svc.realname.consent.status()
+	check(str(transport.requests[2]["url"]) == "https://api.example.com/v1/realname/consent/status",
+			"状态 URL 不符:" + str(transport.requests[2]["url"]))
+	check(str(status_r["data"]["state"]) == "GRANTED", "同意状态应解析")
+	check(str(status_r["data"]["grantedAt"]) == "t2", "grantedAt 应透传")
+	check(not status_r["data"].has("revokedAt") and not status_r["data"].has("requestExpiresAt"),
+			"非对应态字段缺省即缺键")
+
+	# VPC 请求:空体;回执 requestId + requestExpiresAt(PENDING_PARENT 期间幂等)。
+	transport.enqueue(200, success('{"requestId":"req_1","requestExpiresAt":"exp"}'))
+	var vpc: Dictionary = await svc.realname.consent.request_parent_consent()
+	check(str(transport.requests[3]["url"]) == "https://api.example.com/v1/realname/consent/parent-consent/request",
+			"VPC URL 不符:" + str(transport.requests[3]["url"]))
+	check(sent_body(transport.requests[3]) == {}, "VPC 请求应空体")
+	check(str(vpc["data"]["requestId"]) == "req_1", "requestId 应回传")
+	check(str(vpc["data"]["requestExpiresAt"]) == "exp", "到期点应回传")
+
+	# 501 → data:null(隐藏年龄门 UI,不进报错路径)。
+	transport.enqueue(501, disabled_body())
+	var consent_off: Dictionary = await svc.realname.consent.status()
+	check(bool(consent_off.get("ok", true)) and consent_off["data"] == null,
+			"501 应 data:null(隐藏年龄门 UI)")
+
+	# 非降级错误照常 typed(不吞,同实名域 v1)。
+	transport.enqueue(400, '{"error":{"code":"COMMON_INVALID_ARGUMENT","message":"bad birthDate","retryable":false}}')
+	var bad: Dictionary = await svc.realname.consent.declare_age("bad")
+	check(not bool(bad.get("ok", true)) and err_code(bad) == "CommonInvalidArgument",
+			"非降级错误应照常 typed(实得 %s)" % err_code(bad))
+	check(int(bad.get("error", {}).get("http", 0)) == 400, "http 应 400")
+
+
 func _init() -> void:
 	await t_app_anonymous_501()
 	await t_app_maintenance_typed()
@@ -276,5 +326,6 @@ func _init() -> void:
 	await t_payment_flow()
 	await t_payment_typed()
 	await t_realname()
+	await t_realname_consent()
 	print("godot service2 tests: %s (%d failed)" % ["all green" if failed == 0 else "FAILED", failed])
 	quit(1 if failed > 0 else 0)

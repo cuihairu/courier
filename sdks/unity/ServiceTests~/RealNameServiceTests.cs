@@ -1,6 +1,8 @@
 // 批次 7 验收:RealNameService 与 realname.md 契约 wire 对齐——
 // 提交/状态/时段/额度四端点、501 能力关闭转 null(不进报错路径)、
 // 脱敏口径(RealNameMask)与 S2S 不封装红线(编译面由 packcheck 守)。
+// consent 组 v1.1(F31):申报/状态/VPC 三端点投影,出生日期只在传输链
+// (wire 断言 birthDate 进请求体后即弃),consent/s2s/* 同 S2S 红线不封装。
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -155,6 +157,120 @@ namespace Courier.ServiceTests
 
             Assert.Equal("RATE_LIMITED", ex.Error.WireCode); // 只有能力关闭走 null
             Assert.Equal(4, transport.Requests.Count); // 1 建会话 + 3 次核验(重试打满)
+        }
+    }
+
+    // consent 组(契约 v1.1,F31):只测客户端投影(嵌套面 RealName.Consent 三方法),
+    // 网关侧状态机/幂等细节不在此复制。
+    public class RealNameConsentTests
+    {
+        static (CourierServices, FakeTransport) NewServices()
+        {
+            var transport = new FakeTransport();
+            var client = new CourierClient(Fixtures.Config(), transport, new FakeTokenStore(),
+                new FixedClock(Fixtures.BaseTime));
+            transport.EnqueueJson(200, Fixtures.Success(Fixtures.SessionJson()));
+            client.InitAsync(CancellationToken.None).Wait();
+            client.GuestAsync(new GuestRequest { DeviceId = "device-1", Platform = "ios" },
+                CancellationToken.None).Wait();
+            return (new CourierServices(client), transport);
+        }
+
+        [Fact]
+        public async Task ConsentStatus_WireAndParse_FieldsOnlyInState()
+        {
+            var (svc, transport) = NewServices();
+            // GRANTED 态:declaredAt/grantedAt 下发,revokedAt/requestExpiresAt 缺省。
+            transport.EnqueueJson(200, Fixtures.Success(
+                "{\"state\":\"GRANTED\"," +
+                "\"declaredAt\":\"2026-10-17T10:00:00.000Z\"," +
+                "\"grantedAt\":\"2026-10-18T09:00:00.000Z\"}"));
+
+            var status = await svc.RealName.Consent.StatusAsync(CancellationToken.None);
+
+            var req = transport.Requests.Last();
+            Assert.Equal("GET", req.Method);
+            Assert.Equal("https://api.example.com/v1/realname/consent/status", req.Url);
+            Assert.Equal("Bearer access-1", req.Headers["Authorization"]);
+            Assert.Equal("GRANTED", status.State);
+            Assert.Equal("2026-10-17T10:00:00.000Z", status.DeclaredAt);
+            Assert.Equal("2026-10-18T09:00:00.000Z", status.GrantedAt);
+            Assert.Null(status.RevokedAt);      // 只在 REVOKED 态下发
+            Assert.Null(status.RequestExpiresAt); // 只在 PENDING_PARENT 态下发
+        }
+
+        [Fact]
+        public async Task DeclareAge_WireBirthDateInBody_RespondsWithVerdict()
+        {
+            var (svc, transport) = NewServices();
+            // 申报即判定:响应 data = 同意状态(六态原样下发,SDK 不推断)。
+            transport.EnqueueJson(200, Fixtures.Success(
+                "{\"state\":\"PENDING_PARENT\"," +
+                "\"declaredAt\":\"2026-10-17T10:00:00.000Z\"," +
+                "\"requestExpiresAt\":\"2026-10-17T22:00:00.000Z\"}"));
+
+            var status = await svc.RealName.Consent.DeclareAgeAsync("2015-06-20",
+                CancellationToken.None);
+
+            var req = transport.Requests.Last();
+            Assert.Equal("POST", req.Method);
+            Assert.Equal("https://api.example.com/v1/realname/consent/declare-age", req.Url);
+            // 红线:出生日期只进这一次请求体,SDK 不缓存(无后续引用可断言)。
+            Assert.Equal("{\"birthDate\":\"2015-06-20\"}", req.JsonBody);
+            Assert.Equal("PENDING_PARENT", status.State);
+            Assert.Equal("2026-10-17T10:00:00.000Z", status.DeclaredAt);
+            Assert.Equal("2026-10-17T22:00:00.000Z", status.RequestExpiresAt);
+        }
+
+        [Fact]
+        public async Task RequestParentConsent_EmptyBody_ReturnsRequestId()
+        {
+            var (svc, transport) = NewServices();
+            transport.EnqueueJson(200, Fixtures.Success(
+                "{\"requestId\":\"req_1\",\"requestExpiresAt\":\"2026-10-17T22:00:00.000Z\"}"));
+
+            var request = await svc.RealName.Consent.RequestParentConsentAsync(
+                CancellationToken.None);
+
+            var req = transport.Requests.Last();
+            Assert.Equal("POST", req.Method);
+            Assert.Equal(
+                "https://api.example.com/v1/realname/consent/parent-consent/request", req.Url);
+            Assert.Equal("{}", req.JsonBody); // 契约固定空体
+            Assert.Equal("req_1", request.RequestId);
+            Assert.Equal("2026-10-17T22:00:00.000Z", request.RequestExpiresAt);
+        }
+
+        [Fact]
+        public async Task ConsentCapabilityDisabled_AllEndpointsReturnNull()
+        {
+            var (svc, transport) = NewServices();
+            transport.EnqueueJson(501, Fixtures.Failure("COMMON_CAPABILITY_DISABLED",
+                "consent not configured", false));
+            transport.EnqueueJson(501, Fixtures.Failure("COMMON_CAPABILITY_DISABLED",
+                "consent not configured", false));
+            transport.EnqueueJson(501, Fixtures.Failure("COMMON_CAPABILITY_DISABLED",
+                "consent not configured", false));
+
+            Assert.Null(await svc.RealName.Consent.StatusAsync(CancellationToken.None));
+            Assert.Null(await svc.RealName.Consent.DeclareAgeAsync("2015-06-20",
+                CancellationToken.None));
+            Assert.Null(await svc.RealName.Consent.RequestParentConsentAsync(
+                CancellationToken.None)); // 契约:查询返回「未启用」,接入方隐藏年龄门 UI
+        }
+
+        [Fact]
+        public async Task ConsentOtherErrors_StillThrow()
+        {
+            var (svc, transport) = NewServices();
+            // COMMON_INVALID_ARGUMENT 不可重试,单档响应即抛(不走 501 降级)。
+            transport.EnqueueJson(400, Fixtures.Failure("COMMON_INVALID_ARGUMENT",
+                "bad birthDate", false));
+
+            var ex = await Assert.ThrowsAsync<CourierException>(
+                () => svc.RealName.Consent.DeclareAgeAsync("bad", CancellationToken.None));
+
+            Assert.Equal("COMMON_INVALID_ARGUMENT", ex.Error.WireCode); // 只有能力关闭走 null
         }
     }
 

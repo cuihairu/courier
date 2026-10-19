@@ -187,6 +187,11 @@ type Options struct {
 	// AuditSink 审计留痕接收面(F33;nil = 不产出审计事件)。与 warden 同形状
 	// (gateway/audit 共享接缝)——「同契约可换」要求切换实现不静默丢合规留痕。
 	AuditSink audit.AuditSink
+	// Consent 同意管理配置(realname.md v1.1;nil = 能力关闭,consent 端点 501)。
+	Consent *ConsentConfig
+	// Notify 推送钩子(realname.consent.updated,参数为 {"state": 新态};
+	// 仅状态迁移时调用);nil = 不推送。
+	Notify func(eventType string, data any)
 }
 
 func defaultWindows() []Window {
@@ -212,6 +217,7 @@ type Provider struct {
 	s2s    string
 	// auditSink 审计留痕接收面(F33;nil = 不产出)。
 	auditSink audit.AuditSink
+	consent   *ConsentConfig // nil = consent 能力关闭(端点 501)
 }
 
 // New 装配;Fallbacks 注入即降级链(托管核验恒为 primary)。
@@ -228,12 +234,17 @@ func New(opts Options) *Provider {
 	if opts.Limits == (ChargeLimits{}) {
 		opts.Limits = defaultLimits()
 	}
+	if opts.Consent != nil {
+		opts.Consent = opts.Consent.withDefaults()
+	}
 	c := &cloudCore{cloud: opts.Cloud, clock: opts.Clock, windows: opts.CurfewWindows,
-		limits: opts.Limits, records: make(map[string]*bandRecord), plays: make(map[playKey]playReport)}
+		limits: opts.Limits, consent: opts.Consent, notify: opts.Notify,
+		records: make(map[string]*bandRecord), plays: make(map[playKey]playReport),
+		consents: make(map[string]*consentRecord)}
 	rt := router.New(router.Config{Primary: c, Fallbacks: opts.Fallbacks, Breaker: opts.Breaker})
 	return &Provider{name: opts.Name, clock: opts.Clock,
 		authMW: opts.RequireAuth, rt: rt, core: c, s2s: opts.S2SToken,
-		auditSink: opts.AuditSink}
+		auditSink: opts.AuditSink, consent: opts.Consent}
 }
 
 // emitAudit 关键动作留痕(F33):nil sink 零开销;事件只含账号维度元数据,
@@ -269,7 +280,9 @@ func (p *Provider) HealthCheck(_ context.Context) error {
 
 func (p *Provider) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	// S2S 端点不套玩家认证(同 warden):凭证自校验,玩家 Bearer 不是合法凭证。
-	if strings.TrimPrefix(req.URL.Path, prefixRealname) == "playtime-report" {
+	// consent/s2s/* 是家长判定运维通道,同口径。
+	path := strings.TrimPrefix(req.URL.Path, prefixRealname)
+	if path == "playtime-report" || strings.HasPrefix(path, "consent/s2s/") {
 		p.route(resp, req)
 		return
 	}
@@ -298,6 +311,14 @@ func (p *Provider) route(resp http.ResponseWriter, req *http.Request) {
 		p.handleChargeCheck(resp, req)
 	case path == "playtime-report" && req.Method == http.MethodPost:
 		p.handlePlaytimeReport(resp, req)
+	case path == "consent/status" && req.Method == http.MethodGet:
+		p.handleConsentStatus(resp, req)
+	case path == "consent/declare-age" && req.Method == http.MethodPost:
+		p.handleDeclareAge(resp, req)
+	case path == "consent/parent-consent/request" && req.Method == http.MethodPost:
+		p.handleParentConsentRequest(resp, req)
+	case strings.HasPrefix(path, "consent/s2s/") && req.Method == http.MethodPost:
+		p.handleConsentVerdict(resp, req)
 	default:
 		aggregation.WriteError(resp, middleware.TraceID(req.Context()),
 			aggregation.CodeNotFound, "no route for "+req.URL.Path)
@@ -500,10 +521,13 @@ type cloudCore struct {
 	clock   func() time.Time
 	windows []Window
 	limits  ChargeLimits
+	consent *ConsentConfig // nil = consent 关闭(core 方法防御性拒绝)
+	notify  func(string, any)
 
-	mu      sync.Mutex
-	records map[string]*bandRecord
-	plays   map[playKey]playReport
+	mu       sync.Mutex
+	records  map[string]*bandRecord
+	plays    map[playKey]playReport
+	consents map[string]*consentRecord // 同意记录分存储(契约 v1.1)
 }
 
 var (

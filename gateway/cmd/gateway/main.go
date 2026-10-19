@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -110,10 +111,35 @@ func main() {
 	} else if os.Getenv("COURIER_REALNAME_AUDIT") == "log" {
 		auditSink = audit.LogSink{}
 	}
+	// consent 组装配(v1.1,F31):法域阈值经 env 注入(任一 COURIER_REALNAME_
+	// CONSENT* 设置即开启;全部未设置 = Consent nil = consent 端点 501,契约
+	// 「默认关」,接入方隐藏年龄门 UI)。阈值不进契约(法域中立:换法域 = 换
+	// env);数值非法与 loadConfig 同法拒绝起服。
+	consentCfg, consentOn := consentFromEnv()
+	var wardenConsent *warden.ConsentConfig
+	var altConsent *wardenalt.ConsentConfig
+	if consentOn {
+		wardenConsent = &warden.ConsentConfig{
+			MinimumAge:        consentCfg.minimumAge,
+			DigitalConsentAge: consentCfg.digitalConsentAge,
+			AdultAge:          consentCfg.adultAge,
+			RequestTTL:        consentCfg.requestTTL,
+		}
+		altConsent = &wardenalt.ConsentConfig{
+			MinimumAge:        consentCfg.minimumAge,
+			DigitalConsentAge: consentCfg.digitalConsentAge,
+			AdultAge:          consentCfg.adultAge,
+			RequestTTL:        consentCfg.requestTTL,
+		}
+	}
 	wardenP := warden.New(warden.Options{
 		RequireAuth: reqAuth,
 		S2SToken:    os.Getenv("COURIER_REALNAME_S2S_TOKEN"),
 		AuditSink:   auditSink,
+		Consent:     wardenConsent,
+		// consent SSE 推送接 messages 主通道(同 config.updated,SIGHUP 换主
+		// 自动跟随)。
+		Notify: publish,
 	})
 	// realname 第二实现(批次 64):warden-alt(托管核验)——判定经注入的
 	// 核验服务(契约「自定义 Webhook」形态)而非本地证件号解析;网关侧只存
@@ -131,6 +157,8 @@ func main() {
 		Cloud:       cloud,
 		S2SToken:    os.Getenv("COURIER_REALNAME_S2S_TOKEN"),
 		AuditSink:   auditSink,
+		Consent:     altConsent,
+		Notify:      publish,
 	})
 	// 配置/应用状态(M3,批次 8):scribe(自建),config/branding/app 同管道;
 	// 玩家侧只读投影,发布/版本/维护开关走管理面(Publish/SetVersion/SetMaintenance)。
@@ -279,4 +307,45 @@ func loadConfig() (providers.Config, error) {
 		return nil, err
 	}
 	return providers.LoadConfig(data)
+}
+
+// consentEnv consent 组法域配置的原始解析结果(零值字段 = 未设置,由 Provider
+// 补缺省:数字同意 13 / 成年 18 / VPC 72h;minimumAge 未设 = 无 DENIED 档)。
+type consentEnv struct {
+	minimumAge        int
+	digitalConsentAge int
+	adultAge          int
+	requestTTL        time.Duration
+}
+
+// consentFromEnv 读取 consent 组开关与法域阈值(realname.md v1.1,F31)。
+// 任一 COURIER_REALNAME_CONSENT* 变量非空即开启(=on 走纯缺省阈值);全部
+// 未设置 → ok=false = Consent nil = consent 端点 501(契约「默认关」)。
+// 阈值不进契约(法域中立),换法域 = 换 env;数值非法 = 配置错误,与
+// loadConfig 同法在启动路径上拒绝(fail-fast,不静默兜底)。
+func consentFromEnv() (consentEnv, bool) {
+	var c consentEnv
+	enabled := os.Getenv("COURIER_REALNAME_CONSENT") != ""
+	envInt := func(name string, dst *int) {
+		v, ok := os.LookupEnv(name)
+		if !ok || v == "" {
+			return
+		}
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 0 {
+			log.Fatalf("courier gateway: %s 需非负整数,得到 %q", name, v)
+		}
+		*dst, enabled = n, true
+	}
+	envInt("COURIER_REALNAME_CONSENT_MINIMUM_AGE", &c.minimumAge)
+	envInt("COURIER_REALNAME_CONSENT_DIGITAL_CONSENT_AGE", &c.digitalConsentAge)
+	envInt("COURIER_REALNAME_CONSENT_ADULT_AGE", &c.adultAge)
+	if v, ok := os.LookupEnv("COURIER_REALNAME_CONSENT_REQUEST_TTL"); ok && v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil || d < 0 {
+			log.Fatalf("courier gateway: COURIER_REALNAME_CONSENT_REQUEST_TTL 需非负时长(如 72h),得到 %q", v)
+		}
+		c.requestTTL, enabled = d, true
+	}
+	return c, enabled
 }

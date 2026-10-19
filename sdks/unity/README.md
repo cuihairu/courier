@@ -33,7 +33,7 @@ packages/
   com.courier.diagnostics/ 可选诊断包(crash/trace/performance/analytics,默认全关)
 ContractTests~/           契约测试(8 例,xunit)
 CoreTests~/               内核测试(65 例,xunit)
-ServiceTests~/            域服务测试(88 例,xunit)
+ServiceTests~/            域服务测试(93 例,xunit;含 realname consent v1.1 投影)
 DiagnosticsTests~/        诊断包测试(11 例,xunit)
 ```
 

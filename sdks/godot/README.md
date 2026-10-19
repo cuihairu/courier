@@ -71,7 +71,7 @@ godot --headless --path sdks/godot --script tests/test_adapter.gd
 - Player: 档案与游戏角色
 - Assistant: FAQ 检索问答
 - Payment: 契约面（下单/轮询；渠道回调是 S2S，不经客户端）
-- RealName: 实名（可选，合规，默认关）
+- RealName: 实名（可选，合规，默认关）+ RealName.Consent 年龄门/家长同意（v1.1，默认关）
 - Diagnostics: 诊断（可选包，默认全关）
 
 ## 路线图

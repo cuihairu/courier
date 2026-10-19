@@ -1,7 +1,7 @@
 
 # F31 海外年龄门与家长同意:`consent` 组 v1.1 设计草案
 
-> 状态:**已冻结(v1.1)** · 2026-10-16 FW1016D 代决启动设计 → 2026-10-18 巡检 PATROL1018E 代决冻结,已落 [contract/realname.md](../contract/realname.md)「同意管理(consent,v1.1)」节(只加不改)。实现面(冻结清单 2–4 步)待开工拍板。
+> 状态:**已冻结(v1.1)并已落地** · 2026-10-16 FW1016D 代决启动设计 → 2026-10-18 巡检 PATROL1018E 代决冻结,已落 [contract/realname.md](../contract/realname.md)「同意管理(consent,v1.1)」节(只加不改) → 2026-10-19 用户开工指令(FIRE1019B)落地实现面,批次 102(冻结清单 2–4 步全勾,见下)。
 > 定性:本草案把「出海拍板后从零设计」变成「按草案评审冻结」;法域中立(阈值不进契约,归 Provider 配置),不绑死 COPPA / GDPR-K 单一形状。
 > 调研依据:F31 行([features.md §5](./features.md):首启年龄筛查;低于数字同意年龄走可验证家长同意 VPC;同意记录单独留存)。
 
@@ -128,8 +128,8 @@ OnConsentChanged 回调预留(消费 realname.consent.updated 推送)
 ## 冻结清单与落地状态
 
 1. ✅ 草案评审定稿 → realname.md 升 v1.1(2026-10-18 PATROL1018E 代决,新增「同意管理(consent,v1.1)」节,现有节不动)。
-2. ⏳ fixtures 增补(如需)→ `go run ./tools/contractgen -write` 六端再生成。
-3. ⏳ 网关:warden / wardenalt 两实现同形状(Provider 方法 + 审计事件 + 降级安全态)。
-4. ⏳ 六端 SDK(unity / cocos / miniprogram / laybox / ue / godot)+ e2e;errors.md 仅在需要码时升版。
+2. ✅ fixtures 增补(2026-10-19 批次 102 复核):consent 判定走 200 载荷、无新错误码/新信封形状,fixture 生成链零改动——`go test ./tools/contractgen` 绿即无漂移实证。
+3. ✅ 网关(2026-10-19 批次 102):warden / wardenalt 两实现同形状(Provider 三方法 + 契约逐字审计事件 + 降级安全态 PENDING_PARENT + 玩家端点 501 闸 + S2S 判定面);main.go `COURIER_REALNAME_CONSENT*` env 装配(默认关);consent 一致性 e2e 场景入 realname_conformance_test.go(两实现同一 wire 断言)。
+4. ✅ 六端 SDK(2026-10-19 批次 102):unity / cocos / miniprogram / laybox / ue / godot 嵌套面 `RealName.Consent`(Status/DeclareAge/RequestParentConsent,501 → 未启用降级);OnConsentChanged 与 REVOKED 诊断停发按契约仅预留;errors.md 未升版(零新码)。
 
-> 2–4 步=实现面,统一卡在「开工拍板」:等接入方确认真接入 consent 流程,或用户直接指示开工。
+> 2–4 步已随批次 102 落地(2026-10-19 用户开工指令);商业出海与否仍归用户——本落地只解实现面,不构成出海立项。

@@ -1,5 +1,5 @@
 // L2 Service M3/M4/M5 单测(cocos service2.test.ts 同构):app/config/branding/player/
-// assistant/payment/realname 的 wire 形状、501 降级语义、typed 错误、缓存判据。
+// assistant/payment/realname(含 consent v1.1)的 wire 形状、501 降级语义、typed 错误、缓存判据。
 // 运行:
 //   cd sdks/ue/service
 //   g++ -std=c++17 -Wall -Wextra -I. -I../core -I../contract -o /tmp/courier_ue_service2_test service2_test.cpp && /tmp/courier_ue_service2_test
@@ -493,6 +493,8 @@ int main() {
         h.transport.enqueue(503, error_envelope("COMMON_UNAVAILABLE", "down"));
         CHECK(realname.charge_check(1).error.wire == "COMMON_UNAVAILABLE", "realname charge error");
         h.transport.enqueue(503, error_envelope("COMMON_UNAVAILABLE", "down"));
+        CHECK(realname.consent.status().error.wire == "COMMON_UNAVAILABLE", "realname consent error");
+        h.transport.enqueue(503, error_envelope("COMMON_UNAVAILABLE", "down"));
         CHECK(pay.get_skus().error.wire == "COMMON_UNAVAILABLE", "payment skus error");
     }
 
@@ -599,6 +601,75 @@ int main() {
         CHECK(!svc.curfew().data.has_value(), "realname curfew 501 → null");
         h.transport.enqueue(501, kDisabled);
         CHECK(!svc.charge_check(1).data.has_value(), "realname charge 501 → null");
+    }
+
+    // ---- RealName.Consent 域(consent v1.1,F31):declare wire / status 透传 / VPC 幂等 / 501 → null ----
+    {
+        Harness h;
+        h.sign_in();
+
+        RealNameService svc(&h.client->api());
+
+        // 申报即判定:响应 data = 同意状态(六态原样下发,SDK 不推断)。
+        h.transport.enqueue(200, data_envelope("{\"state\":\"PENDING_PARENT\",\"declaredAt\":\"t1\"}"));
+        const auto declared = svc.consent.declare_age("2015-06-20");
+        CHECK(declared.ok && declared.data.has_value(), "consent declare ok");
+        CHECK(h.transport.requests[1].method == "POST", "consent declare POST");
+        CHECK(h.transport.requests[1].url ==
+                  "https://api.example.com/v1/realname/consent/declare-age",
+              "consent declare url");
+        CHECK(h.transport.requests[1].json_body == "{\"birthDate\":\"2015-06-20\"}",
+              "consent declare body carries birthDate once");
+        CHECK(declared.data->state == "PENDING_PARENT", "consent declared state PENDING_PARENT");
+        CHECK(declared.data->declaredAt.has_value() && *declared.data->declaredAt == "t1",
+              "consent declaredAt passthrough");
+
+        h.transport.enqueue(200, data_envelope(
+            "{\"state\":\"GRANTED\",\"declaredAt\":\"t1\",\"grantedAt\":\"t2\"}"));
+        const auto status = svc.consent.status();
+        CHECK(status.ok && status.data.has_value(), "consent status ok");
+        CHECK(h.transport.requests[2].url == "https://api.example.com/v1/realname/consent/status",
+              "consent status url");
+        CHECK(status.data->state == "GRANTED", "consent status state GRANTED");
+        CHECK(status.data->grantedAt.has_value() && *status.data->grantedAt == "t2",
+              "consent grantedAt passthrough");
+
+        // VPC 请求:空体;回执 requestId + requestExpiresAt(PENDING_PARENT 期间幂等)。
+        h.transport.enqueue(200, data_envelope("{\"requestId\":\"req_1\",\"requestExpiresAt\":\"exp\"}"));
+        const auto vpc = svc.consent.request_parent_consent();
+        CHECK(vpc.ok && vpc.data.has_value(), "consent vpc ok");
+        CHECK(h.transport.requests[3].url ==
+                  "https://api.example.com/v1/realname/consent/parent-consent/request",
+              "consent vpc url");
+        CHECK(h.transport.requests[3].json_body == "{}", "consent vpc empty body");
+        CHECK(vpc.data->requestId == "req_1", "consent vpc requestId");
+        CHECK(vpc.data->requestExpiresAt == "exp", "consent vpc requestExpiresAt");
+
+        // 各态时间戳只在对应态下发(缺省即缺键,客户端不推断);REVOKED 走 diagnostics 停发预留。
+        h.transport.enqueue(200, data_envelope("{\"state\":\"REVOKED\",\"revokedAt\":\"t3\"}"));
+        const auto revoked = svc.consent.status();
+        CHECK(revoked.ok && revoked.data.has_value() && revoked.data->state == "REVOKED",
+              "consent REVOKED passthrough");
+        CHECK(revoked.data->revokedAt.has_value() && *revoked.data->revokedAt == "t3",
+              "consent revokedAt passthrough");
+        CHECK(!revoked.data->declaredAt.has_value() && !revoked.data->grantedAt.has_value() &&
+                  !revoked.data->requestExpiresAt.has_value(),
+              "consent absent state fields stay absent");
+
+        // 501 → 未启用(隐藏年龄门 UI,不进报错路径)。
+        h.transport.enqueue(501, kDisabled);
+        const auto disabled = svc.consent.status();
+        CHECK(disabled.ok && !disabled.data.has_value(), "consent status 501 → null");
+        h.transport.enqueue(501, kDisabled);
+        CHECK(!svc.consent.declare_age("2015-06-20").data.has_value(), "consent declare 501 → null");
+        h.transport.enqueue(501, kDisabled);
+        CHECK(!svc.consent.request_parent_consent().data.has_value(), "consent vpc 501 → null");
+
+        // 非降级错误照常抛(不吞,同实名域 v1;零新增错误码)。
+        h.transport.enqueue(400, error_envelope("COMMON_INVALID_ARGUMENT", "bad birthDate"));
+        const auto bad = svc.consent.declare_age("bad");
+        CHECK(!bad.ok && bad.error.wire == "COMMON_INVALID_ARGUMENT", "consent declare typed error");
+        CHECK(!bad.data.has_value(), "consent declare error carries no data");
     }
 
     if (gFailed == 0) {

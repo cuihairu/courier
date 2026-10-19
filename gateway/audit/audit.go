@@ -28,6 +28,17 @@ const (
 	AuditActionPlaytimeReport = "playtime_report"
 )
 
+// consent 组留痕动作(realname.md v1.1,契约逐字命名——与 v1 短名风格不同,
+// v1.1 注册名即带 realname.consent 前缀)。账号维度;出生日期与家长身份输入
+// 永不进事件(同 v1 红线)。
+const (
+	AuditActionConsentDeclared        = "realname.consent.declared"
+	AuditActionConsentParentRequested = "realname.consent.parent_requested"
+	AuditActionConsentGranted         = "realname.consent.granted"
+	AuditActionConsentDenied          = "realname.consent.denied"
+	AuditActionConsentRevoked         = "realname.consent.revoked"
+)
+
 // 留痕结果(verify 直接回传实名状态,其余按动作域取值)。
 const (
 	AuditOutcomePlayable = "playable"

@@ -205,3 +205,184 @@ func newRealNameHarnessNoCloud(t *testing.T) *rnHarness {
 	t.Cleanup(srv.Close)
 	return &rnHarness{srv: srv}
 }
+
+// --- consent 组一致性(realname.md v1.1,F31):同一 wire 场景两实现各跑一遍。
+// 阈值用纯缺省口径(数字同意 13 / 成年 18 / VPC 72h),法域分档由两实现单测承载。
+
+// runRealNameConsentAdultContract consent 成年链:UNDECLARED → declare ADULT →
+// 幂等重申;入参边缘(未来日期/非法形状 400);S2S 对 ADULT 不适用;防回拨
+// 两向(后报低龄收紧合法,再报成年日期不松回)。
+func runRealNameConsentAdultContract(t *testing.T, h *rnHarness) {
+	t.Helper()
+	token := h.login(t)
+
+	// 未认证 → 401(consent/status 走玩家认证,同 verify)。
+	if code, errCode := h.call(t, http.MethodGet, "/v1/realname/consent/status", "",
+		"", nil); code != http.StatusUnauthorized || errCode != "COMMON_UNAUTHENTICATED" {
+		t.Fatalf("anon consent status = %d %q", code, errCode)
+	}
+	var st struct {
+		State      string  `json:"state"`
+		DeclaredAt *string `json:"declaredAt"`
+	}
+	if code, _ := h.call(t, http.MethodGet, "/v1/realname/consent/status", token, "", &st); code != 200 ||
+		st.State != "UNDECLARED" {
+		t.Fatalf("initial consent = %d %q", code, st.State)
+	}
+
+	// 成年申报(1990-01-01,36 岁 ≥ 18)→ ADULT + declaredAt(冻结钟)。
+	if code, _ := h.call(t, http.MethodPost, "/v1/realname/consent/declare-age", token,
+		`{"birthDate":"1990-01-01"}`, &st); code != 200 || st.State != "ADULT" ||
+		st.DeclaredAt == nil || *st.DeclaredAt != "2026-10-08T15:00:00.000Z" {
+		t.Fatalf("declare adult = %d %+v", code, st)
+	}
+	// 幂等重申:同判定同 declaredAt(申报时点一次性)。
+	if code, _ := h.call(t, http.MethodPost, "/v1/realname/consent/declare-age", token,
+		`{"birthDate":"1990-01-01"}`, &st); code != 200 || st.State != "ADULT" ||
+		st.DeclaredAt == nil || *st.DeclaredAt != "2026-10-08T15:00:00.000Z" {
+		t.Fatalf("re-declare = %d %+v, want 幂等 ADULT", code, st)
+	}
+
+	// 入参边缘:未来出生日期 / 非法形状 → 400(core 报错语义是「调用失败」,
+	// 口径校验挡在边缘,两实现一致)。
+	for _, bad := range []string{`{"birthDate":"2027-01-01"}`, `{"birthDate":"1990-1-1"}`} {
+		if code, errCode := h.call(t, http.MethodPost, "/v1/realname/consent/declare-age", token,
+			bad, nil); code != http.StatusBadRequest || errCode != "COMMON_INVALID_ARGUMENT" {
+			t.Fatalf("bad birthDate %s = %d %q", bad, code, errCode)
+		}
+	}
+
+	// S2S 适用性边界:grant 对 ADULT 不适用 → 400。
+	id := rnAccountID(t, h, token)
+	if code, _ := h.call(t, http.MethodPost, "/v1/realname/consent/s2s/grant", rnS2SToken,
+		`{"accountId":"`+id+`"}`, nil); code != http.StatusBadRequest {
+		t.Fatalf("grant on ADULT = %d, want 400", code)
+	}
+
+	// 防回拨收紧向:ADULT 后再报低龄(2020-01-01,6 岁 < 13)→ 收紧至
+	// PENDING_PARENT(declare 只收紧不放松)。
+	if code, _ := h.call(t, http.MethodPost, "/v1/realname/consent/declare-age", token,
+		`{"birthDate":"2020-01-01"}`, &st); code != 200 || st.State != "PENDING_PARENT" {
+		t.Fatalf("tighten declare = %d %+v", code, st)
+	}
+	// 防回拨放松向:再报成年日期 → 判定不入账,维持 PENDING_PARENT。
+	if code, _ := h.call(t, http.MethodPost, "/v1/realname/consent/declare-age", token,
+		`{"birthDate":"1990-01-01"}`, &st); code != 200 || st.State != "PENDING_PARENT" {
+		t.Fatalf("loosen declare = %d %+v, want 维持 PENDING_PARENT", code, st)
+	}
+}
+
+// runRealNameConsentMinorContract consent 未成年链:declare → PENDING_PARENT →
+// 家长请求(TTL 72h 幂等同 requestId)→ S2S grant → GRANTED → revoke →
+// REVOKED;S2S 玩家凭证 401、GRANTED 上 deny 不适用。
+func runRealNameConsentMinorContract(t *testing.T, h *rnHarness) {
+	t.Helper()
+	token := h.login(t)
+
+	// 低龄申报 → PENDING_PARENT。
+	var st struct {
+		State            string  `json:"state"`
+		RequestExpiresAt *string `json:"requestExpiresAt"`
+	}
+	if code, _ := h.call(t, http.MethodPost, "/v1/realname/consent/declare-age", token,
+		`{"birthDate":"2020-01-01"}`, &st); code != 200 || st.State != "PENDING_PARENT" {
+		t.Fatalf("declare child = %d %+v", code, st)
+	}
+
+	// 家长请求:TTL 72h(冻结钟 → 2026-10-11T15:00),请求期内幂等同 requestId。
+	var req1 struct {
+		RequestID        string `json:"requestId"`
+		RequestExpiresAt string `json:"requestExpiresAt"`
+	}
+	if code, _ := h.call(t, http.MethodPost, "/v1/realname/consent/parent-consent/request",
+		token, "", &req1); code != 200 || req1.RequestID == "" ||
+		req1.RequestExpiresAt != "2026-10-11T15:00:00.000Z" {
+		t.Fatalf("parent request = %d %+v", code, req1)
+	}
+	var req2 struct {
+		RequestID string `json:"requestId"`
+	}
+	if code, _ := h.call(t, http.MethodPost, "/v1/realname/consent/parent-consent/request",
+		token, "", &req2); code != 200 || req2.RequestID != req1.RequestID {
+		t.Fatalf("parent request again = %d %q, want 幂等 %q", code, req2.RequestID, req1.RequestID)
+	}
+	// status 回带 requestExpiresAt(仅 PENDING_PARENT 态)。
+	if code, _ := h.call(t, http.MethodGet, "/v1/realname/consent/status", token, "", &st); code != 200 ||
+		st.State != "PENDING_PARENT" || st.RequestExpiresAt == nil ||
+		*st.RequestExpiresAt != "2026-10-11T15:00:00.000Z" {
+		t.Fatalf("status = %d %+v", code, st)
+	}
+
+	// S2S:玩家凭证 401(判定面是运维通道,SDK 不得调用)。
+	id := rnAccountID(t, h, token)
+	if code, errCode := h.call(t, http.MethodPost, "/v1/realname/consent/s2s/grant", token,
+		`{"accountId":"`+id+`"}`, nil); code != http.StatusUnauthorized || errCode != "COMMON_UNAUTHENTICATED" {
+		t.Fatalf("player token on s2s = %d %q, want 401", code, errCode)
+	}
+	// grant → GRANTED + grantedAt。
+	var granted struct {
+		State     string  `json:"state"`
+		GrantedAt *string `json:"grantedAt"`
+	}
+	if code, _ := h.call(t, http.MethodPost, "/v1/realname/consent/s2s/grant", rnS2SToken,
+		`{"accountId":"`+id+`"}`, &granted); code != 200 || granted.State != "GRANTED" ||
+		granted.GrantedAt == nil || *granted.GrantedAt != "2026-10-08T15:00:00.000Z" {
+		t.Fatalf("s2s grant = %d %+v", code, granted)
+	}
+	// deny 对 GRANTED 不适用 → 400。
+	if code, _ := h.call(t, http.MethodPost, "/v1/realname/consent/s2s/deny", rnS2SToken,
+		`{"accountId":"`+id+`"}`, nil); code != http.StatusBadRequest {
+		t.Fatalf("deny on GRANTED = %d, want 400", code)
+	}
+	// revoke → REVOKED + revokedAt;status 恒可见。
+	var revoked struct {
+		State     string  `json:"state"`
+		RevokedAt *string `json:"revokedAt"`
+	}
+	if code, _ := h.call(t, http.MethodPost, "/v1/realname/consent/s2s/revoke", rnS2SToken,
+		`{"accountId":"`+id+`"}`, &revoked); code != 200 || revoked.State != "REVOKED" ||
+		revoked.RevokedAt == nil {
+		t.Fatalf("s2s revoke = %d %+v", code, revoked)
+	}
+	if code, _ := h.call(t, http.MethodGet, "/v1/realname/consent/status", token, "", &st); code != 200 ||
+		st.State != "REVOKED" {
+		t.Fatalf("final status = %d %q", code, st.State)
+	}
+}
+
+// TestRealNameConsentContractConformance 两实现 × 两链路,同一断言。
+func TestRealNameConsentContractConformance(t *testing.T) {
+	for _, impl := range []struct {
+		name string
+		mode int
+	}{
+		{"warden", rnWardenConsent},
+		{"warden-alt", rnWardenAltConsent},
+	} {
+		t.Run(impl.name+"/adult", func(t *testing.T) {
+			runRealNameConsentAdultContract(t, newRealNameHarness(t, impl.mode))
+		})
+		t.Run(impl.name+"/minor", func(t *testing.T) {
+			runRealNameConsentMinorContract(t, newRealNameHarness(t, impl.mode))
+		})
+	}
+}
+
+// consent 默认关闭:未配 Consent → 501 COMMON_CAPABILITY_DISABLED(契约 v1.1
+// 「默认关」);consent/status 走玩家认证,匿名 401 先行、登录后 501。
+func TestRealNameConsent_DisabledByDefault_501(t *testing.T) {
+	h := newRealNameHarness(t, rnWarden) // Consent = nil
+	if code, errCode := h.call(t, http.MethodGet, "/v1/realname/consent/status", "",
+		"", nil); code != http.StatusUnauthorized {
+		t.Fatalf("anon disabled status = %d %q, want 401", code, errCode)
+	}
+	token := h.login(t)
+	if code, errCode := h.call(t, http.MethodGet, "/v1/realname/consent/status", token,
+		"", nil); code != http.StatusNotImplemented || errCode != "COMMON_CAPABILITY_DISABLED" {
+		t.Fatalf("consent disabled status = %d %q, want 501 COMMON_CAPABILITY_DISABLED", code, errCode)
+	}
+	if code, _ := h.call(t, http.MethodPost, "/v1/realname/consent/declare-age", token,
+		`{"birthDate":"1990-01-01"}`, nil); code != http.StatusNotImplemented {
+		t.Fatalf("consent disabled declare = %d, want 501", code)
+	}
+}

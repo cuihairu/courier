@@ -78,6 +78,12 @@ type Options struct {
 	S2SToken string
 	// AuditSink 审计留痕接收面(F33;nil = 不产出审计事件)。
 	AuditSink audit.AuditSink
+	// Consent 同意管理配置(realname.md v1.1;nil = 能力关闭,consent 端点 501,
+	// 接入方隐藏年龄门 UI,不进报错路径)。
+	Consent *ConsentConfig
+	// Notify 推送钩子(realname.consent.updated,参数为 {"state": 新态};
+	// 仅状态迁移时调用);nil = 不推送。
+	Notify func(eventType string, data any)
 }
 
 func defaultWindows() []Window {
@@ -102,6 +108,7 @@ type Warden struct {
 	core      *core
 	s2s       string
 	auditSink audit.AuditSink
+	consent   *ConsentConfig // nil = consent 能力关闭(端点 501)
 }
 
 // New 装配;Fallbacks 注入即降级链(core 恒为 primary)。
@@ -118,12 +125,17 @@ func New(opts Options) *Warden {
 	if opts.Limits == (ChargeLimits{}) {
 		opts.Limits = defaultLimits()
 	}
+	if opts.Consent != nil {
+		opts.Consent = opts.Consent.withDefaults()
+	}
 	c := &core{clock: opts.Clock, windows: opts.CurfewWindows, limits: opts.Limits,
-		records: make(map[string]*rnRecord), plays: make(map[playKey]playReport)}
+		consent: opts.Consent, notify: opts.Notify,
+		records: make(map[string]*rnRecord), plays: make(map[playKey]playReport),
+		consents: make(map[string]*consentRecord)}
 	rt := router.New(router.Config{Primary: c, Fallbacks: opts.Fallbacks, Breaker: opts.Breaker})
 	return &Warden{name: opts.Name, clock: opts.Clock,
 		authMW: opts.RequireAuth, rt: rt, core: c, s2s: opts.S2SToken,
-		auditSink: opts.AuditSink}
+		auditSink: opts.AuditSink, consent: opts.Consent}
 }
 
 // emitAudit 关键动作留痕(F33):nil sink 零开销;事件只含账号维度元数据,
@@ -156,9 +168,10 @@ func (w *Warden) HealthCheck(_ context.Context) error {
 }
 
 func (w *Warden) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
-	// S2S 端点不套玩家认证:playtime-report 是接入方服务端上报,
-	// 凭证自校验(配置 token);玩家 Bearer 在此不是合法凭证。
-	if strings.TrimPrefix(req.URL.Path, prefixRealname) == "playtime-report" {
+	// S2S 端点不套玩家认证:playtime-report 是接入方服务端上报,consent/s2s/*
+	// 是家长判定运维通道;凭证自校验(配置 token),玩家 Bearer 在此不是合法凭证。
+	p := strings.TrimPrefix(req.URL.Path, prefixRealname)
+	if p == "playtime-report" || strings.HasPrefix(p, "consent/s2s/") {
 		w.route(resp, req)
 		return
 	}
@@ -187,6 +200,14 @@ func (w *Warden) route(resp http.ResponseWriter, req *http.Request) {
 		w.handleChargeCheck(resp, req)
 	case path == "playtime-report" && req.Method == http.MethodPost:
 		w.handlePlaytimeReport(resp, req)
+	case path == "consent/status" && req.Method == http.MethodGet:
+		w.handleConsentStatus(resp, req)
+	case path == "consent/declare-age" && req.Method == http.MethodPost:
+		w.handleDeclareAge(resp, req)
+	case path == "consent/parent-consent/request" && req.Method == http.MethodPost:
+		w.handleParentConsentRequest(resp, req)
+	case strings.HasPrefix(path, "consent/s2s/") && req.Method == http.MethodPost:
+		w.handleConsentVerdict(resp, req)
 	default:
 		aggregation.WriteError(resp, middleware.TraceID(req.Context()),
 			aggregation.CodeNotFound, "no route for "+req.URL.Path)
@@ -387,10 +408,13 @@ type core struct {
 	clock   func() time.Time
 	windows []Window
 	limits  ChargeLimits
+	consent *ConsentConfig // nil = consent 关闭(core 方法防御性拒绝)
+	notify  func(string, any)
 
-	mu      sync.Mutex
-	records map[string]*rnRecord
-	plays   map[playKey]playReport
+	mu       sync.Mutex
+	records  map[string]*rnRecord
+	plays    map[playKey]playReport
+	consents map[string]*consentRecord // 同意记录分存储(契约 v1.1;独立保留期口径)
 }
 
 // errInvalid 入参非法(HTTP 层已挡格式;此为核验核心二次防线)。

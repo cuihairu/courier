@@ -46,7 +46,27 @@ const (
 	rnWarden           // warden(自建核验)
 	rnFake             // fakeRealName(治理链演示:可整体替换的 Provider)
 	rnWardenAlt        // warden-alt(托管核验,批次 64 第二实现)
+	// consent 开启模式(realname.md v1.1,F31):同上两实现 + Consent 配置
+	// (nil = 能力关闭 501)。一致性场景见 realname_conformance_test.go。
+	rnWardenConsent
+	rnWardenAltConsent
 )
+
+// rnConsentCfg consent 测试夹具(纯缺省阈值:数字同意 13 / 成年 18 / VPC 72h;
+// 契约 v1.1「法域中立」——缺省口径即验收面,minimumAge 分档由两实现单测覆盖)。
+func rnConsentCfg(mode int) *warden.ConsentConfig {
+	if mode == rnWardenConsent {
+		return &warden.ConsentConfig{}
+	}
+	return nil
+}
+
+func rnConsentAltCfg(mode int) *wardenalt.ConsentConfig {
+	if mode == rnWardenAltConsent {
+		return &wardenalt.ConsentConfig{}
+	}
+	return nil
+}
 
 func newRealNameHarness(t *testing.T, mode int, sinks ...audit.AuditSink) *rnHarness {
 	t.Helper()
@@ -59,13 +79,14 @@ func newRealNameHarness(t *testing.T, mode int, sinks ...audit.AuditSink) *rnHar
 	cfg := providers.Config{providers.CapIdentity: {Primary: account.DefaultName}}
 	h := &rnHarness{}
 	switch mode {
-	case rnWarden:
+	case rnWarden, rnWardenConsent:
 		var auditSink audit.AuditSink
 		if len(sinks) > 0 {
 			auditSink = sinks[0]
 		}
 		h.warden = warden.New(warden.Options{
-			RequireAuth: reqAuth, Clock: rnClock, S2SToken: rnS2SToken, AuditSink: auditSink})
+			RequireAuth: reqAuth, Clock: rnClock, S2SToken: rnS2SToken, AuditSink: auditSink,
+			Consent: rnConsentCfg(mode)})
 		if err := reg.Register(h.warden); err != nil {
 			t.Fatalf("register warden: %v", err)
 		}
@@ -76,7 +97,7 @@ func newRealNameHarness(t *testing.T, mode int, sinks ...audit.AuditSink) *rnHar
 			t.Fatalf("register fake: %v", err)
 		}
 		cfg[providers.CapRealname] = providers.CapabilityConfig{Primary: fakeRealNameName}
-	case rnWardenAlt:
+	case rnWardenAlt, rnWardenAltConsent:
 		// 托管核验脚本:与 warden 本地解析同判定(成人/未成年),判定源不同
 		// (脚本注入 vs 证件号解析)——一致性 e2e 的同断言基础;未登记 = 拒绝。
 		var auditSink audit.AuditSink
@@ -85,7 +106,7 @@ func newRealNameHarness(t *testing.T, mode int, sinks ...audit.AuditSink) *rnHar
 		}
 		h.wardenAlt = wardenalt.New(wardenalt.Options{
 			RequireAuth: reqAuth, Clock: rnClock, S2SToken: rnS2SToken,
-			AuditSink: auditSink,
+			AuditSink: auditSink, Consent: rnConsentAltCfg(mode),
 			Cloud: wardenalt.VerifierFunc(func(_, _ string, idNumber string) (wardenalt.Verdict, error) {
 				switch idNumber {
 				case "110101199001011234":
@@ -399,6 +420,15 @@ func (s *rnStub) ChargeCheck(string, int) (router.ChargeOutcome, error) {
 	return router.ChargeOutcome{Allowed: true}, nil
 }
 func (s *rnStub) HealthCheck() bool { return rnMode(s.Mode.Load()) == rnOK }
+func (s *rnStub) ConsentStatus(string) (router.ConsentStatus, error) {
+	return router.ConsentStatus{State: "PENDING_PARENT"}, nil
+}
+func (s *rnStub) DeclareAge(string, string) (router.ConsentStatus, error) {
+	return router.ConsentStatus{State: "PENDING_PARENT"}, nil
+}
+func (s *rnStub) RequestParentConsent(string) (router.ConsentRequestOutcome, error) {
+	return router.ConsentRequestOutcome{}, nil
+}
 
 var errRNDown = errRN{}
 

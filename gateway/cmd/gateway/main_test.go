@@ -407,3 +407,35 @@ func TestGatewayBodyTooLarge(t *testing.T) {
 		t.Fatalf("错误信封异常: %+v", env.Error)
 	}
 }
+
+// TestConsentFromEnv consent 组装配(realname.md v1.1,F31):全部未设置 =
+// 未开启(Consent nil,端点 501 能力关闭);显式开关 = 纯缺省阈值;阈值变量
+// 非空即开启且法域值生效(显式 0 也开启 = 无 DENIED 档)。非法数值走
+// log.Fatalf 在启动路径拒绝起服(与 loadConfig 同法,不在本测覆盖)。
+func TestConsentFromEnv(t *testing.T) {
+	for _, k := range []string{"COURIER_REALNAME_CONSENT", "COURIER_REALNAME_CONSENT_MINIMUM_AGE",
+		"COURIER_REALNAME_CONSENT_DIGITAL_CONSENT_AGE", "COURIER_REALNAME_CONSENT_ADULT_AGE",
+		"COURIER_REALNAME_CONSENT_REQUEST_TTL"} {
+		t.Setenv(k, "")
+	}
+
+	if c, on := consentFromEnv(); on || c.minimumAge != 0 {
+		t.Fatalf("全部未设置应未开启,得 %+v %v", c, on)
+	}
+
+	t.Setenv("COURIER_REALNAME_CONSENT", "on")
+	c, on := consentFromEnv()
+	if !on || c.minimumAge != 0 || c.requestTTL != 0 {
+		t.Fatalf("开关开启应走缺省阈值,得 %+v %v", c, on)
+	}
+
+	t.Setenv("COURIER_REALNAME_CONSENT", "")
+	t.Setenv("COURIER_REALNAME_CONSENT_MINIMUM_AGE", "8")
+	t.Setenv("COURIER_REALNAME_CONSENT_DIGITAL_CONSENT_AGE", "15")
+	t.Setenv("COURIER_REALNAME_CONSENT_ADULT_AGE", "20")
+	t.Setenv("COURIER_REALNAME_CONSENT_REQUEST_TTL", "48h")
+	if c, on := consentFromEnv(); !on || c.minimumAge != 8 || c.digitalConsentAge != 15 ||
+		c.adultAge != 20 || c.requestTTL != 48*time.Hour {
+		t.Fatalf("法域配置得 %+v %v", c, on)
+	}
+}

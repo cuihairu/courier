@@ -1,5 +1,5 @@
 // M3/M4/M5 服务域测试(零依赖,node:test):app/config/branding/player/assistant/
-// payment/realname 的 wire 形状、501 降级语义、typed 错误、缓存判据。
+// payment/realname(含 consent v1.1)的 wire 形状、501 降级语义、typed 错误、缓存判据。
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { CourierClient } from "../src/core/courierClient.ts";
@@ -282,6 +282,50 @@ test("realname:提交 wire(字段只在传输链);curfew;charge-check;501 → nu
 
   transport.enqueue(501, disabled);
   assert.equal(await svc.realname.statusAsync(), null); // 隐藏实名 UI
+});
+
+test("realname.consent:declare wire(出生日期只在传输链);status;VPC 幂等;501 → null", async () => {
+  const transport = new FakeTransport();
+  const svc = await newServices(transport);
+
+  // 申报即判定:响应 data = 同意状态(六态原样下发,SDK 不推断)。
+  transport.enqueue(200, JSON.stringify({ data: { state: "PENDING_PARENT", declaredAt: "t1" } }));
+  const declared = await svc.realname.consent.declareAgeAsync("2015-06-20");
+  assert.equal(transport.requests[1].method, "POST");
+  assert.equal(transport.requests[1].url,
+    "https://api.example.com/v1/realname/consent/declare-age");
+  assert.equal(transport.requests[1].jsonBody, JSON.stringify({ birthDate: "2015-06-20" }));
+  assert.equal(declared?.state, "PENDING_PARENT");
+  assert.equal(declared?.declaredAt, "t1");
+
+  transport.enqueue(200, JSON.stringify({
+    data: { state: "GRANTED", declaredAt: "t1", grantedAt: "t2" },
+  }));
+  const status = await svc.realname.consent.statusAsync();
+  assert.equal(status?.state, "GRANTED");
+  assert.equal(status?.grantedAt, "t2");
+
+  // VPC 请求:空体;回执 requestId + requestExpiresAt(PENDING_PARENT 期间幂等)。
+  transport.enqueue(200, JSON.stringify({
+    data: { requestId: "req_1", requestExpiresAt: "exp" },
+  }));
+  const vpc = await svc.realname.consent.requestParentConsentAsync();
+  assert.equal(transport.requests[3].url,
+    "https://api.example.com/v1/realname/consent/parent-consent/request");
+  assert.equal(transport.requests[3].jsonBody, JSON.stringify({}));
+  assert.equal(vpc?.requestId, "req_1");
+  assert.equal(vpc?.requestExpiresAt, "exp");
+
+  // 501 → null(隐藏年龄门 UI,不进报错路径)。
+  transport.enqueue(501, disabled);
+  assert.equal(await svc.realname.consent.statusAsync(), null);
+
+  // 非降级错误照常抛(不吞,同实名域 v1)。
+  transport.enqueue(400, JSON.stringify({
+    error: { code: "COMMON_INVALID_ARGUMENT", message: "bad birthDate", retryable: false },
+  }));
+  const e = await svc.realname.consent.declareAgeAsync("bad").catch((x) => x);
+  assert.equal(e.wire, "COMMON_INVALID_ARGUMENT");
 });
 
 // ---- 补口:分页 cursor / 角色绑定与订单列表 / 访问器 / 非降级错误照常抛 ----

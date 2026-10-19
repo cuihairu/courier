@@ -1,7 +1,7 @@
 
 # F31 Overseas Age Gate and Parental Consent: the `consent` Group v1.1 Design Draft
 
-> Status: **Frozen (v1.1)** · design started under the 2026-10-16 FW1016D delegated decision → frozen on 2026-10-18 by patrol PATROL1018E, landed in [contract/realname.md](../contract/realname.en.md) "Consent Management (consent, v1.1)" (additive-only). The implementation surface (freeze checklist steps 2–4) awaits a go-ahead call.
+> Status: **Frozen (v1.1) and landed** · design started under the 2026-10-16 FW1016D delegated decision → frozen on 2026-10-18 by patrol PATROL1018E, landed in [contract/realname.md](../contract/realname.en.md) "Consent Management (consent, v1.1)" (additive-only) → the implementation surface landed on 2026-10-19 under a direct user instruction (FIRE1019B), batch 102 (freeze checklist steps 2–4 all checked, below).
 > Characterization: this draft turns "design from scratch after the overseas decision" into "freeze upon draft review"; jurisdiction-neutral (thresholds are not in the contract, they belong to Provider configuration), and it is not pinned to a single COPPA / GDPR-K shape.
 > Research basis: the F31 row ([features.md §5](./features.en.md): first-launch age screening; below the digital consent age go through verifiable parental consent VPC; consent records retained separately).
 
@@ -128,8 +128,8 @@ OnConsentChanged callback reserved (consumes the realname.consent.updated push)
 ## Freeze Checklist and Landing Status
 
 1. ✅ Draft reviewed and finalized → realname.md bumped to v1.1 (2026-10-18 patrol PATROL1018E; new "Consent Management (consent, v1.1)" section, existing sections untouched).
-2. ⏳ Add fixtures (if needed) → `go run ./tools/contractgen -write` regenerates the six platforms.
-3. ⏳ Gateway: warden / wardenalt, both implementations in the same shape (Provider methods + audit events + degradation safe state).
-4. ⏳ Six-platform SDKs (unity / cocos / miniprogram / laybox / ue / godot) + e2e; errors.md bumps only when codes are needed.
+2. ✅ Add fixtures (2026-10-19, batch 102 review): consent verdicts ride 200 payloads with no new error codes or envelope shapes, so the fixture generation chain is untouched — a green `go test ./tools/contractgen` is the no-drift proof.
+3. ✅ Gateway (2026-10-19, batch 102): warden / wardenalt both in the same shape (three Provider methods + contract-verbatim audit events + the degradation safe state PENDING_PARENT + a 501 gate on the player endpoints + the S2S verdict surface); main.go `COURIER_REALNAME_CONSENT*` env assembly (off by default); consent conformance scenarios added to realname_conformance_test.go (one wire assertion set over both implementations).
+4. ✅ Six-platform SDKs (2026-10-19, batch 102): unity / cocos / miniprogram / laybox / ue / godot nested `RealName.Consent` face (Status/DeclareAge/RequestParentConsent with the 501 → not-enabled degradation); OnConsentChanged and the REVOKED diagnostics linkage stay reservations per the contract; errors.md not bumped (zero new codes).
 
-> Steps 2–4 are the implementation surface, all gated on the same "go-ahead call": an integrator confirming adoption of the consent flow, or a direct instruction from the user to start.
+> Steps 2–4 landed with batch 102 (2026-10-19 user instruction); whether to actually launch overseas remains the user's call — this landing resolves the implementation surface only, not the go-overseas decision.

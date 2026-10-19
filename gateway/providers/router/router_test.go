@@ -279,3 +279,86 @@ func TestBreakerIsOpenDiagnostic(t *testing.T) {
 		t.Fatal("连续失败达阈值后应开路(IsOpen=true)")
 	}
 }
+
+// --- consent 组(v1.1,F31)---
+
+// fake 增补:与既有方法同口径——err 非 nil = 调用失败(计熔断),业务结果经 Outcome。
+func (f *fake) ConsentStatus(string) (ConsentStatus, error) {
+	f.calls.Add(1)
+	<-f.block
+	if e := f.failed(); e != nil {
+		return ConsentStatus{}, e
+	}
+	return ConsentStatus{State: "GRANTED"}, nil
+}
+
+func (f *fake) DeclareAge(string, string) (ConsentStatus, error) {
+	f.calls.Add(1)
+	<-f.block
+	if e := f.failed(); e != nil {
+		return ConsentStatus{}, e
+	}
+	return ConsentStatus{State: "ADULT"}, nil
+}
+
+func (f *fake) RequestParentConsent(string) (ConsentRequestOutcome, error) {
+	f.calls.Add(1)
+	<-f.block
+	if e := f.failed(); e != nil {
+		return ConsentRequestOutcome{}, e
+	}
+	return ConsentRequestOutcome{State: "PENDING_PARENT", RequestID: "req_1",
+		ExpiresAt: time.Unix(0, 0).Add(72 * time.Hour), HasRequest: true}, nil
+}
+
+// TestConsentChain_SafeState 全链失败落域安全态(契约 v1.1「降级安全态 =
+// PENDING_PARENT」);VPC 请求无安全态 → 零值(HasRequest=false,State 空),
+// 由 handler 映射 503,不放行也不造请求。
+func TestConsentChain_SafeState(t *testing.T) {
+	p, f1 := newFake("primary"), newFake("fb1")
+	p.failWith(errDown)
+	f1.failWith(errDown)
+	r := New(Config{Primary: p, Fallbacks: []RealNameProvider{f1}})
+
+	if out := r.ConsentStatus("acc_1"); out.State != "PENDING_PARENT" {
+		t.Errorf("ConsentStatus 安全态 = %q, want PENDING_PARENT", out.State)
+	}
+	if out := r.DeclareAge("acc_1", "2016-03-01"); out.State != "PENDING_PARENT" {
+		t.Errorf("DeclareAge 安全态 = %q, want PENDING_PARENT", out.State)
+	}
+	if out := r.RequestParentConsent("acc_1"); out.HasRequest || out.State != "" {
+		t.Errorf("RequestParentConsent 安全态 = %+v, want 零值(handler 转 503)", out)
+	}
+}
+
+// TestConsentChain_FallbackAndBreaker consent 三方法同治理规则:主挂走备,
+// 连续失败开路后跳过主(与 v1 方法一致,熔断语义不因方法而异)。
+func TestConsentChain_FallbackAndBreaker(t *testing.T) {
+	p, f1 := newFake("primary"), newFake("fb1")
+	p.failWith(errDown)
+	r := New(Config{Primary: p, Fallbacks: []RealNameProvider{f1}})
+
+	if out := r.ConsentStatus("acc_1"); out.State != "GRANTED" {
+		t.Fatalf("consent status = %+v, want fallback 判定", out)
+	}
+	if out := r.DeclareAge("acc_1", "1990-01-01"); out.State != "ADULT" {
+		t.Fatalf("declare = %+v, want fallback 判定", out)
+	}
+	if out := r.RequestParentConsent("acc_1"); !out.HasRequest || out.RequestID != "req_1" {
+		t.Fatalf("parent consent = %+v, want fallback 请求", out)
+	}
+	// 默认阈值 5 次:再失败 2 次(Declare/Request 各计 1)后第 5 次失败开路。
+	r.ConsentStatus("acc_1")
+	r.ConsentStatus("acc_1")
+	if got := p.callCount(); got != 5 {
+		t.Fatalf("primary 计数 = %d, want 5(开路前)", got)
+	}
+	before := f1.callCount()
+	r.ConsentStatus("acc_1") // 第 6 次:开路,跳过 primary
+	if got := p.callCount(); got != 5 {
+		t.Errorf("primary 计数 = %d, want 5(开路后跳过)", got)
+	}
+	if got := f1.callCount(); got != before+1 {
+		t.Errorf("fallback 计数 = %d, want %d", got, before+1)
+	}
+}

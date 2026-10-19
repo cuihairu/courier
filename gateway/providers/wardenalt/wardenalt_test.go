@@ -260,6 +260,15 @@ func (s stubFallback) ChargeCheck(accountID string, amountCents int) (router.Cha
 	return router.ChargeOutcome{Allowed: true}, nil
 }
 func (s stubFallback) HealthCheck() bool { return true }
+func (s stubFallback) ConsentStatus(string) (router.ConsentStatus, error) {
+	return router.ConsentStatus{State: "PENDING_PARENT"}, nil
+}
+func (s stubFallback) DeclareAge(string, string) (router.ConsentStatus, error) {
+	return router.ConsentStatus{State: "PENDING_PARENT"}, nil
+}
+func (s stubFallback) RequestParentConsent(string) (router.ConsentRequestOutcome, error) {
+	return router.ConsentRequestOutcome{}, nil
+}
 
 // 未配核验服务 = 未就绪(HealthCheck 不过,路由分发不进)。
 func TestNilCloud_HealthCheckFails(t *testing.T) {

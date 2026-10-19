@@ -51,6 +51,30 @@ type ChargeOutcome struct {
 	MonthlyUsedCents  int
 }
 
+// ConsentStatus 同意状态查询结果(契约 realname.md v1.1 status 数据模型)。
+type ConsentStatus struct {
+	State            string
+	DeclaredAt       time.Time
+	HasDeclared      bool
+	GrantedAt        time.Time
+	HasGranted       bool
+	RevokedAt        time.Time
+	HasRevoked       bool
+	RequestExpiresAt time.Time
+	HasRequest       bool
+}
+
+// ConsentRequestOutcome VPC 请求发起结果(契约 realname.md v1.1)。
+// State 是 provider 视角的当前同意态:HasRequest=false 且 State=="" = 全链失败
+// (safe,handler 转 503);HasRequest=false 且 State!="" = 当前态不可发起
+// (仅 PENDING_PARENT 可请求,handler 转 400)。
+type ConsentRequestOutcome struct {
+	State      string
+	RequestID  string
+	ExpiresAt  time.Time
+	HasRequest bool
+}
+
 // RealNameProvider 实名域供应商接口(自建核验/阿里云/腾讯云慧眼/易盾/Webhook 同一形状)。
 // 返回 error = 调用失败(计入熔断);业务判定一律经 Outcome 返回。
 type RealNameProvider interface {
@@ -65,6 +89,16 @@ type RealNameProvider interface {
 	ChargeCheck(accountID string, amountCents int) (ChargeOutcome, error)
 	// HealthCheck 路由表剔除不健康实例用。
 	HealthCheck() bool
+
+	// --- consent 组(realname.md v1.1;加法,不动 v1 方法)---
+
+	// ConsentStatus 同意状态查询;未申报 → UNDECLARED。
+	ConsentStatus(accountID string) (ConsentStatus, error)
+	// DeclareAge 年龄申报;防回拨:仅趋严生效(放宽申报不生效)。
+	DeclareAge(accountID, birthDate string) (ConsentStatus, error)
+	// RequestParentConsent 发起 VPC 请求;仅 PENDING_PARENT 可发起,
+	// TTL 内幂等(未过期返回同一请求)。
+	RequestParentConsent(accountID string) (ConsentRequestOutcome, error)
 }
 
 // BreakerConfig 熔断参数(零值 = 默认:连续 5 次失败开路,开路 30 次调用后半开探测)。
@@ -165,6 +199,30 @@ func (r *Router) ChargeCheck(accountID string, amountCents int) ChargeOutcome {
 	return route(r, func(p RealNameProvider) (ChargeOutcome, error) {
 		return p.ChargeCheck(accountID, amountCents)
 	}, ChargeOutcome{Allowed: false})
+}
+
+// ConsentStatus 治理链同意状态;全链失败 → PENDING_PARENT(降级安全态,契约
+// v1.1:不放行不拒绝,转人工)。
+func (r *Router) ConsentStatus(accountID string) ConsentStatus {
+	return route(r, func(p RealNameProvider) (ConsentStatus, error) {
+		return p.ConsentStatus(accountID)
+	}, ConsentStatus{State: "PENDING_PARENT"})
+}
+
+// DeclareAge 治理链年龄申报;全链失败 → PENDING_PARENT(同上,申报结果以
+// 再查询为准)。
+func (r *Router) DeclareAge(accountID, birthDate string) ConsentStatus {
+	return route(r, func(p RealNameProvider) (ConsentStatus, error) {
+		return p.DeclareAge(accountID, birthDate)
+	}, ConsentStatus{State: "PENDING_PARENT"})
+}
+
+// RequestParentConsent 治理链 VPC 请求;全链失败 → 零值(State="",HasRequest
+// =false,handler 映射 503——请求不可造,安全态无请求语义)。
+func (r *Router) RequestParentConsent(accountID string) ConsentRequestOutcome {
+	return route(r, func(p RealNameProvider) (ConsentRequestOutcome, error) {
+		return p.RequestParentConsent(accountID)
+	}, ConsentRequestOutcome{})
 }
 
 // route 单次调用走链:熔断开路的供应商直接跳过;调用失败计熔断并落下一家;
