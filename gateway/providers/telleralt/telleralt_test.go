@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -960,6 +961,16 @@ func TestOrdersCorruptSnapshotFailClosed(t *testing.T) {
 	}
 }
 
+// mustCreate 下单成功路径捷径(失败即 Fatal;sku 固定 gem)。
+func mustCreate(t *testing.T, p *PaymentsProvider) *envelope {
+	t.Helper()
+	env, rec := createOrder(t, p, new(string), "sku_gem_60")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("下单: %d %s", rec.Code, rec.Body.String())
+	}
+	return env
+}
+
 // orderIDOf 取下单响应里的订单 ID。
 func orderIDOf(t *testing.T, env *envelope) string {
 	t.Helper()
@@ -987,4 +998,180 @@ func statusOf(t *testing.T, p *PaymentsProvider, id string) (string, int) {
 	}
 	s, _ := env.Data["status"].(string)
 	return s, rec.Code
+}
+
+// ---- F77 二期(2026-10-19 代决)Options Store 接缝 ----
+
+// memStore 测试用内存 OrderStore(字节 blob,模拟接入方 DB / Redis / 对象存储侧)。
+type memStore struct {
+	b       []byte
+	saves   int
+	loadErr error
+	saveErr error
+}
+
+func (m *memStore) Load() ([]byte, error) {
+	if m.loadErr != nil {
+		return nil, m.loadErr
+	}
+	if m.b == nil {
+		return nil, ErrSnapshotMissing
+	}
+	return append([]byte(nil), m.b...), nil
+}
+
+func (m *memStore) Save(b []byte) error {
+	if m.saveErr != nil {
+		return m.saveErr
+	}
+	m.saves++
+	m.b = append([]byte(nil), b...)
+	return nil
+}
+
+// fixedStoreHarness Store 接缝单设。
+func fixedStoreHarness(t *testing.T, st OrderStore) *PaymentsProvider {
+	t.Helper()
+	p := New(Options{
+		Clock:         func() time.Time { return time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC) },
+		ChannelSecret: "s3cret",
+		Store:         st,
+		RequireAuth: func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				ctx := auth.WithIdentity(r.Context(), auth.Identity{AccountID: "acc_1", SessionID: "ses_1"})
+				next.ServeHTTP(w, r.WithContext(ctx))
+			})
+		},
+	})
+	seedSkus(p)
+	return p
+}
+
+// fixedDualHarness Store 与 StateFile 同设(优先级语义)。
+func fixedDualHarness(t *testing.T, stateFile string, st OrderStore) *PaymentsProvider {
+	t.Helper()
+	p := New(Options{
+		Clock:         func() time.Time { return time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC) },
+		ChannelSecret: "s3cret",
+		StateFile:     stateFile,
+		Store:         st,
+		RequireAuth: func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				ctx := auth.WithIdentity(r.Context(), auth.Identity{AccountID: "acc_1", SessionID: "ses_1"})
+				next.ServeHTTP(w, r.WithContext(ctx))
+			})
+		},
+	})
+	seedSkus(p)
+	return p
+}
+
+// TestOrdersStorePersistAcrossRestart 二期 Store 接缝:事件账本经字节 blob
+// 存储等价 StateFile 的三代重启语义(回放投影恢复状态机)。
+func TestOrdersStorePersistAcrossRestart(t *testing.T) {
+	st := &memStore{}
+
+	p1 := fixedStoreHarness(t, st)
+	env1, rec1 := createOrder(t, p1, new(string), "sku_gem_60")
+	if rec1.Code != http.StatusOK {
+		t.Fatalf("下单: %d %s", rec1.Code, rec1.Body.String())
+	}
+	id1 := orderIDOf(t, env1)
+	id2 := orderIDOf(t, mustCreate(t, p1))
+	if err := p1.CloseOrder(id2); err != nil {
+		t.Fatalf("关单: %v", err)
+	}
+	if st.saves == 0 {
+		t.Fatal("账本追加应经 Store.Save 写全量")
+	}
+
+	p2 := fixedStoreHarness(t, st)
+	if s, code := statusOf(t, p2, id1); code != http.StatusOK || s != StatusCreated {
+		t.Fatalf("重启后未完结订单: status=%q code=%d, 期望 CREATED", s, code)
+	}
+	if s, code := statusOf(t, p2, id2); code != http.StatusOK || s != StatusClosed {
+		t.Fatalf("重启后关单订单: status=%q code=%d, 期望 CLOSED", s, code)
+	}
+	body := `{"orderId":"` + id1 + `","paidAt":"2026-10-09T12:00:30Z"}`
+	rec := call(t, p2, http.MethodPost, "/v1/payments/callback", body,
+		map[string]string{"X-Payment-Signature": sign("s3cret", []byte(body))})
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"status":"DELIVERED"`) {
+		t.Fatalf("重启后回调 = %d %s", rec.Code, rec.Body.String())
+	}
+
+	p3 := fixedStoreHarness(t, st)
+	if s, code := statusOf(t, p3, id1); code != http.StatusOK || s != StatusDelivered {
+		t.Fatalf("三代重启: status=%q code=%d, 期望 DELIVERED", s, code)
+	}
+}
+
+// TestOrdersStorePrecedenceOverStateFile Store 与 StateFile 同设时 Store 优先:
+// 文件里的旧快照不回放,也不被写入。
+func TestOrdersStorePrecedenceOverStateFile(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "orders.json")
+	stale := []byte(`{"orders":{"stale_id":{"owner":"acc_x","status":"CREATED","amountCents":1}}}`)
+	if err := os.WriteFile(file, stale, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	st := &memStore{}
+	p := fixedDualHarness(t, file, st)
+	if _, code := statusOf(t, p, "stale_id"); code != http.StatusNotFound {
+		t.Fatalf("Store 优先生效时不应回放文件旧快照(code=%d)", code)
+	}
+	id := orderIDOf(t, mustCreate(t, p))
+	after, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != string(stale) {
+		t.Fatal("Store 配置时不应写 StateFile")
+	}
+	if st.saves == 0 {
+		t.Fatal("写入应走 Store.Save")
+	}
+	p2 := fixedDualHarness(t, file, st)
+	if s, code := statusOf(t, p2, id); code != http.StatusOK || s != StatusCreated {
+		t.Fatalf("重启后应从 Store 回放: status=%q code=%d", s, code)
+	}
+}
+
+// TestOrdersStoreMissingIsFirstBoot ErrSnapshotMissing = 首次启动:健康就绪空态。
+func TestOrdersStoreMissingIsFirstBoot(t *testing.T) {
+	p := fixedStoreHarness(t, &memStore{})
+	if err := p.HealthCheck(context.Background()); err != nil {
+		t.Fatalf("首次启动应就绪: %v", err)
+	}
+}
+
+// TestOrdersStoreCorruptSnapshotFailClosed Store 返回损坏字节 → fail-closed。
+func TestOrdersStoreCorruptSnapshotFailClosed(t *testing.T) {
+	p := fixedStoreHarness(t, &memStore{b: []byte("{not json")})
+	if err := p.HealthCheck(context.Background()); err == nil {
+		t.Fatal("损坏 Store 字节应使 HealthCheck fail-closed")
+	}
+}
+
+// TestOrdersStoreLoadFailClosed Load 非缺失错误 → fail-closed,不以空态静默启动。
+func TestOrdersStoreLoadFailClosed(t *testing.T) {
+	p := fixedStoreHarness(t, &memStore{loadErr: errors.New("store down")})
+	if err := p.HealthCheck(context.Background()); err == nil {
+		t.Fatal("Store 读故障应使 HealthCheck fail-closed")
+	}
+}
+
+// TestOrdersStoreSaveFailClosed Save 失败 → fail-closed,置位后不再重试写。
+func TestOrdersStoreSaveFailClosed(t *testing.T) {
+	st := &memStore{}
+	p := fixedStoreHarness(t, st)
+	mustCreate(t, p)
+	st.saveErr = errors.New("boom")
+	mustCreate(t, p)
+	if err := p.HealthCheck(context.Background()); err == nil {
+		t.Fatal("Store 写失败应使 HealthCheck fail-closed")
+	}
+	saves := st.saves
+	mustCreate(t, p)
+	if st.saves != saves {
+		t.Fatal("stateErr 置位后不应再写 Store")
+	}
 }

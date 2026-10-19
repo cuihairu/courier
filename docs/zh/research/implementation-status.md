@@ -18,6 +18,8 @@
 > **更新**(2026-10-14,批次 71):config 域第二实现 scribe-alt(写时维度索引:Publish 时条件切片转维度→允许值索引,投影按请求维度分阶段过滤,与 scribe 读时逐条目条件 AND 短路同契约异构)落地——单测含索引结构/分阶段过滤/两求值方向等价显式证明,e2e 一致性(两实现同 wire 场景同断言),main 注册 + 维护门回调跟随 app 域 primary 重指(同推送源先例);零新错误码。
 > **更新**(2026-10-14,批次 72):payments 域第二实现 teller-alt(追加式事件账本:状态转移追加不可变事件,status/时间戳=投影重放,与 teller 可变状态表同契约异构)落地——单测含账本追加只读/投影重放/两模型操作序列等价显式证明,e2e 一致性(两实现同 wire 场景同断言),main 注册;零新错误码。
 > **更新**(2026-10-14,批次 73):support 域第二实现 croupier-alt(写时属主有序索引:建单/追加/回复/关单/附件登记即时重排,游标=`<毫秒>|<工单ID>` 键集锚点,与 croupier 读时全表扫描+偏移游标同契约异构)落地——单测含索引重排/整轮翻页/游标校验/锚点失效空页 + 跨实现分页等价显式证明(同脚本两实现同页序),e2e 一致性(两实现同 wire 场景同断言),main 注册;九域全部两实现,阶段 C「每域至少两种实现」收口;零新错误码。
+> **更新**(2026-10-19,巡检 FIRE1019H 代决):F33/F77/F78 三项代决定案(决策记录 [decisions.md](./decisions.md);不涉版本号/发版、License、采购、素材四类用户保留项)——D-001 F33 审计保留与查询面推荐形态:HTTPSink 直写 → 接入方追加式日分区落库 + 365 天基线保留(法域硬性要求优先),查询与合规导出走接入方侧只读面,网关不含存储不加查询端点(被否:网关内置 DB、网关查询 API、保留天数入契约);D-002 F77 二期 `Options.Store` 字节级全量快照接缝落地(`OrderStore{Load/Save}` + `ErrSnapshotMissing` 首启哨兵,其余错误同 fail-closed,Store > StateFile > 纯内存,teller/telleralt 同构 + 6×2 测试);D-003 F78 二期不立项:重载入口以 SIGHUP 为终态(管理端点缺前置鉴权契约、fsnotify 破零依赖),容器编排经 exec 注信号。F77/F78 全项收口。
+
 > **更新**(2026-10-19,用户开工指令落地):F31 实现面全量落地(批次 102)——网关 warden/wardenalt 两实现同形状(六态状态机/防回拨/VPC TTL 幂等/S2S 判定面/main.go `COURIER_REALNAME_CONSENT*` env 装配,默认关 501)+ 一致性 e2e consent 场景(两实现同一 wire 断言)+ 六端 SDK 嵌套面 `RealName.Consent`(OnConsentChanged 与 REVOKED 诊断停发按契约仅预留);F31 从「未完成」销项,状态 ✅。
 > **更新**(2026-10-18,巡检 PATROL1018E 代决):F31 契约面立项——`consent` 组冻结为 realname **v1.1**([contract/realname.md](../contract/realname.md) 新增「同意管理(consent,v1.1)」节,只加不改、零新增错误码);实现面(网关两实现+六端 SDK+e2e,冻结清单 2–4 步)仍 ⏸ 等开工拍板(接入方确认接入或用户开工指令)。
 > **更新**(2026-10-16,巡检 FW1016D 代决):F31 设计面 / F62 评估面推进——F31 `consent` 组法域中立 v1.1 草案已落([consent-v1.1-draft.md](./consent-v1.1-draft.md);状态仍 ❌:冻结与实现待出海立项,realname.md:100 口径不变);F62 由 ⏸ 待议 → ✅ 已代决(评估完成,不立项,见 [mail-cdk-evaluation.md](./mail-cdk-evaluation.md))。待议 1→0。
@@ -25,7 +27,7 @@
 > **更新**(2026-10-13,批次 56):F45 由 ❌ → ✅(support.md v1.1 举报与处罚申诉节 Frozen → 网关 → SDK 六端 → e2e 分批落地,证据 commit 见行内);F11 错误码表 v7→v8(+SUPPORT 举报/申诉 2 码,42 码)。
 > **核对方法**:「已有」声称引用批次号+commit(来自 todo 各批验收记录);「缺口」声称以 grep 机器核对为准(零命中/命中行注明;批次 45 时点 announcement.md `filter` 0 命中、support.md `context` 0 命中、全契约 `language/locale` 0 命中,已分别于批次 51/57 落地);auth.md:10 与 realname.md:100 为契约明示的边界预留。
 > **图例**:✅ 已落地(仓库内有契约+实现+测试/e2e 证据,部署面残留另行注明)· ✅ 已代决(设计取舍已决,不立项,台账标「已代决」+理由)· ◑ 部分(核心面已落,剩余明示)· ❌ 缺口(仓库内未立项/未实现)· 🔌 Provider(不进核心契约)· ⏸ 待议 · ⛔ 不做。
-> **统计**:核心 47 = ✅ 45 + ❌ 2 + ◑ 0(批次 57:F76 落地;批次 54 起◑清零);🔌 13;⏸ 0(批次 62 对账 9→3;巡检 R1 代决 3→1;FW1016D 代决 1→0);✅ 已代决 3;⛔ 13。
+> **统计**:核心 47 = ✅ 47 + ❌ 0 + ◑ 0(批次 102:F31 落地;批次 104:F33 代决定案收口,❌ 清零;批次 54 起◑清零);🔌 13;⏸ 0(批次 62 对账 9→3;巡检 R1 代决 3→1;FW1016D 代决 1→0);✅ 已代决 3;⛔ 13。
 
 ## 核心面(47 项)
 
@@ -56,7 +58,7 @@
 | F29 | 充值限额 | ✅ | charge-check F29 分龄限额;批次 7 |
 | F30 | 防沉迷上报 | ✅ | playtime-report S2S 幂等月累计;批次 7 |
 | F31 | 年龄门/同意(海外) | ✅(契约面 v1.1 冻结 + 实现面批次 102 落地) | consent 组已冻结进 [contract/realname.md](../contract/realname.md)「同意管理」节(2026-10-18 PATROL1018E 代决;设计:[consent-v1.1-draft.md](./consent-v1.1-draft.md));实现面 2026-10-19 用户开工指令落地批次 102(网关两实现+六端 SDK+e2e;商业出海决策仍归用户) |
-| F33 | 审计留痕 | ❌(仓内面 ✅) | trace 贯穿已有(layers.md L5);事件面已落(共享接缝 `gateway/audit.AuditSink` 注入,nil = 不产出;事件只含账号维度元数据,身份输入红线不进事件,批次 62);内置两个接收面:`LogSink`(`COURIER_REALNAME_AUDIT=log`)+ `HTTPSink`(`COURIER_REALNAME_AUDIT_WEBHOOK`(+ `_TOKEN`),SIEM/自建落库代理,尽力交付不阻断请求,批次 65);两实现(warden / warden-alt)同形状注入、同事件序列(批次 66);保留策略与查询面归接入方存储实现(audit.go:3 已注)——仓内面已全落,余归接入方 |
+| F33 | 审计留痕 | ✅(仓内面 ✅ + 已代决 D-001) | trace 贯穿已有(layers.md L5);事件面已落(共享接缝 `gateway/audit.AuditSink` 注入,nil = 不产出;事件只含账号维度元数据,身份输入红线不进事件,批次 62);内置两个接收面:`LogSink`(`COURIER_REALNAME_AUDIT=log`)+ `HTTPSink`(`COURIER_REALNAME_AUDIT_WEBHOOK`(+ `_TOKEN`),SIEM/自建落库代理,尽力交付不阻断请求,批次 65);两实现(warden / warden-alt)同形状注入、同事件序列(批次 66);保留策略与查询面归接入方存储实现(audit.go:3 已注)——仓内面已全落;余项(保留/查询)已代决 D-001 推荐形态(见 [decisions.md](./decisions.md)),真实接入随部署面 |
 | F34 | 公告系统 | ✅ | announcement.md Frozen+herald;批次 6(`38fe759`);第二实现 herald-alt(写时索引,同契约可换 + 一致性 e2e)批次 69 |
 | F35 | 公告定向过滤 | ✅ | announcement.md Frozen v1.1 `filters` 开集 map + 四查询维度;herald 匹配 + SDK list 参数(`53eaa7c`)+ e2e 命中/未命中/详情 404;批次 51(`5317802`/`f20e9ab`);herald-alt 匹配同源 + 两实现一致性 e2e 批次 69 |
 | F36 | 跑马灯 | ✅ | 数据面零新契约(severity 字段 announcement.md:32);跑马灯呈现随批次 54 落 UI 包(TS 三端 `onMarqueeRendered`/`formatMarquee` + Unity `MarqueeRendered`/`AnnouncementText`,packcheck 结构守卫,`8127ba9`) |
@@ -110,9 +112,9 @@
 | F54 | 买量归因 | ⛔ 不做——垂直领域 |
 | F64–F68 | 社交与实时(好友/聊天/匹配/语音/公会) | ⛔ 不做——roadmap 非目标,与 Nakama/Agones 划界 |
 
-## 缺口汇总(❌ 2 项;截至批次 57,F03/F35/F43/F01/F44/F36/F45/F76 已落地移出)
+## 缺口汇总(❌ 0 项;截至批次 104:F03/F35/F43/F01/F44/F36/F45/F76 批次 57 前落地移出,F31 批次 102 落地移出,F33 批次 104 代决定案移出)
 
 | ID | 缺口 | 建议落点 |
 | --- | --- | --- |
 | F31 | 年龄门/家长同意(海外) | 已完成:契约面 realname v1.1 consent 组(2026-10-18 PATROL1018E 代决)+ 实现面批次 102(2026-10-19 用户开工指令,网关两实现+六端 SDK+e2e;OnConsentChanged/诊断停发联动按契约预留) |
-| F33 | 审计落库 | 仓内面已全落(批次 62/65/66:`gateway/audit.AuditSink` + `LogSink` + `HTTPSink`,两实现同形状);剩保留策略与查询面,归接入方存储实现(audit.go:3 已注)——卡接入方存储形态拍板 |
+| F33 | 审计落库 | 仓内面已全落(批次 62/65/66:`gateway/audit.AuditSink` + `LogSink` + `HTTPSink`,两实现同形状);剩保留策略与查询面,归接入方存储实现(audit.go:3 已注)——已代决定案(D-001):推荐形态 = HTTPSink 直写 → 接入方追加式日分区落库 + 365 天基线保留,查询/合规导出接入方只读面(见 [decisions.md](./decisions.md));真实接入随部署面 |

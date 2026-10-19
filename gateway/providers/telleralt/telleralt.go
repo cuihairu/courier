@@ -21,6 +21,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -85,7 +86,27 @@ type Options struct {
 	// 依赖;二期改 Options Store 接缝)。快照损坏 → HealthCheck fail-closed,
 	// 不静默从空态启动丢单。SKU 价格表不快照:管理面启动时登记。
 	StateFile string
+	// Store 事件账本存储接缝(F77 二期 2026-10-19 代决:字节级全量快照;可选,
+	// nil = 退回 StateFile / 纯内存)。设置后优先生效(与 StateFile 同设时文件
+	// 不读写):每次账本追加经 Save 写全量,构造时 Load 回放投影——接入方按部署
+	// 面接 DB / Redis / 对象存储。返回 ErrSnapshotMissing = 首次启动(等价文件
+	// 不存在);其余读错误与损坏字节同 fail-closed(HealthCheck → 503,不静默
+	// 从空态启动丢单)。接缝只换字节,账本结构留在 Provider 内。
+	Store OrderStore
 }
+
+// OrderStore 事件账本持久化接缝(F77 二期已代决:字节 blob 形状,与 teller
+// 同构)。只交换全量快照字节,账本结构 / 键序 / 归属索引留在 Provider 内
+// (被否选项见 research/decisions.md D-002)。
+type OrderStore interface {
+	// Load 读回最近一次 Save 的字节;无快照返回 ErrSnapshotMissing。
+	Load() ([]byte, error)
+	// Save 全量覆盖写;实现方须保证写失败不产生半态(原子 / 事务)。
+	Save(b []byte) error
+}
+
+// ErrSnapshotMissing Store 无快照(首次启动)哨兵;Load 实现按 errors.Is 判定。
+var ErrSnapshotMissing = errors.New("telleralt: order store snapshot missing")
 
 // 推送事件 type(契约 payment.md v1.1「推送事件」;events.md 登记)。
 const (
@@ -179,8 +200,9 @@ type PaymentsProvider struct {
 	orders  map[string]*journalEntry
 	byOwner map[string][]string // accountID → 登记序 orderIDs
 
-	stateFile string // StateFile 快照路径(空 = 纯内存)
-	stateErr  error  // 快照回放/写入失败(HealthCheck fail-closed,不静默丢单)
+	stateFile string     // StateFile 快照路径(空 = 纯内存)
+	store     OrderStore // 二期存储接缝(nil = 未配置;非 nil 时优先于 stateFile)
+	stateErr  error      // 快照回放/写入失败(HealthCheck fail-closed,不静默丢单)
 }
 
 // New 构造支付 Provider 第二实现。
@@ -213,6 +235,7 @@ func New(opts Options) *PaymentsProvider {
 		riskCheck:     opts.RiskCheck,
 		notify:        opts.Notify,
 		stateFile:     opts.StateFile,
+		store:         opts.Store,
 		skus:          make(map[string]skuRecord),
 		orders:        make(map[string]*journalEntry),
 		byOwner:       make(map[string][]string),
@@ -230,6 +253,24 @@ type snapshot struct {
 // loadState 回放快照(StateFile 配置时)。不存在 = 首次启动;损坏/不可读 =
 // 记 stateErr → HealthCheck fail-closed,不静默从空态启动丢单;运维删文件重启。
 func (p *PaymentsProvider) loadState() {
+	if p.store != nil {
+		b, err := p.store.Load()
+		if err != nil {
+			if !errors.Is(err, ErrSnapshotMissing) {
+				p.stateErr = err // 存储故障不静默以空态启动
+			}
+			return
+		}
+		var s snapshot
+		if err := json.Unmarshal(b, &s); err != nil {
+			p.stateErr = err
+			return
+		}
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		p.restoreLocked(s.Orders)
+		return
+	}
 	if p.stateFile == "" {
 		return
 	}
@@ -268,12 +309,18 @@ func (p *PaymentsProvider) restoreLocked(orders map[string]*journalEntry) {
 // stateErr → HealthCheck fail-closed。stateErr 非 nil 后不再重试(避免反复写坏),
 // 由 HealthCheck 暴露给运维。
 func (p *PaymentsProvider) persistLocked() {
-	if p.stateFile == "" || p.stateErr != nil {
+	if p.stateErr != nil || (p.store == nil && p.stateFile == "") {
 		return
 	}
 	b, err := json.Marshal(snapshot{Orders: p.orders})
 	if err != nil {
 		p.stateErr = err
+		return
+	}
+	if p.store != nil {
+		if serr := p.store.Save(b); serr != nil {
+			p.stateErr = serr
+		}
 		return
 	}
 	tmp, err := os.CreateTemp(filepath.Dir(p.stateFile), ".courier-orders-*.tmp")

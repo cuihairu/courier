@@ -32,6 +32,7 @@ export default defineConfig({
               { text: 'Provider 接入指南', link: '/zh/provider-guide' },
               { text: '竞品调研', link: '/zh/research/competitive' },
               { text: '功能调研', link: '/zh/research/features' },
+              { text: '决策记录', link: '/zh/research/decisions' },
             ],
           },
           {
@@ -92,6 +93,7 @@ export default defineConfig({
           { text: 'Provider Integration Guide', link: '/provider-guide' },
           { text: 'Competitive Research', link: '/research/competitive' },
           { text: 'Feature Research', link: '/research/features' },
+          { text: 'Decision Record', link: '/research/decisions' },
         ],
       },
       {
