@@ -1,12 +1,12 @@
 
-# Courier SDK Contract(M0 立宪)
+# Courier SDK Contract (M0 Constitutional)
 
-> **状态**:基元五件 **Frozen v1**(2026-10-08,M0 跨端评审冻结;错误码表现已 **v8**——v2 追加 M2 域码,v3 追加 REALNAME 时段/额度码,v4 追加 M5 PAYMENT 域码,v5 追加 AUTH 注销码,v6 追加 OAUTH 域码,v7 追加 SUPPORT 附件码(2026-10-12),v8 追加 SUPPORT 举报/申诉码(2026-10-13,42 码);**v1.1** 2026-10-10 追加取消与并发纪律两节);auth 域契约 **Frozen v1.1**(M1;v1.1 2026-10-12 追加账号注销与数据删除 F03、登录方式 OAUTH);oauth 域契约 **Frozen v1**(批次 52,2026-10-12,F01);announcement / support 域契约 **Frozen v1.1**(M2;v1.1 追加公告定向过滤 F35 与多语内容 F76、工单上下文 F43、工单附件 F44、举报与处罚申诉 F45);messages 域契约 **Frozen v1.1**(M2,v1.1 追加传输分框硬要求);realname 域契约 **Frozen v1.1**(M2 后段;v1.1 2026-10-18 追加 consent 组);config / app / branding / player 域契约 **Frozen v1**(M3,2026-10-09);diagnostics 域契约 **Frozen v1**(M3,可选包默认全关);assistant 域契约 **Frozen v1**(M4,2026-10-09);payment 域契约 **Frozen v1.1**(M5;v1 冻结 2026-10-09,同日 v1.1 追加 payment.paid/delivered 推送事件)。冻结后进入变更流程管理。
-> **原则**:**SDK Contract > Everything**——契约是 Courier 的宪法。Gateway、Provider、Core、Adapter、生态后端(herald / croupier / chirp / warden / 自建 accounts)都只是契约的**实现者**;新增引擎 = 新增 Adapter,而不是重新设计 SDK。
+> **Status**: the five primitives are **Frozen v1** (2026-10-08, frozen at the M0 cross-platform review; the error code table is now **v8** — v2 added M2 domain codes, v3 added REALNAME time-window/quota codes, v4 added M5 PAYMENT domain codes, v5 added AUTH deregistration codes, v6 added OAUTH domain codes, v7 added SUPPORT attachment codes (2026-10-12), v8 added SUPPORT report/appeal codes (2026-10-13, 42 codes); **v1.1** on 2026-10-10 added the two sections on cancellation and concurrency discipline); the auth domain contract is **Frozen v1.1** (M1; v1.1 on 2026-10-12 added account deregistration and data deletion F03, and the OAUTH sign-in method); the oauth domain contract is **Frozen v1** (batch 52, 2026-10-12, F01); the announcement / support domain contracts are **Frozen v1.1** (M2; v1.1 added announcement targeting filters F35 and multilingual content F76, ticket context F43, ticket attachments F44, reports and penalty appeals F45); the messages domain contract is **Frozen v1.1** (M2, v1.1 added the hard requirement on transport framing); the realname domain contract is **Frozen v1.1** (late M2; v1.1 on 2026-10-18 added the consent group); the config / app / branding / player domain contracts are **Frozen v1** (M3, 2026-10-09); the diagnostics domain contract is **Frozen v1** (M3, optional package default fully off); the assistant domain contract is **Frozen v1** (M4, 2026-10-09); the payment domain contract is **Frozen v1.1** (M5; v1 frozen 2026-10-09, with v1.1 the same day adding the payment.paid/delivered push events). After freezing, changes enter change-process management.
+> **Principle**: **SDK Contract > Everything** — the contract is Courier's constitution. The Gateway, Provider, Core, Adapter, and ecosystem backends (herald / croupier / chirp / warden / self-hosted accounts) are all merely **implementers** of the contract; adding an engine = adding an Adapter, not redesigning the SDK.
 
-## 为什么立宪
+## Why a Constitution
 
-Courier 的价值不在某个具体业务,而在「同一套能力接口,跨引擎跨平台行为一致」。这份一致性只能由契约保证:
+Courier's value lies not in any particular feature, but in "one set of capability interfaces, consistent behavior across engines and platforms." That consistency can only be guaranteed by the contract:
 
 ```text
               Courier
@@ -24,66 +24,66 @@ Courier 的价值不在某个具体业务,而在「同一套能力接口,跨引�
       Unity      UE      Cocos  …
 ```
 
-Gateway、Provider、herald、Chirp、Croupier、Oddsmaker 全部只是「契约的实现者 / 后端提供者」,不是 Courier 的核心。
+The Gateway, Provider, herald, Chirp, Croupier, and Oddsmaker are all just "implementers of the contract / backend providers", not the core of Courier.
 
-## 宪法原则
+## Constitutional Principles
 
-1. **契约先行**:任何跨端能力,先改契约、评审冻结,再动实现。M1 Auth 开工前,M0 契约必须冻结。
-2. **唯一事实源**:本目录是全部跨端类型、错误码、事件、语义的唯一事实源;各端 SDK 不得私造字段(设计边界「无 any/unknown 敷衍」的落点)。
-3. **跨端一致**:同一语义在 C# / C++ / TypeScript / GDScript 里命名风格各异、行为完全一致。
-4. **供应商不可知**:契约描述「能力」,不描述「哪家实现」——公告契约不知道 herald 存在。默认供应商是配置,不是契约。
-5. **默认关闭(红线)**:采集类、合规类能力(Diagnostics / RealName)契约内建红线——默认关闭,显式开启才工作,开启必须明示数据范围。
-6. **字段最小化**:敏感字段能不采就不采;每个涉及个人数据的契约必须同时写「不采集什么」。
-7. **向后兼容**:已冻结契约只加不改;破坏性变更必须升版本(见 [versioning.md](./versioning.md))。
+1. **Contract first**: for any cross-platform capability, change the contract and get it reviewed and frozen before touching the implementation. Before M1 Auth started, the M0 contract had to be frozen.
+2. **Single source of truth**: this directory is the single source of truth for all cross-platform types, error codes, events, and semantics; no platform SDK may invent its own fields (the landing point of the design boundary "no fobbing off with any/unknown").
+3. **Cross-platform consistency**: the same semantics have different naming styles in C# / C++ / TypeScript / GDScript but behave identically.
+4. **Vendor-agnostic**: the contract describes "capabilities", not "which implementation" — the announcement contract does not know herald exists. The default provider is configuration, not contract.
+5. **Off by default (red line)**: data-collection and compliance capabilities (Diagnostics / RealName) have a built-in red line in the contract — off by default, working only when explicitly enabled, and enabling must state the data scope.
+6. **Field minimization**: don't collect sensitive fields if you can avoid it; every contract involving personal data must also state "what is not collected".
+7. **Backward compatibility**: frozen contracts are additive-only; breaking changes must bump the version (see [versioning.md](./versioning.md)).
 
-## 契约分层
+## Contract Layers
 
-| 层 | 内容 | 冻结点 |
+| Layer | Content | Freeze point |
 | --- | --- | --- |
-| 基元契约 | [primitives](./primitives.md) / [errors](./errors.md) / [scope](./scope.md) / [versioning](./versioning.md) / [events](./events.md) | **M0 已冻结 v1** |
-| 域契约 | [auth](./auth.md)(**Frozen v1.1 · M1**);[announcement](./announcement.md) / [support](./support.md)(**Frozen v1.1 · M2**;announcement v1.1 含定向过滤 F35 与多语内容 F76,support v1.1 含工单上下文 F43、工单附件 F44 与举报/申诉 F45)/ [messages](./messages.md)(**Frozen v1.1 · M2**,v1.1 传输分框硬要求);[realname](./realname.md)(**Frozen v1.1 · M2 后段**,v1.1 consent 组);[config](./config.md) / [app](./app.md) / [branding](./branding.md) / [player](./player.md)(**Frozen v1 · M3**);[diagnostics](./diagnostics.md)(**Frozen v1 · M3 · 可选包默认全关**);[assistant](./assistant.md)(**Frozen v1 · M4**);[payment](./payment.md)(**Frozen v1.1 · M5**) | 全部域契约已冻结;后续只加不改,破坏性变更升版本 |
-| 域契约(后续) | [oauth](./oauth.md)(第三方身份提供方,**Frozen v1 · 批次 52**,2026-10-12) | 全部域契约已冻结;后续只加不改,`provider` 为开集字符串 |
+| Primitive contracts | [primitives](./primitives.md) / [errors](./errors.md) / [scope](./scope.md) / [versioning](./versioning.md) / [events](./events.md) | **M0 frozen v1** |
+| Domain contracts | [auth](./auth.md) (**Frozen v1.1 · M1**); [announcement](./announcement.md) / [support](./support.md) (**Frozen v1.1 · M2**; announcement v1.1 includes targeting filters F35 and multilingual content F76, support v1.1 includes ticket context F43, ticket attachments F44, and reports/appeals F45) / [messages](./messages.md) (**Frozen v1.1 · M2**, v1.1 hard requirement on transport framing); [realname](./realname.md) (**Frozen v1.1 · late M2**, v1.1 consent group); [config](./config.md) / [app](./app.md) / [branding](./branding.md) / [player](./player.md) (**Frozen v1 · M3**); [diagnostics](./diagnostics.md) (**Frozen v1 · M3 · optional package default fully off**); [assistant](./assistant.md) (**Frozen v1 · M4**); [payment](./payment.md) (**Frozen v1.1 · M5**) | All domain contracts frozen; additive-only from here on, breaking changes bump the version |
+| Domain contracts (later) | [oauth](./oauth.md) (third-party identity providers, **Frozen v1 · batch 52**, 2026-10-12) | All domain contracts frozen; additive-only from here on, `provider` is an open-set string |
 
-## 变更流程
+## Change Process
 
-1. 提案:在本文档对应文件修改并标注版本草案(Draft)。**每条提案必须含「扩展与演进」节**——列出预判的扩展点与兼容处理方式(加可选字段 / 开集 map + 容忍规则 / 管理面演进 / Provider 钩子注册),**禁止把可能变化的语义钉死成封闭枚举**;接口语义钉死 = 下次扩展只能升大版本。
-2. 评审:跨端负责人过一遍(至少 Unity + 一非 C# 端)。
-3. 冻结:去掉 Draft 标注,记入版本号。
-4. 同步:各端 SDK 按契约对齐,契约测试通过才算同步完成。
-5. 破坏性变更走 [versioning.md](./versioning.md) 的升版流程,不做原地改写。
+1. Proposal: modify the corresponding file in this directory and mark it as a version draft (Draft). **Every proposal must contain an "Extensions and Evolution" section** — listing the anticipated extension points and how compatibility is handled (add optional fields / open-set map + tolerance rules / management-plane evolution / Provider hook registration); **it is forbidden to nail down semantics that may change as a closed enum**; nailing down interface semantics = the next extension can only be a major version bump.
+2. Review: cross-platform leads go through it (at least Unity + one non-C# platform).
+3. Freeze: remove the Draft marker and record it in the version number.
+4. Sync: each platform SDK aligns to the contract; syncing is complete only when the contract tests pass.
+5. Breaking changes go through the version-bump process in [versioning.md](./versioning.md), never an in-place rewrite.
 
-## M0 冻结评审记录(2026-10-08)
+## M0 Freeze Review Record (2026-10-08)
 
-评审视角(规则要求 ≥ Unity + 一非 C# 端,实际四端过读):Unity(C#)、Cocos/小程序(TypeScript)、UE(C++)、Godot(GDScript)。
+Review perspectives (the rule requires ≥ Unity + one non-C# platform; in practice four platforms were read through): Unity (C#), Cocos/mini-program (TypeScript), UE (C++), Godot (GDScript).
 
-| # | 发现 | 处置 |
+| # | Finding | Disposition |
 | --- | --- | --- |
-| 1 | primitives「每个响应 body 必带 traceId」与「成功响应只有 data」互斥,且与网关实现(成功无 body traceId,`X-Request-Id` 头回传)不一致 | 统一为:traceId 只在失败响应 body;`X-Request-Id` 负责成功请求的关联,不与 traceId 混用 |
-| 2 | Timestamp 字段后缀示例为 snake_case(`created_at`),与已冻结 auth 契约及网关的 camelCase wire 不一致 | 修正为 `At`/`Ms` 后缀,wire key camelCase,各端属性名随语言习惯 |
-| 3 | events `type` 规则写「小写点分」,示例却含 camelCase 段(`tokenExpired`/`signedOut`/`accountSwitched`/`ticketReplied`/`maintenanceChanged`/`forceUpdate`) | 规则明确为两段小写 + 多词下划线,示例全部归一 |
-| 4 | primitives「枚举一律大写下划线」与 scope `env` 小写取值(dev/staging/prod)冲突 | primitives 标注 scope.md 为唯一例外 |
-| 5 | versioning 兼容矩阵「SDK 0.x 绑定 Draft v0」与 M0 冻结先于 M1 开工的事实矛盾 | 矩阵改为 SDK 0.x 绑定 Contract v1.x |
-| 6 | index 索引与分层表未收录已冻结的 auth.md | 索引与契约分层表归位 |
+| 1 | primitives' "every response body must carry traceId" contradicts "successful responses have only data", and is inconsistent with the gateway implementation (success has no body traceId, `X-Request-Id` is echoed back in a header) | Unified as: traceId appears only in the failure response body; `X-Request-Id` handles correlation for successful requests and is not mixed with traceId |
+| 2 | The Timestamp field suffix example used snake_case (`created_at`), inconsistent with the already-frozen auth contract and the gateway's camelCase wire format | Corrected to `At`/`Ms` suffixes, camelCase wire keys, with per-platform property names following language convention |
+| 3 | The events `type` rule said "lowercase dot-separated", but the examples contained camelCase segments (`tokenExpired`/`signedOut`/`accountSwitched`/`ticketReplied`/`maintenanceChanged`/`forceUpdate`) | The rule was clarified to two lowercase segments + underscores for multi-word names, and all examples were normalized |
+| 4 | primitives' "enums are always UPPER_SNAKE_CASE" conflicted with scope's lowercase `env` values (dev/staging/prod) | primitives marks scope.md as the sole exception |
+| 5 | The versioning compatibility matrix's "SDK 0.x binds Draft v0" contradicted the fact that M0 froze before M1 started | The matrix was changed so SDK 0.x binds Contract v1.x |
+| 6 | The index and the layer table did not include the already-frozen auth.md | The index and contract layer table were put in place |
 
-结论:基元五件升 **Frozen v1**;realname / branding / diagnostics 仍为 Draft 初稿(实现前冻结);auth 已于 M1 冻结。评审后基元五件进入变更流程管理,只加不改。
+Conclusion: the five primitives were promoted to **Frozen v1**; realname / branding / diagnostics remained first drafts (to be frozen before implementation); auth had already been frozen in M1. After the review, the five primitives entered change-process management, additive-only.
 
-## 索引
+## Index
 
 - [primitives.md](./primitives.md) — Request / Response / Pagination / Timestamp / ID / TraceID
-- [auth.md](./auth.md) — 认证与会话(Frozen v1.1 · M1)
-- [announcement.md](./announcement.md) — 公告(玩家侧只读投影;Frozen v1.1 · M2)
-- [support.md](./support.md) — 客服工单与 FAQ(Frozen v1.1 · M2)
-- [messages.md](./messages.md) — 推送通道(SSE,会话复用;Frozen v1.1 · M2)
-- [errors.md](./errors.md) — 错误体、错误码注册表、HTTP 映射、降级信号
-- [scope.md](./scope.md) — game_id + env 隔离
-- [versioning.md](./versioning.md) — 三层版本与兼容规则
-- [events.md](./events.md) — 事件信封、生命周期事件、推送通道
-- [realname.md](./realname.md) — 实名认证(默认关,Provider 热插拔;Frozen v1.1 · M2 后段,v1.1 consent 组)
-- [config.md](./config.md) — 远程配置(键值+版本+条件灰度投影;Frozen v1 · M3)
-- [app.md](./app.md) — 应用状态(版本/维护/环境;Frozen v1 · M3)
-- [branding.md](./branding.md) — 品牌定制(Core 无品牌逻辑;Frozen v1 · M3)
-- [player.md](./player.md) — 玩家档案(账号↔角色映射;Frozen v1 · M3)
-- [diagnostics.md](./diagnostics.md) — 诊断(默认关,四类能力上报 Schema;Frozen v1 · M3)
-- [assistant.md](./assistant.md) — 小助手(FAQ 检索问答 + 转人工;Frozen v1 · M4)
-- [payment.md](./payment.md) — 支付(订单-发货核心流,四形态开放;Frozen v1.1 · M5,v1.1 追加推送事件)
-- [oauth.md](./oauth.md) — 第三方身份提供方(凭证换会话+绑定;Frozen v1 · 批次 52)
+- [auth.md](./auth.md) — Authentication and sessions (Frozen v1.1 · M1)
+- [announcement.md](./announcement.md) — Announcements (player-side read-only projection; Frozen v1.1 · M2)
+- [support.md](./support.md) — Support tickets and FAQ (Frozen v1.1 · M2)
+- [messages.md](./messages.md) — Push channel (SSE, session reuse; Frozen v1.1 · M2)
+- [errors.md](./errors.md) — Error body, error code registry, HTTP mapping, degradation signal
+- [scope.md](./scope.md) — game_id + env isolation
+- [versioning.md](./versioning.md) — Three-layer versioning and compatibility rules
+- [events.md](./events.md) — Event envelope, lifecycle events, push channel
+- [realname.md](./realname.md) — Real-name verification (off by default, Provider hot-swap; Frozen v1.1 · late M2, v1.1 consent group)
+- [config.md](./config.md) — Remote config (key-value + version + conditional rollout projection; Frozen v1 · M3)
+- [app.md](./app.md) — App status (version/maintenance/environment; Frozen v1 · M3)
+- [branding.md](./branding.md) — Branding customization (no branding logic in Core; Frozen v1 · M3)
+- [player.md](./player.md) — Player profile (account↔character mapping; Frozen v1 · M3)
+- [diagnostics.md](./diagnostics.md) — Diagnostics (off by default, reporting Schema for four capability types; Frozen v1 · M3)
+- [assistant.md](./assistant.md) — Assistant (FAQ retrieval Q&A + handoff to human; Frozen v1 · M4)
+- [payment.md](./payment.md) — Payments (order-to-delivery core flow, four forms open; Frozen v1.1 · M5, v1.1 added push events)
+- [oauth.md](./oauth.md) — Third-party identity providers (credential-to-session exchange + binding; Frozen v1 · batch 52)

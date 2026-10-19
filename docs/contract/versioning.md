@@ -1,53 +1,53 @@
 
-# 版本契约
+# Versioning Contract
 
-> 状态:Frozen v1(2026-10-08,M0 跨端评审冻结)。
+> Status: Frozen v1 (2026-10-08, frozen at the M0 cross-platform review).
 
-## 三层版本
+## Three-Layer Versioning
 
-| 层 | 载体 | 规则 |
+| Layer | Carrier | Rule |
 | --- | --- | --- |
-| Contract 版本 | 本目录各文档头部(semver) | 语义化;冻结后按变更流程演进 |
-| API 路径版本 | `/v1/…` | 破坏性变更才升路径;`/v1` 内只做兼容变更 |
-| SDK 版本 | 各端包版本(semver) | 与兼容矩阵绑定(见下) |
+| Contract version | The header of each document in this directory (semver) | Semantic; evolves through the change process after freezing |
+| API path version | `/v1/…` | The path is bumped only for breaking changes; within `/v1` only compatible changes are made |
+| SDK version | Each platform's package version (semver) | Bound to the compatibility matrix (see below) |
 
-## 兼容规则(冻结后)
+## Compatibility Rules (after freezing)
 
-| 变更 | 兼容性 |
+| Change | Compatibility |
 | --- | --- |
-| 新增可选字段 | 兼容 |
-| 新增错误码 | 兼容(客户端必须容忍未知 code,落到兜底分支) |
-| 新增端点 | 兼容 |
-| 新增必填请求字段 | **破坏** |
-| 修改字段语义/类型 | **破坏** |
-| 删除字段/端点 | **破坏** |
-| 收窄取值范围 | **破坏** |
+| Adding an optional field | Compatible |
+| Adding an error code | Compatible (clients must tolerate unknown codes and fall through to the catch-all branch) |
+| Adding an endpoint | Compatible |
+| Adding a required request field | **Breaking** |
+| Changing a field's semantics/type | **Breaking** |
+| Removing a field/endpoint | **Breaking** |
+| Narrowing the value range | **Breaking** |
 
-客户端硬性要求:**必须容忍未知字段与未知错误码**(向前兼容的代价与义务)。
+Hard requirement for clients: **must tolerate unknown fields and unknown error codes** (the cost and duty of forward compatibility).
 
-## 弃用流程
+## Deprecation Process
 
-1. 文档与响应标记 `deprecated`(可带 `Deprecation` / `Sunset` header)。
-2. 至少保留一个完整里程碑的宽限期。
-3. 移除时升 API 路径版本,旧版本按承诺期下线。
+1. Mark the documentation and responses `deprecated` (may include `Deprecation` / `Sunset` headers).
+2. Keep a grace period of at least one full milestone.
+3. When removing, bump the API path version, and retire the old version per the committed period.
 
-## SDK 兼容矩阵
+## SDK Compatibility Matrix
 
-| SDK 版本 | Contract | API |
+| SDK version | Contract | API |
 | --- | --- | --- |
-| SDK 0.x(M1–M2 期) | v1.x | /v1 |
-| SDK 1.x 起 | v1.x | /v1 |
+| SDK 0.x (M1–M2 period) | v1.x | /v1 |
+| SDK 1.x and later | v1.x | /v1 |
 
-破坏性契约升版(Contract v2 / API `/v2`)时,SDK 主版本随之绑定新契约版本。
+When a breaking contract version bump occurs (Contract v2 / API `/v2`), the SDK major version is bound to the new contract version accordingly.
 
-SDK 主版本升级不得在服务端仍支持的契约版本内引入行为分歧。
+An SDK major version upgrade must not introduce behavioral divergence within a contract version still supported by the server.
 
-## 扩展预留(2026-10-11 补注)
+## Extension Reserve (note added 2026-10-11)
 
-> 本文档本身即演进规则,扩展处理方式已在正文(兼容矩阵、弃用流程、升版绑定);此处只登记结论,避免与正文漂移。
+> This document is itself the evolution rule; extension handling is already in the body (compatibility matrix, deprecation process, version-bump binding); here we only record the conclusions to avoid drifting from the body.
 
-| 可能的扩展 | 兼容处理方式 |
+| Possible extension | Compatibility handling |
 | --- | --- |
-| 新能力域 | 新契约文件 + 域前缀随冻结注册 [errors.md](./errors.md)(Draft 期只预留,先例:oauth.md 批次 49);不动本文档矩阵 |
-| 契约破坏性演进 | 走本文档兼容矩阵与升版流程([index.md](./index.md) 变更流程第 5 步),永不原地改写 |
-| 基元增节 | 先例:primitives v1.1 以加节方式追加取消与并发纪律,冻结日期单列——加节 = 兼容 |
+| New capability domain | A new contract file + a domain prefix registered with [errors.md](./errors.md) at freezing (during the Draft period it is only reserved; precedent: oauth.md batch 49); the matrix in this document is not touched |
+| Breaking contract evolution | Follows this document's compatibility matrix and version-bump process (step 5 of the change process in [index.md](./index.md)); never an in-place rewrite |
+| Adding sections to primitives | Precedent: primitives v1.1 added cancellation and concurrency discipline by adding sections, with the freeze date listed separately — adding sections = compatible |

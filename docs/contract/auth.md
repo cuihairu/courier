@@ -1,209 +1,209 @@
 
-# 认证契约(Auth / Identity)
+# Authentication Contract (Auth / Identity)
 
-> 状态:**Frozen v1.1** · 里程碑 M1(v1 冻结 2026-10-08;v1.1 2026-10-12 追加账号注销与数据删除,F03)。
-> 域前缀 `AUTH` 已注册([errors.md](./errors.md));本文档是 M1 服务端(AccountProvider 自建实现)与各端 SDK 的一致性依据,冻结后只加不改,破坏性变更升版本(见 [versioning.md](./versioning.md))。
+> Status: **Frozen v1.1** · Milestone M1 (v1 frozen 2026-10-08; v1.1 2026-10-12 adds account deletion and data erasure, F03).
+> The domain prefix `AUTH` is registered ([errors.md](./errors.md)); this document is the consistency basis between the M1 server (the AccountProvider self-built implementation) and the SDKs on every platform. Once frozen it is additive-only; breaking changes bump the version (see [versioning.md](./versioning.md)).
 
-## 能力与范围
+## Capabilities and Scope
 
-- 认证方式:**邮箱+密码**、**游客(设备)**。
-- 账号(`account`)是**公司级实体**,跨游戏存在;会话(session)签发时绑定 scope `game_id + env`([scope.md](./scope.md))——同一账号在不同游戏各自登录,token 不可跨游戏使用。
-- 本契约**不覆盖**:player 档案(M3)、实名(realname.md)、第三方 OAuth / 手机号(后续域契约扩展)。
+- Auth methods: **email + password**, **guest (device)**.
+- An account (`account`) is a **company-level entity** that exists across games; when a session is issued it is bound to the scope `game_id + env` ([scope.md](./scope.md)) — the same account logs in separately in each game, and a token cannot be used across games.
+- This contract **does not cover**: player profile (M3), real name (realname.md), third-party OAuth / phone number (later domain contract extensions).
 
-## 端点总览(挂载 `/v1/identity/*`)
+## Endpoint Overview (mounted at `/v1/identity/*`)
 
-| 端点 | 认证 | 说明 |
+| Endpoint | Auth | Description |
 | --- | --- | --- |
-| `POST /v1/identity/register` | 匿名 | 邮箱+密码注册并登录 |
-| `POST /v1/identity/login` | 匿名 | 邮箱+密码登录 |
-| `POST /v1/identity/guest` | 匿名 | 游客登录(按设备幂等:同设备回到同一游客账号) |
-| `POST /v1/identity/bind` | Bearer | 游客账号绑定邮箱(转正),M1 链路「绑定邮箱」 |
-| `POST /v1/identity/refresh` | 匿名 | refresh token 轮换 |
-| `POST /v1/identity/logout` | Bearer | 吊销当前会话 |
-| `GET /v1/identity/session` | Bearer | 当前会话信息 |
-| `GET /v1/identity/devices` | Bearer | 已绑定设备列表 |
-| `DELETE /v1/identity/devices/{deviceId}` | Bearer | 解绑设备并吊销其全部会话 |
-| `POST /v1/identity/account/delete` | Bearer | 申请注销:EMAIL 进宽限期、GUEST 立即删除(幂等受理;受理即吊销全部会话) |
-| `POST /v1/identity/account/delete/cancel` | 匿名 | 宽限期内撤销注销(凭一次性 `cancelToken`) |
+| `POST /v1/identity/register` | anonymous | Register with email + password and log in |
+| `POST /v1/identity/login` | anonymous | Log in with email + password |
+| `POST /v1/identity/guest` | anonymous | Guest login (idempotent per device: the same device returns to the same guest account) |
+| `POST /v1/identity/bind` | Bearer | Bind an email to a guest account (upgrade); the M1 flow "bind email" |
+| `POST /v1/identity/refresh` | anonymous | refresh token rotation |
+| `POST /v1/identity/logout` | Bearer | Revoke the current session |
+| `GET /v1/identity/session` | Bearer | Current session info |
+| `GET /v1/identity/devices` | Bearer | List of bound devices |
+| `DELETE /v1/identity/devices/{deviceId}` | Bearer | Unbind a device and revoke all of its sessions |
+| `POST /v1/identity/account/delete` | Bearer | Request deletion: EMAIL enters a grace period, GUEST is deleted immediately (idempotent acceptance; acceptance revokes all sessions) |
+| `POST /v1/identity/account/delete/cancel` | anonymous | Cancel deletion within the grace period (with a one-time `cancelToken`) |
 
-- 认证列 `Bearer` = 请求头 `Authorization: Bearer <accessToken>`;缺失/格式错 → `COMMON_UNAUTHENTICATED`(401)。
-- 所有请求必带 scope header(`X-Courier-Game-Id` / `X-Courier-Env`,见 [scope.md](./scope.md));缺失 → `COMMON_INVALID_ARGUMENT`。
-- 成功响应一律 HTTP 200,信封见 [primitives.md](./primitives.md)。
+- Auth column `Bearer` = request header `Authorization: Bearer <accessToken>`; missing/malformed → `COMMON_UNAUTHENTICATED` (401).
+- Every request must carry the scope headers (`X-Courier-Game-Id` / `X-Courier-Env`, see [scope.md](./scope.md)); missing → `COMMON_INVALID_ARGUMENT`.
+- Successful responses are always HTTP 200; for the envelope see [primitives.md](./primitives.md).
 
-## 数据模型
+## Data Model
 
-四张表,字段为契约口径(实现自建存储,列名可异,语义不得漂移);DDL 附录见文末。
+Four tables; the fields are the contract's wording (implementations choose their own storage, column names may differ, semantics must not drift); the DDL appendix is at the end of this document.
 
-### accounts(账号,公司级)
+### accounts (accounts, company-level)
 
-| 字段 | 类型 | 说明 |
+| Field | Type | Description |
 | --- | --- | --- |
-| `id` | id | 服务端生成,UUIDv7,前缀 `acc_` |
-| `type` | 枚举 | `EMAIL` / `GUEST` / `OAUTH`(`OAUTH` 为 v1.1 加法,随 [oauth.md](./oauth.md) v1 冻结;纯第三方登录创建的账号,无凭证行,行为对齐 `GUEST` 的最小凭证形态) |
-| `email` | email? | `EMAIL` 账号必填、全局唯一;`GUEST` / `OAUTH` 为空 |
-| `status` | 枚举 | `ACTIVE` / `DISABLED` / `PENDING_DELETE` / `DELETED`(后两值 v1.1);`DISABLED` 登录与已签发会话均拒(`AUTH_ACCOUNT_DISABLED`);`PENDING_DELETE` 登录/绑定拒(`AUTH_ACCOUNT_PENDING_DELETE`);`DELETED` 行已匿名化,不可再认证 |
-| `createdAt` / `updatedAt` | timestamp | RFC 3339 毫秒 UTC |
+| `id` | id | Server-generated, UUIDv7, prefix `acc_` |
+| `type` | enum | `EMAIL` / `GUEST` / `OAUTH` (`OAUTH` is a v1.1 addition, frozen together with [oauth.md](./oauth.md) v1; accounts created by pure third-party login have no credential row and behave like `GUEST`'s minimal credential form) |
+| `email` | email? | Required and globally unique for `EMAIL` accounts; empty for `GUEST` / `OAUTH` |
+| `status` | enum | `ACTIVE` / `DISABLED` / `PENDING_DELETE` / `DELETED` (the last two are v1.1); `DISABLED` rejects both login and already-issued sessions (`AUTH_ACCOUNT_DISABLED`); `PENDING_DELETE` rejects login/binding (`AUTH_ACCOUNT_PENDING_DELETE`); `DELETED` rows are anonymized and can no longer authenticate |
+| `createdAt` / `updatedAt` | timestamp | RFC 3339 milliseconds UTC |
 
-### account_credentials(凭证,1:1 accounts)
+### account_credentials (credentials, 1:1 with accounts)
 
-| 字段 | 说明 |
+| Field | Description |
 | --- | --- |
 | `accountId` | → accounts.id |
-| `passwordHash` / `salt` | PBKDF2-HMAC-SHA256 存储;**禁止明文、禁止可逆** |
-| `algo` / `iterations` | 算法标识与迭代数(如 `PBKDF2-SHA256` / `210000`) |
-| `updatedAt` | 密码变更时间 |
+| `passwordHash` / `salt` | PBKDF2-HMAC-SHA256 storage; **plaintext forbidden, reversible forbidden** |
+| `algo` / `iterations` | Algorithm identifier and iteration count (e.g. `PBKDF2-SHA256` / `210000`) |
+| `updatedAt` | Time of the password change |
 
-`GUEST` 账号无凭证行;`bind` 成功后写入。`OAUTH` 账号同样无凭证行(身份映射在 [oauth.md](./oauth.md) `account_identities`,不在本表)。
+`GUEST` accounts have no credential row; one is written after a successful `bind`. `OAUTH` accounts likewise have no credential row (the identity mapping lives in [oauth.md](./oauth.md) `account_identities`, not in this table).
 
-### sessions(会话,scope 维度)
+### sessions (sessions, scope dimension)
 
-| 字段 | 说明 |
+| Field | Description |
 | --- | --- |
-| `id` | UUIDv7,前缀 `ses_` |
+| `id` | UUIDv7, prefix `ses_` |
 | `accountId` | → accounts.id |
-| `gameId` / `env` | 签发时绑定的 scope(唯一事实源,下游不得从 path/payload 读) |
-| `deviceId`? | 绑定设备(见 devices) |
-| `accessTokenHash` / `refreshTokenHash` | 只存 SHA-256,不存原文 |
-| `previousRefreshTokenHash` | 上一代 refresh 哈希,**重放检测**用 |
-| `accessExpiresAt` / `refreshExpiresAt` | access 默认 15 分钟、refresh 默认 30 天(接入方可配,契约不冻结具体值) |
-| `revokedAt`? | 吊销时间;非空即拒(`AUTH_TOKEN_REVOKED`) |
+| `gameId` / `env` | The scope bound at issuance (the single source of truth; downstream must not read it from path/payload) |
+| `deviceId`? | Bound device (see devices) |
+| `accessTokenHash` / `refreshTokenHash` | SHA-256 only, never the original |
+| `previousRefreshTokenHash` | The previous generation's refresh hash, used for **replay detection** |
+| `accessExpiresAt` / `refreshExpiresAt` | access defaults to 15 minutes and refresh to 30 days (configurable by integrators; the contract does not freeze concrete values) |
+| `revokedAt`? | Revocation time; non-empty means reject (`AUTH_TOKEN_REVOKED`) |
 
-### devices(设备绑定,account 维度)
+### devices (device bindings, account dimension)
 
-| 字段 | 说明 |
+| Field | Description |
 | --- | --- |
-| `id` | UUIDv7,前缀 `dev_`(服务端行 ID,区别于客户端 `deviceId`) |
-| `accountId` / `deviceId` | `(accountId, deviceId)` 唯一;`deviceId` 为客户端提供的不透明标识(1–128 字符) |
-| `platform`? | 客户端自报(`ios` / `android` / `windows` / …,不校验枚举) |
-| `createdAt` / `lastSeenAt` | 绑定与最近活跃 |
+| `id` | UUIDv7, prefix `dev_` (server-side row ID, distinct from the client `deviceId`) |
+| `accountId` / `deviceId` | `(accountId, deviceId)` unique; `deviceId` is an opaque identifier supplied by the client (1–128 characters) |
+| `platform`? | Self-reported by the client (`ios` / `android` / `windows` / …; the enum is not validated) |
+| `createdAt` / `lastSeenAt` | Binding and most recent activity |
 
-- 设备数上限默认 **5**/账号(接入方可配);已达上限再绑新设备 → `AUTH_DEVICE_LIMIT`(403)。
-- 解绑(`DELETE /devices/{deviceId}`)删除绑定行并**吊销该设备全部会话**;解绑后同设备可重新绑定(生成新行)。
-- 游客账号按 `deviceId` 幂等:存在 `type=GUEST` 且绑定该设备的账号即直接登录,否则创建新游客账号并绑定。
+- The default device cap is **5** per account (configurable by integrators); binding a new device once the cap is reached → `AUTH_DEVICE_LIMIT` (403).
+- Unbinding (`DELETE /devices/{deviceId}`) deletes the binding row and **revokes all sessions of that device**; after unbinding, the same device can bind again (a new row is generated).
+- Guest accounts are idempotent per `deviceId`: if an account with `type=GUEST` bound to that device exists, it logs in directly; otherwise a new guest account is created and bound.
 
-## Token 模型
+## Token Model
 
-- **不透明随机 token**(64 位 hex,服务端 `crypto/rand` 生成),无 JWT;网关查 `sessions` 表验证。JWT 与签名验签归后续域契约(若需要),本契约不引入。
-- `accessToken`:短时效(默认 15 min);`refreshToken`:长时效(默认 30 天)。
-- **轮换**:每次 `refresh` 成功即签发全新 access+refresh,旧 access **立即失效**,旧 refresh 记入 `previousRefreshTokenHash`。
-- **重放检测**:已被轮换的 refresh 再次出现(`== previousRefreshTokenHash`)视为令牌泄露 → `AUTH_REFRESH_REUSED`(401)并**吊销整个会话**。
-- **scope 绑定**:token 验证时,session 的 `gameId+env` 与请求 scope 不一致 → `SCOPE_MISMATCH`(400,见 [scope.md](./scope.md))。
+- **Opaque random tokens** (64 hex digits, generated server-side with `crypto/rand`), no JWT; the gateway verifies by querying the `sessions` table. JWT and signature verification belong to later domain contracts (if needed); this contract does not introduce them.
+- `accessToken`: short-lived (default 15 min); `refreshToken`: long-lived (default 30 days).
+- **Rotation**: every successful `refresh` issues a brand-new access+refresh; the old access **expires immediately**, and the old refresh is recorded in `previousRefreshTokenHash`.
+- **Replay detection**: an already-rotated refresh appearing again (`== previousRefreshTokenHash`) is treated as a leaked token → `AUTH_REFRESH_REUSED` (401) and **the entire session is revoked**.
+- **scope binding**: at token verification, if the session's `gameId+env` does not match the request scope → `SCOPE_MISMATCH` (400, see [scope.md](./scope.md)).
 
-## 端点契约
+## Endpoint Contracts
 
 ### POST /register — `{ email, password, deviceId?, platform? }`
 
-- 校验:email 格式、password 8–128 字符、deviceId 1–128 字符 → 违反 `COMMON_INVALID_ARGUMENT`(400)。
-- email 已注册 → `AUTH_EMAIL_TAKEN`(409)。
-- 成功:创建 `EMAIL` 账号 + 凭证 + (可选)设备绑定 + 会话,签发 tokens。
+- Validation: email format, password 8–128 characters, deviceId 1–128 characters → violation gives `COMMON_INVALID_ARGUMENT` (400).
+- Email already registered → `AUTH_EMAIL_TAKEN` (409).
+- Success: create the `EMAIL` account + credentials + (optional) device binding + session, and issue tokens.
 
 ### POST /login — `{ email, password, deviceId?, platform? }`
 
-- 账号不存在或密码不符 → `AUTH_INVALID_CREDENTIALS`(401);**两种情况返回完全一致**(防账号枚举)。
-- 账号 `DISABLED` → `AUTH_ACCOUNT_DISABLED`(403)。
-- 账号 `PENDING_DELETE`(注销宽限期内)→ `AUTH_ACCOUNT_PENDING_DELETE`(403;v1.1)——防「登录即复活」,撤销走 `cancelToken`,不依赖会话。
-- 新设备且已达上限 → `AUTH_DEVICE_LIMIT`(403)。
-- 成功:签发会话(绑定 deviceId 时自动绑定)。
+- Account does not exist or password does not match → `AUTH_INVALID_CREDENTIALS` (401); **both cases return exactly the same** (prevents account enumeration).
+- Account `DISABLED` → `AUTH_ACCOUNT_DISABLED` (403).
+- Account `PENDING_DELETE` (within the deletion grace period) → `AUTH_ACCOUNT_PENDING_DELETE` (403; v1.1) — prevents "logging in resurrects the account"; cancellation goes through `cancelToken` and does not rely on a session.
+- New device and the cap is already reached → `AUTH_DEVICE_LIMIT` (403).
+- Success: issue a session (auto-bound when deviceId is bound).
 
 ### POST /guest — `{ deviceId, platform? }`
 
-- `deviceId` 必填。
-- 成功:按设备幂等签发会话(`GUEST` 账号);响应 `account.type = "GUEST"`。
+- `deviceId` is required.
+- Success: issue a session idempotently per device (a `GUEST` account); the response has `account.type = "GUEST"`.
 
-### POST /bind — `{ email, password }`(Bearer)
+### POST /bind — `{ email, password }` (Bearer)
 
-- 当前账号须为 `GUEST`,已是 `EMAIL` → `COMMON_INVALID_ARGUMENT`(400)。
-- 账号 `PENDING_DELETE` → `AUTH_ACCOUNT_PENDING_DELETE`(403;v1.1)。
-- email 已被其他账号注册 → `AUTH_EMAIL_TAKEN`(409)。
-- 成功:账号转 `EMAIL`、写入凭证;**已绑定设备与在途会话保留**,token 不换发。
+- The current account must be `GUEST`; already `EMAIL` → `COMMON_INVALID_ARGUMENT` (400).
+- Account `PENDING_DELETE` → `AUTH_ACCOUNT_PENDING_DELETE` (403; v1.1).
+- Email already registered by another account → `AUTH_EMAIL_TAKEN` (409).
+- Success: the account becomes `EMAIL` and credentials are written; **already-bound devices and in-flight sessions are kept**, tokens are not reissued.
 
 ### POST /refresh — `{ refreshToken }`
 
-| 情形 | 结果 |
+| Case | Result |
 | --- | --- |
-| `refreshToken` 匹配当前代且未过期 | 轮换:新 access+refresh,旧代记入 previous |
-| 匹配当前代但 refresh 已过期 | `AUTH_TOKEN_EXPIRED`(401,客户端应重登) |
-| 匹配上一代(已轮换) | `AUTH_REFRESH_REUSED`(401)+ 吊销整个会话 |
-| 均不匹配 / 会话已吊销 | `AUTH_INVALID_CREDENTIALS` / `AUTH_TOKEN_REVOKED`(401) |
+| `refreshToken` matches the current generation and is not expired | Rotate: new access+refresh, the old generation is recorded as previous |
+| Matches the current generation but the refresh has expired | `AUTH_TOKEN_EXPIRED` (401; the client should log in again) |
+| Matches the previous generation (already rotated) | `AUTH_REFRESH_REUSED` (401) + revoke the entire session |
+| Matches neither / session already revoked | `AUTH_INVALID_CREDENTIALS` / `AUTH_TOKEN_REVOKED` (401) |
 
-### POST /logout(Bearer)
+### POST /logout (Bearer)
 
-吊销当前会话;幂等(已吊销再吊销仍 200)。成功 `data: {}`。
+Revokes the current session; idempotent (revoking an already-revoked session still returns 200). Success is `data: {}`.
 
-### GET /session(Bearer)
+### GET /session (Bearer)
 
 ```json
 { "data": { "account": { }, "sessionId": "ses_…", "deviceId": "…", "accessExpiresAt": "…" } }
 ```
 
-### GET /devices(Bearer)
+### GET /devices (Bearer)
 
-`data.items[]`:`{ id, deviceId, platform?, createdAt }`;无 `nextCursor` 即末页([primitives.md](./primitives.md))。
+`data.items[]`: `{ id, deviceId, platform?, createdAt }`; no `nextCursor` means the last page ([primitives.md](./primitives.md)).
 
-### DELETE /devices/{deviceId}(Bearer)
+### DELETE /devices/{deviceId} (Bearer)
 
-解绑并吊销该设备全部会话(含当前会话,若当前会话正使用该设备);设备不存在 → `COMMON_NOT_FOUND`(404)。
+Unbinds and revokes all sessions of that device (including the current session, if the current session is using that device); device not found → `COMMON_NOT_FOUND` (404).
 
-### POST /account/delete(Bearer,v1.1)
+### POST /account/delete (Bearer, v1.1)
 
-申请注销当前账号。请求体为空或 `{}`(无字段)。
+Requests deletion of the current account. The request body is empty or `{}` (no fields).
 
-| 情形 | 结果 |
+| Case | Result |
 | --- | --- |
-| EMAIL 账号、宽限期 > 0 | 进入 `PENDING_DELETE`;**受理即吊销全部会话**;返回 `cancelToken` |
-| EMAIL 账号、宽限期 = 0(管理面配置) | 立即匿名化,`status=DELETED` |
-| GUEST 账号 | 立即匿名化删除(无恢复价值,不挂宽限期) |
-| 已是 `PENDING_DELETE` 再受理 | 幂等:200 并**重新签发** `cancelToken`,旧 token 立即失效 |
+| EMAIL account, grace period > 0 | Enters `PENDING_DELETE`; **acceptance revokes all sessions**; returns `cancelToken` |
+| EMAIL account, grace period = 0 (admin-side configuration) | Anonymized immediately, `status=DELETED` |
+| GUEST account | Anonymized and deleted immediately (no recovery value, no grace period) |
+| Already `PENDING_DELETE` and accepted again | Idempotent: 200 and **re-issues** `cancelToken`, the old token expires immediately |
 
-成功 `data`(进入宽限期):
+Success `data` (entering the grace period):
 
 ```json
 { "status": "PENDING_DELETE", "cancelToken": "…", "pendingDelete": true }
 ```
 
-成功 `data`(立即删除;`deletedAt` 仅此形态存在):
+Success `data` (immediate deletion; `deletedAt` exists only in this form):
 
 ```json
 { "status": "DELETED", "deletedAt": "2026-10-12T00:00:00.000Z" }
 ```
 
-- `cancelToken`:一次性,TTL = 宽限期;服务端只存哈希。
-- **执行语义 = 匿名化,非物理删行**:清 PII(email、凭证、设备绑定行),`accounts.id` 保留供外键与审计;宽限期满后 `PENDING_DELETE` 终态化为 `DELETED`(触发时机为服务端实现细节,契约不约束)。
-- 宽限期缺省 **14 天**,管理面可配 0–30 天;仅 EMAIL 可挂宽限。
-- 玩家侧无法查询注销状态(会话已全部吊销);唯一可交互路径是 cancel。
+- `cancelToken`: one-time, TTL = the grace period; the server stores only a hash.
+- **Execution semantics = anonymization, not physical row deletion**: clear PII (email, credentials, device binding rows); `accounts.id` is retained for foreign keys and auditing; once the grace period ends, `PENDING_DELETE` finalizes to `DELETED` (the trigger timing is a server implementation detail the contract does not constrain).
+- The default grace period is **14 days**, configurable on the admin side from 0–30 days; only EMAIL can have a grace period.
+- The player side cannot query the deletion status (all sessions have been revoked); the only interactive path is cancel.
 
-### POST /account/delete/cancel(匿名,v1.1)
+### POST /account/delete/cancel (anonymous, v1.1)
 
-宽限期内撤销注销。请求体 `{ "cancelToken": "…" }`。
+Cancels the deletion within the grace period. Request body `{ "cancelToken": "…" }`.
 
-- token 缺失 / 不匹配 / 已使用 / 已过期 → `AUTH_DELETE_TOKEN_INVALID`(401)。
-- 成功 `data: {}`:账号回 `ACTIVE`;**已吊销的会话不恢复**,需重新登录。
-- 撤销后可再次申请注销,重新走受理流程(新 `cancelToken`)。
+- Token missing / not matching / already used / expired → `AUTH_DELETE_TOKEN_INVALID` (401).
+- Success `data: {}`: the account returns to `ACTIVE`; **revoked sessions are not restored**, a new login is required.
+- After cancelling, deletion can be requested again, going through the acceptance flow once more (a new `cancelToken`).
 
-## 错误码(域表)
+## Error Codes (domain table)
 
-引用 [errors.md](./errors.md) 已冻结码:`COMMON_INVALID_ARGUMENT` / `COMMON_UNAUTHENTICATED` / `COMMON_NOT_FOUND` / `RATE_LIMITED` / `SCOPE_MISMATCH` / `AUTH_INVALID_CREDENTIALS` / `AUTH_TOKEN_EXPIRED` / `AUTH_TOKEN_REVOKED` / `AUTH_REFRESH_REUSED` / `AUTH_ACCOUNT_DISABLED` / `AUTH_DEVICE_LIMIT` / `AUTH_ACCOUNT_PENDING_DELETE` / `AUTH_DELETE_TOKEN_INVALID`。
+References the frozen codes in [errors.md](./errors.md): `COMMON_INVALID_ARGUMENT` / `COMMON_UNAUTHENTICATED` / `COMMON_NOT_FOUND` / `RATE_LIMITED` / `SCOPE_MISMATCH` / `AUTH_INVALID_CREDENTIALS` / `AUTH_TOKEN_EXPIRED` / `AUTH_TOKEN_REVOKED` / `AUTH_REFRESH_REUSED` / `AUTH_ACCOUNT_DISABLED` / `AUTH_DEVICE_LIMIT` / `AUTH_ACCOUNT_PENDING_DELETE` / `AUTH_DELETE_TOKEN_INVALID`.
 
-本契约冻结新增:
+Newly frozen by this contract:
 
-| code | HTTP | retryable | 说明 |
+| code | HTTP | retryable | Description |
 | --- | --- | --- | --- |
-| `AUTH_EMAIL_TAKEN` | 409 | false | 邮箱已被注册 |
-| `AUTH_ACCOUNT_PENDING_DELETE` | 403 | false | 账号注销宽限期内,登录/绑定被拒(v1.1 新增) |
-| `AUTH_DELETE_TOKEN_INVALID` | 401 | false | 注销撤销 token 缺失/失效/过期(v1.1 新增) |
+| `AUTH_EMAIL_TAKEN` | 409 | false | Email already registered |
+| `AUTH_ACCOUNT_PENDING_DELETE` | 403 | false | Account is within the deletion grace period; login/binding rejected (added in v1.1) |
+| `AUTH_DELETE_TOKEN_INVALID` | 401 | false | Deletion-cancellation token missing/invalid/expired (added in v1.1) |
 
-## 基础限流
+## Basic Rate Limiting
 
-- 敏感端点(`register` / `login` / `guest` / `bind` / `refresh`)按**客户端 IP** 独立限流:默认 **10 次/分钟、桶容量 10**(接入方可配);超出 → `RATE_LIMITED`(429)+ `Retry-After`。
-- 其余端点走网关全局限流;多实例协同限流随 M1 后续工程。
+- Sensitive endpoints (`register` / `login` / `guest` / `bind` / `refresh`) are rate-limited independently **by client IP**: default **10 requests/minute, bucket capacity 10** (configurable by integrators); exceeding → `RATE_LIMITED` (429) + `Retry-After`.
+- The remaining endpoints use the gateway's global rate limiting; coordinated rate limiting across multiple instances follows later M1 engineering.
 
-## 客户端要求(各端 SDK)
+## Client Requirements (SDKs on each platform)
 
-- token 存储走 Adapter 层安全存储(ITokenStore),**禁止明文落盘**(见 layers.md L3)。
-- 收到 `AUTH_TOKEN_EXPIRED` → 自动 refresh 一次后重放原请求;`AUTH_REFRESH_REUSED` / `AUTH_TOKEN_REVOKED` / `AUTH_INVALID_CREDENTIALS` → 清除本地会话并回到未认证态。
-- `COMMON_CAPABILITY_DISABLED`(identity 域)→ SDK 报告「账号能力未开启」,不进入报错路径。
+- Token storage goes through the Adapter layer's secure storage (ITokenStore); **plaintext on disk is forbidden** (see layers.md L3).
+- On receiving `AUTH_TOKEN_EXPIRED` → automatically refresh once and replay the original request; `AUTH_REFRESH_REUSED` / `AUTH_TOKEN_REVOKED` / `AUTH_INVALID_CREDENTIALS` → clear the local session and return to the unauthenticated state.
+- `COMMON_CAPABILITY_DISABLED` (identity domain) → the SDK reports "account capability not enabled" and does not enter the error path.
 
-## 附录:参考 DDL(SQLite 方言,实现可自选存储)
+## Appendix: Reference DDL (SQLite dialect; implementations may choose their own storage)
 
 ```sql
 CREATE TABLE accounts (
@@ -252,14 +252,14 @@ CREATE TABLE devices (
 
 ---
 
-## v1.1 冻结记录(2026-10-12)
+## v1.1 Freeze Record (2026-10-12)
 
-F03 账号注销与数据删除([features.md](../research/features.md) F03,商店政策硬门槛)按 2026-10-11 提案冻结:端点 `POST /account/delete` + `POST /account/delete/cancel`(上文「端点契约」)、受理即吊销全部会话、宽限期缺省 14 天(0–30 可配)、匿名化执行语义、错误码 `AUTH_ACCOUNT_PENDING_DELETE` / `AUTH_DELETE_TOKEN_INVALID` 入 [errors.md](./errors.md) v5。原提案「扩展与演进」表随冻结生效:
+F03 account deletion and data erasure ([features.md](../research/features.md) F03, a hard gate for store policies) was frozen as proposed on 2026-10-11: the endpoints `POST /account/delete` + `POST /account/delete/cancel` (see "Endpoint Contracts" above), acceptance revoking all sessions, a default grace period of 14 days (0–30 configurable), the anonymization execution semantics, and the error codes `AUTH_ACCOUNT_PENDING_DELETE` / `AUTH_DELETE_TOKEN_INVALID` added to [errors.md](./errors.md) v5. The original proposal's "Extensions and Evolution" table takes effect with the freeze:
 
-| 可能的扩展 | 兼容处理方式 |
+| Possible extension | Compatible handling |
 | --- | --- |
-| 宽限期时长 / 是否立即删 | 管理面配置,玩家契约不动 |
-| 下游数据级联范围(各游戏后端数据不同) | Provider 钩子 `OnAccountDeleted(accountId)` **注册制**——网关不认识任何下游存储,每个 Provider 自行订阅清理;新 Provider 接入 = 注册钩子,契约不动 |
-| 第三方 OAuth 账号(本契约 v1 不覆盖) | delete 端点与 `type` 无关;OAuth 域契约([oauth.md](./oauth.md) v1 已冻结)`type` 已加 `OAUTH` 枚举值,delete/cancel 直接复用 |
-| 监管要求物理删行 | 行为升版(wire 不变)走 v2 提案;v1 匿名化保留审计与外键完整性 |
-| 注销原因 / 申诉留档 | 管理面字段,不进玩家契约(PII 风险,玩家侧无需回传) |
+| Grace period length / whether to delete immediately | Admin-side configuration; the player contract is unchanged |
+| Scope of downstream data cascading (each game's backend data differs) | The Provider hook `OnAccountDeleted(accountId)` is **registration-based** — the gateway knows nothing about any downstream storage, and each Provider subscribes to clean up on its own; onboarding a new Provider = registering the hook, and the contract is unchanged |
+| Third-party OAuth accounts (not covered by v1 of this contract) | The delete endpoints are independent of `type`; the OAuth domain contract ([oauth.md](./oauth.md), v1 already frozen) has already added the `OAUTH` enum value to `type`, so delete/cancel is reused directly |
+| Regulatory requirement to physically delete rows | A behavioral version bump (wire unchanged) goes through a v2 proposal; v1 anonymizes and preserves auditing and foreign-key integrity |
+| Deletion reason / appeal record | Admin-side fields, not part of the player contract (PII risk; the player side need not send it back) |

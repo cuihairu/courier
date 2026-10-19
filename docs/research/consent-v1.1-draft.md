@@ -1,135 +1,135 @@
 
-# F31 海外年龄门与家长同意:`consent` 组 v1.1 设计草案
+# F31 Overseas Age Gate and Parental Consent: the `consent` Group v1.1 Design Draft
 
-> 状态:**已冻结(v1.1)并已落地** · 2026-10-16 FW1016D 代决启动设计 → 2026-10-18 巡检 PATROL1018E 代决冻结,已落 [contract/realname.md](../contract/realname.md)「同意管理(consent,v1.1)」节(只加不改) → 2026-10-19 用户开工指令(FIRE1019B)落地实现面,批次 102(冻结清单 2–4 步全勾,见下)。
-> 定性:本草案把「出海拍板后从零设计」变成「按草案评审冻结」;法域中立(阈值不进契约,归 Provider 配置),不绑死 COPPA / GDPR-K 单一形状。
-> 调研依据:F31 行([features.md §5](./features.md):首启年龄筛查;低于数字同意年龄走可验证家长同意 VPC;同意记录单独留存)。
+> Status: **Frozen (v1.1) and landed** · design started under the 2026-10-16 FW1016D delegated decision → frozen on 2026-10-18 by patrol PATROL1018E, landed in [contract/realname.md](../contract/realname.md) "Consent Management (consent, v1.1)" (additive-only) → the implementation surface landed on 2026-10-19 under a direct user instruction (FIRE1019B), batch 102 (freeze checklist steps 2–4 all checked, below).
+> Characterization: this draft turns "design from scratch after the overseas decision" into "freeze upon draft review"; jurisdiction-neutral (thresholds are not in the contract, they belong to Provider configuration), and it is not pinned to a single COPPA / GDPR-K shape.
+> Research basis: the F31 row ([features.md §5](./features.md): first-launch age screening; below the digital consent age go through verifiable parental consent VPC; consent records retained separately).
 
-## 代决记录(2026-10-16,巡检 FW1016D)
+## Delegated Decision Record (2026-10-16, patrol FW1016D)
 
-- **决定**:`consent` 组按法域中立设计,草案先行;冻结与实现待出海立项。
-- **理由**:F31 属「待拍板」卡点(出海需求触发再冻结)。契约先行仓的既定打法是设计风险前置——草案不改变 realname v1 冻结态、不产生实现维护面;出海立项后「草案 → 冻结评审 → 落地」是机械步骤。
-- **推翻路径**:拍板人推翻即废本草案,恢复「触发再从零设计」原口径;本档从 docs 移除即可,无任何实现面牵连。
+- **Decision**: the `consent` group is designed jurisdiction-neutral, draft first; freezing and implementation await the overseas expansion proposal.
+- **Reasoning**: F31 is a "pending decision" blocker (freeze only after the overseas requirement is triggered). The established play of the contract-first repo is to front-load design risk — the draft does not change realname v1's frozen state and creates no implementation maintenance surface; once the overseas proposal lands, "draft → freeze review → implementation" is a mechanical step.
+- **Overturn path**: the decision-maker can overturn this and void the draft, restoring the original position of "design from scratch after the trigger"; removing this file from docs is all it takes, with no implementation surface entangled.
 
-## 代决记录(2026-10-18,巡检 PATROL1018E)
+## Delegated-decision record (2026-10-18, patrol PATROL1018E)
 
-- **决定**:契约面立项——按本草案把 `consent` 组冻结为 realname **v1.1**(realname.md 新增「同意管理」节,只加不改,零新增错误码)。
-- **理由**:1018E 单授权「待拍板」项代决;冻结动作可逆(纯加法、git 可回滚、不触碰 v1 字段/端点/码)、在本仓范围内;FW1016D 已确立「设计风险前置」打法,本步是其机械延伸。**商业出海与否仍归用户**,本代决只解契约面。
-- **明确不代决**:冻结清单 2–4 步(fixtures 再生 / warden+wardenalt 实现 / 六端 SDK+e2e)——无真实接入方开工会产生无人验收的实现维护面,仍标卡点,解锁钥匙=接入方确认接入或用户开工指令。
-- **推翻路径**:拍板人一句话即废——realname.md「同意管理」节回退为 v1.1 预留态,本档改回 Draft,零实现牵连。
+- **Decision**: charter on the contract side — freeze the `consent` group as realname **v1.1** per this draft (a new "Consent Management" section in realname.md; additive-only, zero new error codes).
+- **Rationale**: the 1018E order authorizes delegating "awaiting-a-call" items; freezing is reversible (purely additive, revertible in git, touches no v1 field/endpoint/code) and sits inside this repo; FW1016D already established the "front-load design risk" approach, and this step is its mechanical continuation. **Whether the studio actually goes overseas stays with the user** — this delegation only clears the contract side.
+- **Explicitly not delegated**: freeze-checklist steps 2–4 (fixtures regen / warden + wardenalt implementation / six SDKs + e2e) — starting those without a real integrator would create an unowned implementation surface, so they stay blocked; the unlock key is an integrator confirming adoption or a direct user go-ahead.
+- **Overturn path**: one sentence from the decision-maker — the "Consent Management" section reverts to a v1.1 reservation, this file goes back to Draft, and nothing on the implementation side is touched.
 
-## 设计原则(继承 realname v1)
+## Design Principles (inherited from realname v1)
 
-- **只加不改**:v1 现有端点 / 字段 / 码不动;`consent` 组全部为新增。
-- **判定经 200 载荷**:沿用 2026-10-15 代决口径(realname.md 错误码节注记)——判定态进 `data`,不进 403 码;`DENIED` / `REVOKED` / `PENDING` 是 state,不是错误码。
-- **客户端不得自行推断**:年龄判定、同意判定均服务端下发(v1 `isMinor` 同款原则)。
-- **默认关闭**:未配置 consent 通道按能力关闭语义(501 `COMMON_CAPABILITY_DISABLED`),接入方隐藏年龄门 UI,不进报错路径。
-- **数据红线对齐 v1**:出生日期是个人数据——只经申报接口传输一次、不缓存、不落盘、不进诊断采集(同 v1「字段脱敏与数据红线」);UI 展示仅年份。
+- **Additive-only**: v1's existing endpoints / fields / codes are untouched; the `consent` group is entirely new.
+- **Verdicts travel in the 200 payload**: following the 2026-10-15 delegated-decision position (annotated in the error-code section of realname.md) — verdict states go into `data`, not into 403 codes; `DENIED` / `REVOKED` / `PENDING` are states, not error codes.
+- **The client must not infer on its own**: both age determination and consent determination are issued server-side (the same principle as v1 `isMinor`).
+- **Off by default**: no configured consent channel means the capability-disabled semantics (501 `COMMON_CAPABILITY_DISABLED`); the integrator hides the age gate UI and stays out of the error path.
+- **Data red line aligned with v1**: birth date is personal data — transmitted only once via the declaration endpoint, never cached, never persisted, never enters diagnostics collection (same as v1 "Field Masking and the Data Red Line"); the UI shows year only.
 
-## 状态机(consent 状态)
+## State Machine (consent states)
 
 ```text
-UNDECLARED ──declare-age──► ADULT(成年,终态)
+UNDECLARED ──declare-age──► ADULT(adult, terminal)
      │
-     └─declare-age─► PENDING_PARENT(未成年,待家长同意)
-                          │  parent-consent/request 发起,expiresAt 到点可重发
-                          ├─provider 判定─► GRANTED(同意,可玩)
-                          │        └─parent 撤回─► REVOKED(撤回,回门槛关闭)
-                          └─provider 判定─► DENIED(拒绝)
+     └─declare-age─► PENDING_PARENT(minor, awaiting parental consent)
+                          │  parent-consent/request issued, resubmittable once expiresAt passes
+                          ├─provider verdict─► GRANTED(consented, playable)
+                          │        └─parent withdrawal─► REVOKED(withdrawn, gate re-closed)
+                          └─provider verdict─► DENIED(rejected)
 ```
 
-| state | 语义 | 游戏侧处理 |
+| state | Meaning | Game-side handling |
 | --- | --- | --- |
-| `UNDECLARED` | 未申报年龄 | 首启年龄门(申报前不放行受保护操作) |
-| `ADULT` | 成年 | 终态,不再要求同意 |
-| `PENDING_PARENT` | 未成年且同意未决 | 门槛关闭;可发起 / 重发 VPC 请求,按 `requestExpiresAt` 提示 |
-| `GRANTED` | 家长同意成立 | 门槛放行 |
-| `DENIED` | 家长拒绝 | 门槛关闭;是否允许再次请求归 Provider 策略 |
-| `REVOKED` | 同意后被撤回 | 门槛关闭;撤回联动诊断停发(见「诊断联动」) |
+| `UNDECLARED` | Age not declared | First-launch age gate (no protected operation is allowed through before declaration) |
+| `ADULT` | Adult | Terminal state; consent no longer required |
+| `PENDING_PARENT` | Minor and consent undecided | Gate closed; a VPC request can be issued / resubmitted, prompted per `requestExpiresAt` |
+| `GRANTED` | Parental consent granted | Gate allowed through |
+| `DENIED` | Parent rejected | Gate closed; whether a re-request is allowed belongs to Provider policy |
+| `REVOKED` | Withdrawn after being granted | Gate closed; the withdrawal is linked to diagnostics being stopped (see "Diagnostics Linkage") |
 
-- **防回拨**:重复申报年龄仅「趋严」生效(成年 → 未成年可,反向不行);纠错走 Provider 运维面,不进玩家契约。
+- **Anti-rollback**: repeated age declarations take effect only in the "stricter" direction (adult → minor is allowed, the reverse is not); corrections go through the Provider operations surface and do not enter the player contract.
 
-## 端点组(v1.1 新增,挂载 `/v1/realname/consent/*`)
+## Endpoint Group (new in v1.1, mounted at `/v1/realname/consent/*`)
 
-| 端点 | 认证 | 说明 |
+| Endpoint | Auth | Description |
 | --- | --- | --- |
-| `GET /v1/realname/consent/status` | Bearer | 同意状态查询 |
-| `POST /v1/realname/consent/declare-age` | Bearer | 首启年龄申报 `{ birthDate: "YYYY-MM-DD" }` |
-| `POST /v1/realname/consent/parent-consent/request` | Bearer | 发起 VPC 请求 `{}` → `{ requestId, requestExpiresAt }` |
-| 推送事件 `realname.consent.updated` | SSE | 状态变化通知(复用 M3 推送通道,同 `config.updated` 形状) |
+| `GET /v1/realname/consent/status` | Bearer | Consent status query |
+| `POST /v1/realname/consent/declare-age` | Bearer | First-launch age declaration `{ birthDate: "YYYY-MM-DD" }` |
+| `POST /v1/realname/consent/parent-consent/request` | Bearer | Issue a VPC request `{}` → `{ requestId, requestExpiresAt }` |
+| Push event `realname.consent.updated` | SSE | State change notification (reuses the M3 push channel, same shape as `config.updated`) |
 
-- 玩家侧端点认证与 scope 要求同 [auth.md](../contract/auth.md);账号维度(同 v1,非 player 维度)。
-- 家长验证本身**不在本契约**(归 Provider:信用卡验证 / 签署表单 / 政府证件 / 邮件增强等法域机制);契约只表达「请求发起 + 结果状态 + 变化推送」。
+- Player-side endpoint authentication and scope requirements are the same as in [auth.md](../contract/auth.md); account dimension (same as v1, not the player dimension).
+- Parental verification itself is **not in this contract** (belongs to the Provider: credit card verification / signature forms / government ID / enhanced email and other jurisdictional mechanisms); the contract only expresses "request issued + result state + change push".
 
-## 数据模型
+## Data Model
 
-### status(同意状态)
+### status (consent status)
 
-| 字段 | 类型 | 说明 |
+| Field | Type | Description |
 | --- | --- | --- |
-| `state` | 枚举 | 上表六态 |
-| `declaredAt` | timestamp? | 年龄申报时间 |
-| `grantedAt` | timestamp? | 同意成立时间(`GRANTED` 下发) |
-| `revokedAt` | timestamp? | 撤回时间(`REVOKED` 下发) |
-| `requestExpiresAt` | timestamp? | 当前 VPC 请求到期点(`PENDING_PARENT` 下发) |
+| `state` | enum | The six states in the table above |
+| `declaredAt` | timestamp? | Age declaration time |
+| `grantedAt` | timestamp? | Consent granted time (issued for `GRANTED`) |
+| `revokedAt` | timestamp? | Withdrawal time (issued for `REVOKED`) |
+| `requestExpiresAt` | timestamp? | Expiry point of the current VPC request (issued for `PENDING_PARENT`) |
 
 ### declare-age / parent-consent-request
 
-- 请求 / 响应走 primitives 信封;`declare-age` 响应 `data` = 上表 status(申报即得判定)。
-- `parent-consent/request` 幂等:`PENDING_PARENT` 期间重复发起返回同一请求(未过期时);过期后重发换新 `requestId`。
+- Requests / responses use the primitives envelope; the `declare-age` response `data` = the status from the table above (declaring yields the verdict immediately).
+- `parent-consent/request` is idempotent: repeated issues during `PENDING_PARENT` return the same request (when not expired); after expiry, resubmitting gets a new `requestId`.
 
-## 法域中立:阈值与规则归 Provider 配置
+## Jurisdiction-Neutral: Thresholds and Rules Belong to Provider Configuration
 
-| 配置 | 说明 | 契约关系 |
+| Configuration | Description | Relation to the contract |
 | --- | --- | --- |
-| `minimumAge` | 最低游玩年龄(低于则始终 `DENIED` 语义,由 Provider 决定表达) | 不进契约 |
-| `digitalConsentAge` | 数字同意年龄(GDPR-K 各成员国 13–16;COPPA 13) | 不进契约 |
-| `vpc.mechanism / ttl` | 家长验证机制与请求有效期 | 不进契约 |
+| `minimumAge` | Minimum age to play (below it is always the `DENIED` semantics, expressed as the Provider decides) | Not in the contract |
+| `digitalConsentAge` | Digital consent age (13–16 across GDPR-K member states; 13 under COPPA) | Not in the contract |
+| `vpc.mechanism / ttl` | Parental verification mechanism and request validity period | Not in the contract |
 
-- 服务端判定输入 = `birthDate` + Provider 阈值配置;换法域 = 换配置,契约与六端 SDK 不动。
+- Server-side verdict input = `birthDate` + Provider threshold configuration; switching jurisdiction = switching configuration, and the contract and the six-platform SDKs are untouched.
 
-## Provider 接口扩展(加法,不动 v1 方法)
+## Provider Interface Extension (additive, v1 methods untouched)
 
 ```text
-RealNameProvider 追加:
+RealNameProvider additions:
   ConsentStatus(accountId) → ConsentState
-  DeclareAge(accountId, birthDate) → ConsentState            // 防回拨:仅趋严生效
+  DeclareAge(accountId, birthDate) → ConsentState            // anti-rollback: only stricter takes effect
   RequestParentConsent(accountId) → ConsentRequest{ requestId, expiresAt }
 ```
 
-- 热插拔 / 降级链 / 熔断沿用 v1 通用 Provider 治理规则;降级安全态 = `PENDING_PARENT`(不放行不拒绝,转人工)。
+- Hot-swap / degradation chain / circuit breaker follow v1's general Provider governance rules; the degradation safe state = `PENDING_PARENT` (neither allowed through nor rejected, routed to manual review).
 
-## 审计与留存(同意记录单独留存)
+## Audit and Retention (consent records retained separately)
 
-- 新增审计事件:`realname.consent.declared / parent_requested / granted / denied / revoked`——只含账号维度元数据,出生日期与家长身份输入**永不进事件**(同 v1 红线);经共享接缝 `gateway/audit.AuditSink`,两实现同形状。
-- **同意记录与身份数据分存储、独立保留期**(合规要求可分别举证);保留天数归接入方合规口径(F33 同款边界)。
+- New audit events: `realname.consent.declared / parent_requested / granted / denied / revoked` — account-dimension metadata only, birth date and parent identity inputs **never enter the event** (same red line as v1); they go through the shared seam `gateway/audit.AuditSink`, with both implementations in the same shape.
+- **Consent records and identity data are stored separately with independent retention periods** (so compliance evidence can be provided for each separately); the retention duration belongs to the integrator's compliance position (the same boundary as F33).
 
-## SDK 面(L2/L4 投影)
+## SDK Surface (L2/L4 projection)
 
 ```text
 RealName.Consent
   .Status()                  → { state, declaredAt?, grantedAt?, revokedAt?, requestExpiresAt? }
   .DeclareAge(birthDate)     → status
   .RequestParentConsent()    → { requestId, requestExpiresAt }
-OnConsentChanged 回调预留(消费 realname.consent.updated 推送)
+OnConsentChanged callback reserved (consumes the realname.consent.updated push)
 ```
 
-- 501 = consent 未启用:查询返回「未启用」,UI 隐藏年龄门,不进报错路径(v1 同款)。
-- `REVOKED` 到达 → SDK 内部触发诊断停发联动(下节),无需接入方逐事件接线。
+- 501 = consent not enabled: the query returns "not enabled", the UI hides the age gate, and it stays out of the error path (same as v1).
+- On receiving `REVOKED` → the SDK internally triggers the diagnostics stop-send linkage (see below), so the integrator does not need to wire it event by event.
 
-## 诊断联动(隐私撤回)
+## Diagnostics Linkage (privacy withdrawal)
 
-- [diagnostics.md:117](../contract/diagnostics.md) 预留位:「同意状态联动(隐私撤回)——宿主传入 consent 状态 → 全类停发」。本草案落地该联动的服务端触发源:`REVOKED` 状态下发时各端 SDK 停发诊断(红线「关闭立即生效」已内建)。
+- The reserved position in [diagnostics.md:117](../contract/diagnostics.md): "Consent state linkage (privacy withdrawal) — the host passes in the consent state → stop sending across all classes". This draft lands the server-side trigger source of that linkage: on issuing `REVOKED`, each platform's SDK stops sending diagnostics (the red line "off takes effect immediately" is built in).
 
-## 错误码
+## Error Codes
 
-- **零新增**:全部判定经 200 载荷表达(2026-10-15 代决口径)。若冻结评审时接入方游戏侧策略执行需要码,按「注册保留码」流程补(errors.md + `TestErrorCodesWiredOrReserved` 门禁),不预注册。
+- **Zero new codes**: all verdicts are expressed in the 200 payload (2026-10-15 delegated-decision position). If the freeze review finds that the integrator's game-side policy execution needs codes, add them through the "registered reserved codes" process (errors.md + the `TestErrorCodesWiredOrReserved` gate); they are not pre-registered.
 
-## 冻结清单与落地状态
+## Freeze Checklist and Landing Status
 
-1. ✅ 草案评审定稿 → realname.md 升 v1.1(2026-10-18 PATROL1018E 代决,新增「同意管理(consent,v1.1)」节,现有节不动)。
-2. ✅ fixtures 增补(2026-10-19 批次 102 复核):consent 判定走 200 载荷、无新错误码/新信封形状,fixture 生成链零改动——`go test ./tools/contractgen` 绿即无漂移实证。
-3. ✅ 网关(2026-10-19 批次 102):warden / wardenalt 两实现同形状(Provider 三方法 + 契约逐字审计事件 + 降级安全态 PENDING_PARENT + 玩家端点 501 闸 + S2S 判定面);main.go `COURIER_REALNAME_CONSENT*` env 装配(默认关);consent 一致性 e2e 场景入 realname_conformance_test.go(两实现同一 wire 断言)。
-4. ✅ 六端 SDK(2026-10-19 批次 102):unity / cocos / miniprogram / laybox / ue / godot 嵌套面 `RealName.Consent`(Status/DeclareAge/RequestParentConsent,501 → 未启用降级);OnConsentChanged 与 REVOKED 诊断停发按契约仅预留;errors.md 未升版(零新码)。
+1. ✅ Draft reviewed and finalized → realname.md bumped to v1.1 (2026-10-18 patrol PATROL1018E; new "Consent Management (consent, v1.1)" section, existing sections untouched).
+2. ✅ Add fixtures (2026-10-19, batch 102 review): consent verdicts ride 200 payloads with no new error codes or envelope shapes, so the fixture generation chain is untouched — a green `go test ./tools/contractgen` is the no-drift proof.
+3. ✅ Gateway (2026-10-19, batch 102): warden / wardenalt both in the same shape (three Provider methods + contract-verbatim audit events + the degradation safe state PENDING_PARENT + a 501 gate on the player endpoints + the S2S verdict surface); main.go `COURIER_REALNAME_CONSENT*` env assembly (off by default); consent conformance scenarios added to realname_conformance_test.go (one wire assertion set over both implementations).
+4. ✅ Six-platform SDKs (2026-10-19, batch 102): unity / cocos / miniprogram / laybox / ue / godot nested `RealName.Consent` face (Status/DeclareAge/RequestParentConsent with the 501 → not-enabled degradation); OnConsentChanged and the REVOKED diagnostics linkage stay reservations per the contract; errors.md not bumped (zero new codes).
 
-> 2–4 步已随批次 102 落地(2026-10-19 用户开工指令);商业出海与否仍归用户——本落地只解实现面,不构成出海立项。
+> Steps 2–4 landed with batch 102 (2026-10-19 user instruction); whether to actually launch overseas remains the user's call — this landing resolves the implementation surface only, not the go-overseas decision.

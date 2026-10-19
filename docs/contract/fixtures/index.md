@@ -1,12 +1,12 @@
 
-# 契约 Fixtures(机器可读快照)
+# Contract Fixtures (machine-readable snapshots)
 
-> 本目录是契约文档的**机器可读快照**,供 [tools/contractgen](https://github.com/cuihairu/courier/tree/main/tools/contractgen) 生成六端契约源(C# / TS / C++ / GDScript),漂移即测试红。约定:**文档先行,fixture 跟随,生成物不手改**。
+> This directory holds **machine-readable snapshots** of the contract documents, consumed by [tools/contractgen](https://github.com/cuihairu/courier/tree/main/tools/contractgen) to generate the six-platform contract sources (C# / TS / C++ / GDScript); any drift turns the tests red. Convention: **documents first, fixtures follow, generated output is never hand-edited**.
 
-| 文件 | 内容 | 消费方 |
+| File | Content | Consumers |
 | --- | --- | --- |
-| `errors.json` | 错误码表(version/http/retryable + 域前缀) | contractgen 生成各端 `ErrorCode`/`ErrorSpecs`;gateway `codeTable` 同步测试 |
-| `scope.json` | scope header 常量与环境枚举 | 各端 scope 常量生成 |
-| `dto.json` | 信封与分页 wire key | 各端 `Envelope`/`Page` 类型生成 |
+| `errors.json` | Error code table (version/http/retryable + domain prefixes) | contractgen generates each platform's `ErrorCode`/`ErrorSpecs`; the gateway `codeTable` sync test |
+| `scope.json` | Scope header constants and the env enum | Scope constant generation for every platform |
+| `dto.json` | Envelope and pagination wire keys | `Envelope`/`Page` type generation for every platform |
 
-变更流程:改 [errors.md](../errors.md) 等文档 → 同步改 fixture(版本只加)→ `go run ./tools/contractgen -write` 重生成 → 全端契约测试绿才算同步完成(见[总纲 · 变更流程](../index.md))。
+Change process: edit [errors.md](../errors.md) and the other documents → update the fixtures in sync (versions only add) → `go run ./tools/contractgen -write` to regenerate → the contract tests for every platform must be green before the sync counts as complete (see [Constitution · Change Process](../index.md)).

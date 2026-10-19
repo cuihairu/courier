@@ -1,49 +1,49 @@
 
-# 小助手契约(Assistant)
+# Assistant Contract (Assistant)
 
-> 状态:**Frozen v1** · 里程碑 M4 · 冻结日期 2026-10-09。
-> 域前缀 `ASSISTANT` 已注册([errors.md](./errors.md));冻结后只加不改,破坏性变更升版本(见 [versioning.md](./versioning.md))。
+> Status: **Frozen v1** · Milestone M4 · frozen 2026-10-09.
+> The domain prefix `ASSISTANT` is registered ([errors.md](./errors.md)); once frozen it is additive-only; breaking changes bump the version (see [versioning.md](./versioning.md)).
 
-## 能力与范围
+## Capabilities and Scope
 
-- 能力域 `assistant`(`providers.CapAssistant`),路由 `/v1/assistant/*`;默认供应商 **sage**(自建 FAQ 检索),可换可关。
-- 玩家侧:FAQ 知识库检索问答;命中有答案,答不出一键转人工(复用 [support.md](./support.md) 提单链路)。
-- **LLM 接口预留但默认不依赖**:v1 默认实现为 FAQ 检索(零外部依赖、可离线、可预测);接入方可换 LLM 供应商,契约语义不变(消费侧不感知实现)。
-- 本契约**不覆盖**:LLM 提示词工程、模型选型、多轮对话记忆(接入方与所接 LLM 供应商之间的事)。
+- Capability domain `assistant` (`providers.CapAssistant`), routes `/v1/assistant/*`; default provider **sage** (self-built FAQ retrieval), replaceable and switchable off.
+- Player side: FAQ knowledge-base retrieval Q&A; on a hit it answers, and when it cannot answer, one-tap handoff to a human (reusing the [support.md](./support.md) ticket flow).
+- **An LLM interface is reserved but not depended on by default**: the v1 default implementation is FAQ retrieval (zero external dependencies, works offline, predictable); integrators may swap in an LLM provider without changing the contract's semantics (the consuming side does not perceive the implementation).
+- This contract **does not cover**: LLM prompt engineering, model selection, multi-turn conversation memory (a matter between the integrator and the LLM provider they wire in).
 
-## 设计取舍(为何答案来自知识库而非生成)
+## Design Trade-off (Why Answers Come from the Knowledge Base Instead of Generation)
 
-游戏客服场景答案必须**可审计、可复现、不幻觉**;FAQ 知识条目由运营登记([support.md](./support.md) faq 数据模型),检索命中即返回原条目,作答不生成新内容。检索评分细节不进契约(实现自由),只钉不变量:**命中条目的 question/answer 原样返回,不改写**。
+In the game customer-support scenario, answers must be **auditable, reproducible, and hallucination-free**; FAQ knowledge entries are registered by operations ([support.md](./support.md) faq data model), a retrieval hit returns the original entry, and answering never generates new content. The details of retrieval scoring stay out of the contract (implementation freedom); the only invariant pinned down: **a hit entry's question/answer is returned verbatim, never rewritten**.
 
-## 端点总览(挂载 `/v1/assistant/*`)
+## Endpoint Overview (mounted at `/v1/assistant/*`)
 
-| 端点 | 认证 | 说明 |
+| Endpoint | Auth | Description |
 | --- | --- | --- |
-| `POST /v1/assistant/query` | Bearer | 提问:命中 → 答案条目;未命中 → 可转人工信号 |
+| `POST /v1/assistant/query` | Bearer | Ask: hit → answer entry; miss → a signal that handoff is available |
 
-- 认证、scope header、信封同 [auth.md](./auth.md) / [primitives.md](./primitives.md)。
-- 无状态:服务端不存会话;多轮由接入方每次携带完整 `query` 文本(契约不做对话历史传输)。
+- Auth, scope headers, and the envelope are the same as [auth.md](./auth.md) / [primitives.md](./primitives.md).
+- Stateless: the server stores no session; multi-turn is done by the integrator carrying the full `query` text each time (the contract does no conversation-history transport).
 
 ### `POST /v1/assistant/query`
 
-请求体(裸对象,信封外):
+Request body (bare object, outside the envelope):
 
-| 字段 | 类型 | 约束 |
+| Field | Type | Constraints |
 | --- | --- | --- |
-| `text` | string | 1–500 字符(服务端修剪首尾后判定) |
+| `text` | string | 1–500 characters (judged after server-side trimming) |
 
 ```json
 { "text": "怎么找回账号" }
 ```
 
-成功响应 `data`:
+Success response `data`:
 
-| 字段 | 类型 | 说明 |
+| Field | Type | Description |
 | --- | --- | --- |
-| `matched` | bool | 是否命中知识条目 |
-| `answer` | object? | 命中时的条目快照(见下);未命中 = 缺省 |
-| `suggestTransfer` | bool | 未命中必为 `true`(UI 据此展示「转人工」);命中为 `false` |
-| `transferTicket` | object? | (预留)`{ "endpoint":"POST /v1/support/tickets" }`;v1 客户端直接调 support 域,服务端不回填 |
+| `matched` | bool | Whether a knowledge entry was hit |
+| `answer` | object? | The entry snapshot on a hit (see below); absent on a miss |
+| `suggestTransfer` | bool | Must be `true` on a miss (the UI shows "transfer to a human" based on it); `false` on a hit |
+| `transferTicket` | object? | (reserved) `{ "endpoint":"POST /v1/support/tickets" }`; in v1 the client calls the support domain directly and the server does not backfill |
 
 ```json
 { "matched": true,
@@ -52,33 +52,33 @@
   "suggestTransfer": false }
 ```
 
-未命中:
+On a miss:
 
 ```json
 { "matched": false, "suggestTransfer": true }
 ```
 
-- **未命中不是错误**:返回 200 + `matched:false`(与 support FAQ 检索空结果同哲学,UI 呈现引导路径而非报错)。
-- 空 `text`(修剪后)或缺 `text` → 400 `COMMON_INVALID_ARGUMENT`。
-- 命中评分规则、同分取舍、分词方式均为实现细节,不进契约;唯一不变量 = 返回的 `answer` 内容是知识条目的原样快照。
+- **A miss is not an error**: 200 + `matched:false` is returned (the same philosophy as support FAQ retrieval returning an empty result — the UI presents a guiding path instead of an error).
+- Empty `text` (after trimming) or missing `text` → 400 `COMMON_INVALID_ARGUMENT`.
+- Hit-scoring rules, tie-breaking, and tokenization are implementation details and stay out of the contract; the only invariant = the returned `answer` content is a verbatim snapshot of the knowledge entry.
 
-## 错误码域表(前缀 `ASSISTANT`)
+## Error Code Domain Table (prefix `ASSISTANT`)
 
-v1 **零新增错误码**:全部复用通用码(参数错误 `COMMON_INVALID_ARGUMENT`、未认证 `AUTH_*`、降级 `COMMON_CAPABILITY_DISABLED`)。域前缀 `ASSISTANT` 已注册,留给未来(如检索限流细分);新增须走 [errors.md](./errors.md) 变更流程。
+v1 adds **zero new error codes**: everything reuses the generic codes (argument errors `COMMON_INVALID_ARGUMENT`, unauthenticated `AUTH_*`, degradation `COMMON_CAPABILITY_DISABLED`). The domain prefix `ASSISTANT` is registered and reserved for the future (e.g. retrieval rate-limit refinements); additions must go through the [errors.md](./errors.md) change process.
 
-## 客户端要求(各端 SDK)
+## Client Requirements (per-platform SDKs)
 
-- 能力未接(501 `COMMON_CAPABILITY_DISABLED`)→ 查询返回 null,UI 隐藏小助手入口(与各域降级一致)。
-- `matched:false` 且 `suggestTransfer:true` → UI 展示「转人工」:调用 support 域提单([support.md](./support.md)),提单成功后复用 `support.ticket_replied` 实时链路。
-- `text` 超长/为空是使用方错误(SDK 直接 400 抛出);UI 侧应先本地限制输入长度。
-- 无本地缓存:答案随知识库更新变化,不缓存(与 config 不同——config 是版本化快照,assistant 是即席查询)。
+- Capability not wired in (501 `COMMON_CAPABILITY_DISABLED`) → the query returns null and the UI hides the assistant entry (consistent with the degradation of every domain).
+- `matched:false` and `suggestTransfer:true` → the UI shows "transfer to a human": file a ticket via the support domain ([support.md](./support.md)); after the ticket is filed, reuse the `support.ticket_replied` realtime flow.
+- Overlong/empty `text` is a caller error (the SDK throws 400 directly); the UI should limit input length locally first.
+- No local cache: answers change as the knowledge base updates, so nothing is cached (unlike config — config is a versioned snapshot, assistant is an ad-hoc query).
 
-## 扩展预留(2026-10-11 补注)
+## Extension Reservations (Note Added 2026-10-11)
 
-| 可能的扩展 | 兼容处理方式 |
+| Possible Extension | Compatible Handling |
 | --- | --- |
-| LLM 实现替换 | 接口已预留、默认不依赖(上文能力节);换供应商 = 换 Provider 配置,契约语义不变(消费侧不感知实现) |
-| 转工单闭环 | `transferTicket` 预留位(上文响应字段);v1 客户端直调 support 域,服务端回填 = v1.2 加字段 |
-| 多轮会话 | 加可选 `conversationId` 提案;v1 单轮问答语义不变,无本地缓存的口径随提案重审 |
-| 知识源扩展(FAQ 之外) | sage Provider 面,玩家契约只见 query/answer 形状;命中评分规则不进契约(上文已冻结) |
-| 域内细分限流 | `ASSISTANT` 前缀已注册未用(上文错误码节);新增须走 errors.md 变更流程 |
+| LLM implementation swap | The interface is reserved and not depended on by default (the Capabilities section above); swapping the provider = swapping the Provider configuration, contract semantics unchanged (the consuming side does not perceive the implementation) |
+| Ticket-handoff closed loop | The `transferTicket` reserved slot (the response field above); v1 clients call the support domain directly, server backfill = adding a field in v1.2 |
+| Multi-turn sessions | Add-optional-`conversationId` proposal; v1's single-turn Q&A semantics unchanged, and the no-local-cache wording is re-reviewed with the proposal |
+| Knowledge-source extension (beyond FAQ) | The sage Provider surface; the player contract only ever sees the query/answer shape; hit-scoring rules stay out of the contract (frozen above) |
+| Domain-scoped fine-grained rate limiting | The `ASSISTANT` prefix is registered but unused (the error-code section above); additions must go through the errors.md change process |

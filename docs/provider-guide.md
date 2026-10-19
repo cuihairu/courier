@@ -1,104 +1,105 @@
 
-# 自定义 Provider 接入指南
+# Custom Provider Integration Guide
 
-> 面向要**替换或新增**网关能力域后端(Provider)的接入方。默认供应商可换可关;
-> 客户端 SDK **零改动**(wire 由 `docs/contract/` 冻结,见 [sdk-selection.md](./sdk-selection.md)
-> 九域默认接线与 501 降级后果)。治理原则见 [architecture.md](./architecture.md)「Provider 治理」:
-> 接口统一 ≠ 数据迁移;接入方式两种(服务端 Provider 默认 / 客户端直连例外)。
+> For integrators who want to **replace or add** a gateway capability-domain backend (Provider). The default vendors can be swapped or turned off;
+> the client SDK needs **zero changes** (the wire is frozen by `docs/contract/`, see [sdk-selection.md](./sdk-selection.md)
+> for the default wiring of the nine domains and the 501 degradation consequences). For governance principles see "Provider Governance" in [architecture.md](./architecture.md):
+> a unified interface ≠ a data migration; there are two integration modes (server-side Provider by default / client-side direct connection as the exception).
 
-## 1. 最小接入:四方法 + 注册 + 路由表
+## 1. Minimal Integration: Four Methods + Registration + Routing Table
 
-Provider = 一个 `providers.Handler`(`gateway/providers/registry.go`),以 `/v1/{capability}/` 为前缀服务:
+A Provider = one `providers.Handler` (`gateway/providers/registry.go`), served under the `/v1/{capability}/` prefix:
 
 ```go
 type Handler interface {
-    Name() string                                  // 供应商标识(如 "herald"),注册表内唯一
-    Capability() providers.Capability              // 能力域;同能力可注册多个(降级链候选)
-    HealthCheck(ctx context.Context) error         // 单次可用性探测
-    ServeHTTP(w http.ResponseWriter, r *http.Request)  // Path 保留能力域前缀
+    Name() string                                  // vendor identifier (e.g. "herald"), unique within the registry
+    Capability() providers.Capability              // capability domain; multiple may register for the same capability (degradation chain candidates)
+    HealthCheck(ctx context.Context) error         // single availability probe
+    ServeHTTP(w http.ResponseWriter, r *http.Request)  // Path retains the capability-domain prefix
 }
 ```
 
-接入三步(装配先例:`gateway/cmd/gateway/main.go`):
+Three steps to integrate (assembly precedent: `gateway/cmd/gateway/main.go`):
 
 ```go
 reg := providers.NewRegistry()
-_ = reg.Register(myProvider) // 同名重复注册报错;同能力多注册即降级链候选
+_ = reg.Register(myProvider) // duplicate registration of the same name errors; multiple registrations for the same capability become degradation chain candidates
 ```
 
 ```json
-// COURIER_GATEWAY_CONFIG(JSON 路由表,覆盖内置默认):
+// COURIER_GATEWAY_CONFIG (JSON routing table, overrides the built-in defaults):
 {"identity": {"primary": "courier-account-alt"},
  "announcements": {"primary": "herald", "fallbacks": ["my-herald"]},
  "payments": {"disabled": true}}
 ```
 
-范围说明:这是**同一网关进程内**的替换(编译期 import + 配置期选路);独立进程 / HTTP
-sidecar 形态契约不动,属部署面演进。
+Scope note: this is a replacement **within the same gateway process** (compile-time import + configuration-time routing); the standalone-process / HTTP
+sidecar form leaves the contract untouched and belongs to deployment-surface evolution.
 
-## 2. 路由与降级语义
+## 2. Routing and Degradation Semantics
 
-- 路由表一行 = `CapabilityConfig{primary, fallbacks[], disabled}`
-  (`gateway/providers/config.go`);`primary` 空 = 未配置,`disabled: true` = 显式关闭,
-  二者同样返回 `501 COMMON_CAPABILITY_DISABLED`。
-- 请求分发沿降级链逐个 `HealthCheck`(逐请求探活,无健康缓存),失败尝试下一个;熔断仅实名域已落地(`providers/router`,批次 7),通用降级链为逐请求探活。
-- `fallbacks` 引用未注册的名字**静默跳过**(不残废);配置键拼错(未知能力域)在
-  `LoadConfig` 直接报错,不静默失效。
-- 管理语义:能力域 = 路由前缀,业务名不得成为能力域;新能力先在
-  [errors.md](./contract/errors.md) 注册域前缀,再进 `providers/capability.go` 与路由表。
+- One routing table row = `CapabilityConfig{primary, fallbacks[], disabled}`
+  (`gateway/providers/config.go`); an empty `primary` = not configured, `disabled: true` = explicitly off,
+  and both likewise return `501 COMMON_CAPABILITY_DISABLED`.
+- Request dispatch walks the degradation chain running `HealthCheck` on each in turn (a per-request liveness probe, no health cache), falling through to the next on failure; circuit breaking has only landed in the real-name domain (`providers/router`, batch 7), while the generic degradation chain is a per-request liveness probe.
+- `fallbacks` entries that reference an unregistered name are **silently skipped** (not crippled); a misspelled configuration key (an unknown capability domain) errors directly in
+  `LoadConfig` rather than failing silently.
+- Management semantics: a capability domain = a routing prefix, and a business name must not become a capability domain; a new capability first registers its domain prefix in
+  [errors.md](./contract/errors.md), then enters `providers/capability.go` and the routing table.
 
-## 3. 能力域全集与默认供应商
+## 3. The Full Set of Capability Domains and Default Vendors
 
-| 能力域 | 前缀 | 默认 Provider | 里程碑 | 备注 |
+| Capability domain | Prefix | Default Provider | Milestone | Notes |
 | --- | --- | --- | --- | --- |
-| identity | /v1/identity/ | `courier-account` | M1 | 第二实现 `courier-account-alt`(批次 18) |
-| announcements | /v1/announcements/ | `herald` | M2 | 第二实现 `herald-alt`(写时索引,批次 69) |
-| support | /v1/support/ | `croupier` | M2 | 注入点最多(见 §4);第二实现 `croupier-alt`(写时属主索引 + 键集游标,批次 73) |
-| messages | /v1/messages/ | `chirp` | M2 | SSE 推送通道,其余域经其 Hub 广播;第二实现 `chirp-alt`(环形日志+游标,批次 68) |
-| realname | /v1/realname/ | `warden` | M2 后段 | **默认关闭**:路由表显式配置才开启(契约红线);第二实现 `warden-alt`(托管核验,批次 64) |
-| app | /v1/app/ | `scribe` | M3 | config / branding / app 同管道;第二实现 `scribe-alt`(写时维度索引,批次 71) |
-| player | /v1/player/ | `archivist` | M3 | 玩家档案 + 账号↔角色映射;第二实现 `archivist-alt`(事件日志,批次 67) |
-| assistant | /v1/assistant/ | `sage` | M4 | FAQ 检索;LLM 供应商按同一接口替换,默认不依赖;第二实现 `sage-alt`(写时预计算规范化,批次 70) |
-| payments | /v1/payments/ | `teller` | M5 | 自建沙箱渠道;真实渠道按同一回调签名面接入;第二实现 `teller-alt`(事件账本投影,批次 72) |
+| identity | /v1/identity/ | `courier-account` | M1 | second implementation `courier-account-alt` (batch 18) |
+| announcements | /v1/announcements/ | `herald` | M2 | second implementation `herald-alt` (write-time index, batch 69) |
+| support | /v1/support/ | `croupier` | M2 | most injection points (see §4); second implementation `croupier-alt` (write-time owner index + keyset cursor, batch 73) |
+| messages | /v1/messages/ | `chirp` | M2 | SSE push channel, the other domains broadcast through its Hub; second implementation `chirp-alt` (ring log + cursor, batch 68) |
+| realname | /v1/realname/ | `warden` | late M2 | **off by default**: only enabled when explicitly configured in the routing table (contract red line); second implementation `warden-alt` (hosted verification, batch 64) |
+| app | /v1/app/ | `scribe` | M3 | config / branding / app share one pipeline; second implementation `scribe-alt` (write-time dimension index, batch 71) |
+| player | /v1/player/ | `archivist` | M3 | player profile + account↔character mapping; second implementation `archivist-alt` (event log, batch 67) |
+| assistant | /v1/assistant/ | `sage` | M4 | FAQ retrieval; LLM vendors are swapped through the same interface and are not depended on by default; second implementation `sage-alt` (write-time precomputed normalization, batch 70) |
+| payments | /v1/payments/ | `teller` | M5 | self-built sandbox channel; real channels integrate through the same callback signature surface; second implementation `teller-alt` (event ledger projection, batch 72) |
 
-## 4. Options 装配面:逐域注入点
+## 4. The Options Assembly Surface: Per-Domain Injection Points
 
-各 Provider 的 `Options` 结构是唯一装配面;**nil / 未配置 = fail-closed,不是 panic 也不是裸奔**:
+Each Provider's `Options` struct is the sole assembly surface; **nil / not configured = fail-closed, neither a panic nor running wide open**:
 
-| 域 | 注入点 | 缺省行为 |
+| Domain | Injection point | Default behavior |
 | --- | --- | --- |
-| identity | `account.Options` / `accountalt.Options`;会话校验器经 `auth.NewSwitchable` 供 M2+ 域共享,身份源切换 = `SetTarget` 跟随 primary | 双实现同一 wire(见 §6) |
-| identity·oauth | `OAuthDisabled: true` 关闭 oauth 域(501);第三方凭证校验器经 providers/oauth 装配,未注册 = `OAUTH_PROVIDER_UNKNOWN` | fail-closed |
-| support | `croupier.Options.AttachmentSigner`(F44 附件直传)、`PenaltyStore`(F45 处罚投影源:List/Get/Appeal) | nil = 附件 / 处罚能力 501(不内置假存储假风控到生产);`croupieralt.Options` 同名字段同口径 |
-| support | `Notify`(坐席回复 → chirp 广播)、`TicketRatePerMinute/Burst`(默认 5/分钟) | nil = 不推送 |
-| payments | `teller.Options.ChannelSecret`(回调 HMAC-SHA256)、`Deliver` 发货钩子(按订单幂等,接入方落库)、`StateFile`(F77 一期订单快照:每次状态变更原子写全量 temp+rename,启动回放;空 = 纯内存与历史行为一致;`telleralt.Options.StateFile` 同形状,快的是事件账本) | 密钥空 = 回调一律 403 `PAYMENT_INVALID_SIGNATURE`;快照损坏 = HealthCheck fail-closed → 支付域 503(不静默从空态启动丢单),运维删除快照文件重启即恢复 |
-| realname | `warden.Options.S2SToken`、`AuditSink`(F33 审计事件面:verify/curfew/charge_check/playtime_report + consent 组 v1.1 declared/parent_requested/granted/denied/revoked,事件只含账号维度元数据;接缝在共享包 `gateway/audit`,内置 `LogSink` 日志半边与 `HTTPSink` 直写半边,SIEM 摄取端 / 自建落库代理按部署面注入;两实现同形状,`wardenalt.Options.AuditSink` 同);`warden.Options.Consent` / `wardenalt.Options.Consent`(consent 组 v1.1,F31:法域阈值 minimumAge / digitalConsentAge / adultAge / requestTTL,经 main.go env 装配,阈值不进契约——换法域 = 换配置);两实现 `Notify`(consent 状态变化 → SSE `realname.consent.updated`,复用 messages 主通道);`wardenalt.Options.Cloud`(托管核验:核验服务按 `CloudVerifier` 接口注入,`WebhookVerifier` 为契约「自定义 Webhook」形态适配;地址经 `COURIER_REALNAME_VERIFY_WEBHOOK`) | S2S 缺省 = fail-closed 401;sink 缺省 = 不产出——`COURIER_REALNAME_AUDIT_WEBHOOK`(+ `COURIER_REALNAME_AUDIT_TOKEN`)开直写半边(尽力交付:超时/网络失败/非 2xx 只记日志,不阻断实名请求;保留策略归接入方存储),`COURIER_REALNAME_AUDIT=log` 开日志半边,两实现经 main.go 同源注入;warden-alt Cloud 缺省 = HealthCheck 不就绪 → 503(fail-closed,配置缺失 ≠ 能力关闭 501);Consent nil = consent 端点 501(契约「默认关」,阈值缺省数字同意 13 / 成年 18 / VPC 72h,minimumAge 未设 = 无 DENIED 档);consent S2S 判定面 `POST /v1/realname/consent/s2s/{grant,deny,revoke}`(运维通道,复用 `S2SToken`):grant 自 PENDING_PARENT/DENIED/REVOKED、deny 自 PENDING_PARENT、revoke 自 GRANTED/PENDING_PARENT,同态幂等、不适用 400、ADULT/UNDECLARED 不可判——防回拨纠错只走此面,玩家契约不可回拨 |
-| 级联 | `hooks.Register(hooks.AccountDeleted, fn)`(契约 auth.md v1.1 注册制:注销数据清理由下游 Provider 自订) | 网关不认识任何下游存储 |
+| identity | `account.Options` / `accountalt.Options`; the session validator is shared with M2+ domains via `auth.NewSwitchable`, and switching the identity source = `SetTarget` following the primary | both implementations share one wire (see §6) |
+| identity·oauth | `OAuthDisabled: true` turns the oauth domain off (501); the third-party credential validator is assembled via providers/oauth, and not registered = `OAUTH_PROVIDER_UNKNOWN` | fail-closed |
+| support | `croupier.Options.AttachmentSigner` (F44 direct attachment upload), `PenaltyStore` (F45 penalty projection source: List/Get/Appeal) | nil = the attachment / penalty capabilities return 501 (no baking a fake store or fake risk control into production); `croupieralt.Options` has the same-named fields with the same semantics |
+| support | `Notify` (agent reply → chirp broadcast), `TicketRatePerMinute/Burst` (default 5/minute) | nil = no push |
+| payments | `teller.Options.ChannelSecret` (callback HMAC-SHA256), `Deliver` fulfillment hook (idempotent per order, the integrator persists to its own store), `StateFile` (F77 phase-1 order snapshot: atomic full-state write via temp+rename on every state change, replayed on boot; empty = in-memory, matching historical behavior; `telleralt.Options.StateFile` is the same shape and snapshots the event journal instead) | empty secret = callbacks uniformly 403 `PAYMENT_INVALID_SIGNATURE`; corrupted snapshot = HealthCheck fail-closed → payments domain 503 (never silently boots from empty state and loses orders); operators delete the snapshot file and restart to recover |
+| realname | `warden.Options.S2SToken`, `AuditSink` (F33 audit event surface: verify/curfew/charge_check/playtime_report plus the consent-group v1.1 declared/parent_requested/granted/denied/revoked, events carrying only account-dimension metadata; the seam is in the shared package `gateway/audit`, with the built-in `LogSink` log half and `HTTPSink` direct-write half, and the SIEM ingestion side / self-built persistence proxy injected per deployment surface; both implementations have the same shape, as does `wardenalt.Options.AuditSink`); `warden.Options.Consent` / `wardenalt.Options.Consent` (consent group v1.1, F31: jurisdiction thresholds minimumAge / digitalConsentAge / adultAge / requestTTL, assembled from env in main.go — thresholds stay out of the contract, switching jurisdiction = switching configuration); `Notify` on both implementations (consent state changes → SSE `realname.consent.updated`, reusing the messages main channel); `wardenalt.Options.Cloud` (hosted verification: the verification service is injected via the `CloudVerifier` interface, with `WebhookVerifier` adapting the contract's "custom Webhook" form; the address goes through `COURIER_REALNAME_VERIFY_WEBHOOK`) | S2S default = fail-closed 401; sink default = no output — `COURIER_REALNAME_AUDIT_WEBHOOK` (+ `COURIER_REALNAME_AUDIT_TOKEN`) enables the direct-write half (best-effort delivery: timeouts / network failures / non-2xx only log and do not block real-name requests; retention is the integrator's storage policy), and `COURIER_REALNAME_AUDIT=log` enables the log half, with both implementations injected from the same source in main.go; warden-alt Cloud default = HealthCheck not ready → 503 (fail-closed, a missing configuration ≠ a capability turned off with 501); Consent nil = consent endpoints 501 (contract "off by default"; threshold defaults: digital consent 13 / adult 18 / VPC 72h, minimumAge unset = no DENIED band); consent S2S verdict surface `POST /v1/realname/consent/s2s/{grant,deny,revoke}` (an ops channel reusing `S2SToken`): grant from PENDING_PARENT/DENIED/REVOKED, deny from PENDING_PARENT, revoke from GRANTED/PENDING_PARENT; same-state idempotent, not-applicable → 400, ADULT/UNDECLARED never eligible — ratchet corrections go only through this surface, never through the player contract |
+| cascade | `hooks.Register(hooks.AccountDeleted, fn)` (registered-style per contract auth.md v1.1: cleanup of deactivation data is self-defined by the downstream Provider) | the gateway knows nothing about any downstream storage |
 
-## 5. 凭据与配置注入
+## 5. Credentials and Configuration Injection
 
-Provider 的密钥一律**环境变量注入、进程内 fail-closed**(`COURIER_PAYMENTS_CHANNEL_SECRET`、
-`COURIER_REALNAME_S2S_TOKEN` 等,见 main.go);不落配置文件、不进契约。
-网关侧另有装配 env:`COURIER_GATEWAY_ADDR`(监听地址,缺省 `:8080`)、
-`COURIER_OAUTH_DISABLED=1`(关闭 oauth 域,501 降级)、`COURIER_GATEWAY_CONFIG`(JSON
-路由表路径,覆盖内置默认;`SIGHUP` 重读生效,失败保留旧表,批次 99/F78 一期)、`COURIER_REALNAME_AUDIT_WEBHOOK`(+ `COURIER_REALNAME_AUDIT_TOKEN`,
-审计直写半边端点与凭证)、`COURIER_REALNAME_AUDIT=log`(日志半边开关)、
-`COURIER_REALNAME_CONSENT`(+ 可选 `_MINIMUM_AGE` / `_DIGITAL_CONSENT_AGE` /
-`_ADULT_AGE` / `_REQUEST_TTL`,consent 组开关与法域阈值:任一非空即开启,全部
-未设置 = consent 端点 501「默认关」;数值非法拒绝起服)、
-`COURIER_PAYMENTS_STATE`(teller 订单快照文件路径,缺省空 = 纯内存)、
-`COURIER_PAYMENTS_STATE_ALT`(teller-alt 事件账本快照路径,缺省空 = 纯内存)。
-持久化(落库 / 对账 / 审计 / 对象存储)随部署面——trace 贯穿 gateway→Provider 已内建
-([layers.md](./layers.md) L5),内存实现在单机与测试场景即为完整功能。
+Provider secrets are always **injected via environment variables and fail-closed in-process** (`COURIER_PAYMENTS_CHANNEL_SECRET`,
+`COURIER_REALNAME_S2S_TOKEN`, etc., see main.go); they never land in configuration files or enter the contract.
+The gateway side has its own assembly env vars: `COURIER_GATEWAY_ADDR` (listen address, default `:8080`),
+`COURIER_OAUTH_DISABLED=1` (turn the oauth domain off, 501 degradation), `COURIER_GATEWAY_CONFIG` (path to the JSON
+routing table, overriding the built-in defaults; `SIGHUP` re-reads it, failures keep the old table, batch 99 / F78 phase 1), `COURIER_REALNAME_AUDIT_WEBHOOK` (+ `COURIER_REALNAME_AUDIT_TOKEN`,
+the audit direct-write-half endpoint and credentials), `COURIER_REALNAME_AUDIT=log` (the log-half switch),
+`COURIER_REALNAME_CONSENT` (plus optional `_MINIMUM_AGE` / `_DIGITAL_CONSENT_AGE` /
+`_ADULT_AGE` / `_REQUEST_TTL` — the consent-group switch and jurisdiction thresholds:
+any non-empty value enables the group, all unset = consent endpoints 501 "off by default";
+invalid values refuse to start the server),
+`COURIER_PAYMENTS_STATE` (teller order snapshot file path, default empty = in-memory only),
+`COURIER_PAYMENTS_STATE_ALT` (teller-alt event-journal snapshot path, default empty = in-memory only).
+Persistence (database writes / reconciliation / audit / object storage) follows the deployment surface — trace propagation from gateway→Provider is built in
+([layers.md](./layers.md) L5), and the in-memory implementation is full functionality for single-machine and test scenarios.
 
-## 6. 替换验收:一致性测试先例
+## 6. Replacement Acceptance: The Consistency Test Precedent
 
-「Provider 可换」的行为证明 = **同一 wire 场景对两个实现各跑一遍、同一断言**
-(`gateway/e2e/identity_conformance_test.go`,批次 18;实名域同构先例
-`gateway/e2e/realname_conformance_test.go`,批次 64——warden 与 warden-alt
-各跑成年/未成年同一链路):
+The behavioral proof that "a Provider is swappable" = **running the same wire scenario against both implementations with the same assertions**
+(`gateway/e2e/identity_conformance_test.go`, batch 18; the isomorphic precedent for the real-name domain is
+`gateway/e2e/realname_conformance_test.go`, batch 64 — warden and warden-alt
+each run the same chain for adult/minor):
 
-- 装配与 main.go 同构(registry + 路由表 + 冻结中间件链:trace → 结构化错误 → 限流 → scope);
-- 场景覆盖含跨域校验(换身份源后 herald 照常认证新令牌);
-- 新 Provider 接入建议给出同构一致性测试;e2e 全绿 + 网关 `go vet` + `go test`
-  全绿为本仓提交门禁(CI 同命令,见 tests.yml;本地防缓存可加 `-count=1`)。
+- Assembly is isomorphic with main.go (registry + routing table + frozen middleware chain: trace → structured errors → rate limiting → scope);
+- Scenario coverage includes cross-domain validation (after switching the identity source, herald still authenticates new tokens as usual);
+- New Provider integrations are advised to ship an isomorphic consistency test; all-green e2e + gateway `go vet` + all-green `go test`
+  are the commit gate for this repo (CI uses the same commands, see tests.yml; locally, add `-count=1` to defeat the cache).

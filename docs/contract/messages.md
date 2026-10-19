@@ -1,34 +1,34 @@
 
-# 推送通道契约(Messages)
+# Push Channel Contract (Messages)
 
-> 状态:**Frozen v1.1** · 里程碑 M2 · 冻结日期 2026-10-08(v1.1 · 2026-10-11 追加「传输分框」服务端硬要求——澄清流式流读所依赖的分框语义,不改变任何端点/头/DTO/wire 形态)。
-> 本域**无专属错误码前缀**(通道层错误全复用通用码,见 [errors.md](./errors.md) 说明);本文档是 M2 服务端(默认供应商 **chirp**)与各端 SDK 的一致性依据,冻结后只加不改,破坏性变更升版本(见 [versioning.md](./versioning.md))。
+> Status: **Frozen v1.1** · Milestone M2 · freeze date 2026-10-08 (v1.1 · 2026-10-11 adds the "transport framing" server-side hard requirement — it clarifies the framing semantics that streaming reads depend on and does not change any endpoint/header/DTO/wire shape).
+> This domain has **no dedicated error-code prefix** (channel-layer errors all reuse generic codes, see the note in [errors.md](./errors.md)); this document is the consistency basis between the M2 server (default provider **chirp**) and the SDKs on every platform. Once frozen it is additive-only; breaking changes bump the version (see [versioning.md](./versioning.md)).
 
-## 能力与范围
+## Capabilities and Scope
 
-- 能力域 `messages`(`providers.CapMessages`),路由 `/v1/messages/*`;默认供应商 **chirp**,可换可关。
-- **关闭 = 仅拉取兜底**:能力未配置 / 显式关闭 → `501 COMMON_CAPABILITY_DISABLED`,各端 SDK 转纯拉取模式(公告轮询 [announcement.md](./announcement.md)、客服手动/定时刷新 [support.md](./support.md)),**功能不残废**。
-- **会话复用**:单连接承载全部域事件(公告、客服、后续域),不为每个域各开一条——移动端连接是稀缺资源。
-- 传输选型:**SSE**(text/event-stream)——标准库可全实现、HTTP 语义免费复用(scope/trace/限流/信封)、Unity `UnityWebRequest` 可流式读;WebSocket 留后续扩展(双端需写时升版本)。
-- 本契约**不覆盖**:离线推送(APNs/FCM,后续域)、事件补发(M2 语义见下)。
+- Capability domain `messages` (`providers.CapMessages`), routes `/v1/messages/*`; default provider **chirp**, swappable and disableable.
+- **Disabled = pull-only fallback**: capability not configured / explicitly disabled → `501 COMMON_CAPABILITY_DISABLED`, and the SDKs on every platform switch to pure pull mode (polling announcements [announcement.md](./announcement.md), manual/scheduled refresh for support [support.md](./support.md)), so **functionality is not crippled**.
+- **Session reuse**: a single connection carries all domain events (announcements, support, later domains) instead of opening one per domain — mobile connections are a scarce resource.
+- Transport choice: **SSE** (text/event-stream) — fully implementable with the standard library, HTTP semantics reused for free (scope/trace/rate limiting/envelope), and streamable with Unity `UnityWebRequest`; WebSocket is left for later extension (it bumps the version when both ends need to be written).
+- This contract **does not cover**: offline push (APNs/FCM, a later domain), event backfill (M2 semantics below).
 
-## 端点总览(挂载 `/v1/messages/*`)
+## Endpoint Overview (mounted at `/v1/messages/*`)
 
-| 端点 | 认证 | 说明 |
+| Endpoint | Auth | Description |
 | --- | --- | --- |
-| `GET /v1/messages/stream` | Bearer | SSE 事件流(长连接) |
+| `GET /v1/messages/stream` | Bearer | SSE event stream (long-lived connection) |
 
-- Bearer 必选:通道为**已认证玩家**服务,匿名 → 401 `COMMON_UNAUTHENTICATED`。
-- scope header 同 [auth.md](./auth.md);限流按连接建立次数计(不在流内计)。
-- 能力关闭 → `501 COMMON_CAPABILITY_DISABLED`(降级信号,SDK 据此安全关闭推送 UI)。
+- Bearer is mandatory: the channel serves **authenticated players**, so anonymous → 401 `COMMON_UNAUTHENTICATED`.
+- The scope header is the same as [auth.md](./auth.md); rate limiting counts connection establishments (not events within the stream).
+- Capability disabled → `501 COMMON_CAPABILITY_DISABLED` (the degradation signal; the SDK uses it to safely turn off push UI).
 
-## 流协议
+## Stream Protocol
 
-响应头:`Content-Type: text/event-stream`(SSE 标准,[WHATWG HTML §server-sent-events](https://html.spec.whatwg.org/multipage/server-sent-events.html))。
+Response header: `Content-Type: text/event-stream` (SSE standard, [WHATWG HTML §server-sent-events](https://html.spec.whatwg.org/multipage/server-sent-events.html)).
 
-**传输分框(服务端硬要求)**:响应须以流式分框下发——不设 `Content-Length`(chunked 或等价流式传输),且每帧后须 flush。六端 SDK 的流读实现(fetch / wx.request enableChunked / XHR onprogress / UnityWebRequest / HTTPClient poll / UE 接缝)均按增量可读语义实现,定长缓冲响应会破坏流读。
+**Transport framing (server-side hard requirement)**: the response must be delivered with streaming framing — no `Content-Length` (chunked or equivalent streaming transport), and a flush after every frame. The six SDKs' streaming read implementations (fetch / wx.request enableChunked / XHR onprogress / UnityWebRequest / HTTPClient poll / UE seam) all implement incrementally readable semantics, and a fixed-length buffered response would break streaming reads.
 
-帧格式(SSE 标准,非 JSON 信封):
+Frame format (SSE standard, not a JSON envelope):
 
 ```
 id: 42
@@ -37,69 +37,69 @@ data: {"id":"ann_...","title":"...","body":"...","severity":"INFO","publishedAt"
 
 ```
 
-- `event` = 事件 type,两段小写 `<domain>.<event>`,多词下划线(同 [events.md](./events.md) 命名规则)。
-- `data` = 单行 JSON,**与该域拉取端点的 DTO 同构**——客户端零新类型,只复用域 DTO。
-- `id` = 服务端(hub 级)单调递增序号,**跨连接连续**(非连接内;调试/日志用;**M2 不做断线补发**,`Last-Event-ID` 头可忽略)。
-- 心跳:服务端每 **25s** 发注释帧 `: ping\n\n`(穿代理保活);客户端不产生业务语义。
-- 断线语义:只保证**在线即达**;离线期间事件不补,靠拉取兜底——通道是「优化」,不是「依赖」。
+- `event` = the event type, two lowercase segments `<domain>.<event>`, with underscores for multiple words (same naming rules as [events.md](./events.md)).
+- `data` = a single-line JSON payload **isomorphic to that domain's pull-endpoint DTO** — the client needs zero new types and just reuses the domain DTO.
+- `id` = a server-side (hub-level) monotonically increasing sequence number, **continuous across connections** (not within a connection; for debugging/logging; **M2 does no reconnect backfill**, and the `Last-Event-ID` header may be ignored).
+- Heartbeat: the server sends a comment frame `: ping\n\n` every **25s** (keep-alive through proxies); it carries no business semantics for the client.
+- Disconnect semantics: only **delivery while online** is guaranteed; events during offline periods are not backfilled and pull is relied on as the fallback — the channel is an "optimization", not a "dependency".
 
-## 事件登记(M2)
+## Event Registry (M2)
 
-| event | data(与拉取 DTO 同构) | 触发 |
+| event | data (isomorphic to the pull DTO) | Trigger |
 | --- | --- | --- |
-| `announcement.published` | announcement([announcement.md](./announcement.md)) | 运营发布可见公告 |
-| `support.ticket_replied` | `{ "ticketId": "tkt_..." }` | 坐席回复/关单工单;客户端拉取详情增量展示 |
+| `announcement.published` | announcement ([announcement.md](./announcement.md)) | Operations publish a visible announcement |
+| `support.ticket_replied` | `{ "ticketId": "tkt_..." }` | An agent replies to / closes a ticket; the client pulls the detail for incremental display |
 
-M3 追加(与拉取 DTO 不同构:只带版本号,客户端重拉比对——同 config/branding 契约定):
+M3 additions (not isomorphic to the pull DTO: only a version number is carried, and the client re-pulls to compare — the same convention as the config/branding contracts):
 
-| event | data | 触发 |
+| event | data | Trigger |
 | --- | --- | --- |
-| `config.updated` | `{ "configVersion": 7 }`([config.md](./config.md)) | 管理面发布新配置版本 |
-| `branding.updated` | `{ "version": 3 }`([branding.md](./branding.md)) | 管理面变更品牌物料 |
+| `config.updated` | `{ "configVersion": 7 }` ([config.md](./config.md)) | The admin side publishes a new config version |
+| `branding.updated` | `{ "version": 3 }` ([branding.md](./branding.md)) | The admin side changes branding assets |
 
-M5 v1.1 追加(payment 域;广播提示,不含业务字段——金额/SKU 归拉取端点按归属过滤):
+M5 v1.1 additions (payment domain; broadcast hints carrying no business fields — amounts/SKUs belong to the pull endpoint, filtered by ownership):
 
-| event | data | 触发 |
+| event | data | Trigger |
 | --- | --- | --- |
-| `payment.paid` | `{ "orderId": "order_..." }`([payment.md](./payment.md)) | 渠道回调受理,订单转 `PAID` |
-| `payment.delivered` | `{ "orderId": "order_..." }` | 订单转 `DELIVERED`(含对账恢复重发) |
+| `payment.paid` | `{ "orderId": "order_..." }` ([payment.md](./payment.md)) | A channel callback is accepted and the order moves to `PAID` |
+| `payment.delivered` | `{ "orderId": "order_..." }` | The order moves to `DELIVERED` (including re-sends on reconciliation recovery) |
 
-realname v1.1 追加(2026-10-18 冻结,**未实现**,实现面 F31;复用本通道,同 `config.updated` 模式——最小字段 + 客户端重拉;出生日期等敏感数据不进事件,同 realname 数据红线):
+realname v1.1 additions (frozen 2026-10-18, **not implemented**, implementation surface F31; reuses this channel, same pattern as `config.updated` — minimal field + client re-pull; no sensitive data such as birth dates enters events, per the realname data red lines):
 
-| event | data | 触发 |
+| event | data | Trigger |
 | --- | --- | --- |
-| `realname.consent.updated` | 同 `config.updated` 模式(最小字段,客户端重拉;[realname.md](./realname.md) consent 节) | 同意状态变化 |
+| `realname.consent.updated` | same pattern as `config.updated` (minimal field, client re-pulls; [realname.md](./realname.md) consent section) | Consent status changed |
 
-新事件随域契约冻结在此登记;`type` 冻结后不改,废弃事件服务端停发、类型保留。
+New events are registered here as their domain contracts freeze; a `type` does not change once frozen, and a deprecated event is stopped by the server while its type is retained.
 
-## 语义规则
+## Semantic Rules
 
-1. **事件可能重复/乱序**:通道至多一次(at-most-once);客户端按域 DTO `id` 幂等去重。
-2. **事件不是权威**:以拉取端点为准(先到的事件只是「该去拉了」的提示,支持直接渲染但校验可见期)。
-3. **连接生命周期**:服务端可随时断流(发版/迁移/负载);客户端指数退避重连(建议 1s 起、上限 60s,`Retry-After` 头优先)。
-4. **认证失效**:流内 token 过期不中断已有连接(M2);新连接按当前 token 校验。
+1. **Events may be duplicated or out of order**: the channel is at-most-once; the client deduplicates idempotently by the domain DTO's `id`.
+2. **Events are not authoritative**: the pull endpoints are authoritative (an event that arrives first is merely a hint that "you should pull now"; direct rendering is supported but the visibility window must be validated).
+3. **Connection lifecycle**: the server may drop the stream at any time (release/migration/load); the client reconnects with exponential backoff (recommended starting at 1s, capped at 60s, with the `Retry-After` header taking precedence).
+4. **Auth expiry**: a token expiring within the stream does not interrupt an existing connection (M2); new connections are verified against the current token.
 
-## 错误(通道层,全通用码)
+## Errors (channel layer, all generic codes)
 
-| 场景 | 响应 |
+| Scenario | Response |
 | --- | --- |
-| 未认证 | 401 `COMMON_UNAUTHENTICATED`(结构化信封) |
-| 能力关闭 | 501 `COMMON_CAPABILITY_DISABLED` |
-| 限流 | 429 `RATE_LIMITED` + `Retry-After` |
-| scope 缺失/不一致 | 400 `COMMON_INVALID_ARGUMENT` / `SCOPE_MISMATCH` |
+| Unauthenticated | 401 `COMMON_UNAUTHENTICATED` (structured envelope) |
+| Capability disabled | 501 `COMMON_CAPABILITY_DISABLED` |
+| Rate limited | 429 `RATE_LIMITED` + `Retry-After` |
+| scope missing/mismatched | 400 `COMMON_INVALID_ARGUMENT` / `SCOPE_MISMATCH` |
 
-## 客户端要求(各端 SDK)
+## Client Requirements (SDKs on each platform)
 
-- 通道健康 = 「有」或「没有」两态;没有 → 纯拉取模式,不半死轮询。
-- 收到事件先去重(`id`/域 `id`),再按域 DTO 解析;未知 `event` type **必须容忍**(忽略,同契约 versioning.md 未知容忍原则)。
-- 重连退避见语义规则 3;应用切后台可主动断流省电,回前台重连(生命周期事件见 [events.md](./events.md))。
+- Channel health has two states, "present" or "absent"; when absent → pull-only mode, no half-dead polling.
+- On receiving an event, deduplicate first (`id`/domain `id`), then parse by the domain DTO; an unknown `event` type **must be tolerated** (ignored, per the unknown-tolerance principle in the contract's versioning.md).
+- Reconnect backoff is per semantic rule 3; the app may proactively drop the stream when backgrounded to save power and reconnect on foreground (lifecycle events are in [events.md](./events.md)).
 
-## 扩展预留(2026-10-11 补注)
+## Reserved Extensions (note added 2026-10-11)
 
-| 可能的扩展 | 兼容处理方式 |
+| Possible extension | Compatible handling |
 | --- | --- |
-| 新事件类型 | 登记制:随域契约冻结在事件表加行(加法兼容);`type` 冻结后不改,废弃停发、类型保留(上文已冻结语义) |
-| 未知事件 | 客户端必须容忍忽略(上文客户端要求);旧 SDK 遇新事件不报错 = 登记制的兼容兜底 |
-| WebSocket 载体 | 留后续扩展(上文传输选型),双端需写时升版本——不原地换传输 |
-| 推送触达(APNs/FCM) | Provider 面(features.md F37 口径),不经本域端点;系统推送只做「唤起拉取」提示 |
-| 载荷压缩 / 批量分框 | 加头/加节走 v1.2 提案;v1.1 传输分框硬要求不松动 |
+| New event types | Registration-based: a row is added to the event table as the domain contract freezes (additive-compatible); a `type` does not change once frozen, and a deprecated event is stopped while its type is retained (semantics already frozen above) |
+| Unknown events | The client must tolerate and ignore them (client requirements above); an old SDK not erroring on a new event = the compatibility backstop of the registration approach |
+| WebSocket transport | Left for later extension (transport choice above); it bumps the version when both ends need to be written — the transport is not swapped in place |
+| Push reach (APNs/FCM) | A Provider surface (features.md F37 wording), not going through this domain's endpoints; system push only serves as a "wake up and pull" hint |
+| Payload compression / batched framing | Adding headers/sections goes through a v1.2 proposal; the v1.1 transport-framing hard requirement does not loosen |

@@ -1,64 +1,64 @@
 
-# 玩家档案契约(Player Profile)
+# Player Profile Contract (Player Profile)
 
-> 状态:**Frozen v1** · 里程碑 M3 · 冻结日期 2026-10-09。
-> 本文档是 M3 服务端(默认供应商 **archivist**,自建轻量)与各端 SDK 的一致性依据,冻结后只加不改,破坏性变更升版本(见 [versioning.md](./versioning.md))。
-> 定位:账号↔角色映射与账号档案;**角色数据归各游戏**(等级/背包/进度不经 Courier)。
+> Status: **Frozen v1** · Milestone M3 · frozen 2026-10-09.
+> This document is the consistency basis between the M3 server (default provider **archivist**, a self-built lightweight implementation) and the SDKs on every platform. Once frozen it is additive-only; breaking changes bump the version (see [versioning.md](./versioning.md)).
+> Positioning: the account↔character mapping and the account profile; **character data belongs to each game** (levels/inventory/progress never go through Courier).
 
-## 能力与范围
+## Capabilities and Scope
 
-- 能力域 `player`(`providers.CapPlayer`),路由 `/v1/player/*`;全部要求 Bearer。
-- 账号档案 = 跨游戏的展示名(登录账号的门面);角色映射 = 本 scope(`game_id + env`)下的 `playerId` 绑定记录,游戏侧用 `playerId` 回自己的游戏服取数据。
-- 本契约**不覆盖**(红线「字段最小化」):角色数据与进度(归各游戏服)、好友/社交关系、档案头像资源托管(只存 URL 字符串,素材归接入方对象存储)。
-- 不采集:邮箱/手机号不在本域回显(auth 域已有);无任何设备或行为字段。
+- Capability domain `player` (`providers.CapPlayer`), routes `/v1/player/*`; everything requires Bearer.
+- The account profile = the display name shared across games (the facade of the login account); the character mapping = the `playerId` binding records under this scope (`game_id + env`); the game side uses `playerId` to fetch data from its own game server.
+- This contract **does not cover** (the "field minimization" red line): character data and progress (belongs to each game's servers), friends/social relationships, hosting of profile avatar assets (only the URL string is stored; the assets belong to the integrator's object storage).
+- Not collected: email/phone number are not echoed in this domain (the auth domain already has them); no device or behavioral fields of any kind.
 
-## 端点总览(挂载 `/v1/player/*`)
+## Endpoint Overview (mounted at `/v1/player/*`)
 
-| 端点 | 认证 | 说明 |
+| Endpoint | Auth | Description |
 | --- | --- | --- |
-| `GET /v1/player/profile` | Bearer | 账号档案 |
-| `PATCH /v1/player/profile` | Bearer | 修改展示名 |
-| `GET /v1/player/characters` | Bearer | 本游戏已绑定角色映射 |
-| `POST /v1/player/characters` | Bearer | 绑定角色映射(幂等) |
+| `GET /v1/player/profile` | Bearer | Account profile |
+| `PATCH /v1/player/profile` | Bearer | Change the display name |
+| `GET /v1/player/characters` | Bearer | Character mappings bound in this game |
+| `POST /v1/player/characters` | Bearer | Bind a character mapping (idempotent) |
 
-- scope header 要求同 [auth.md](./auth.md);成功 HTTP 200,信封见 [primitives.md](./primitives.md)。
+- Scope header requirements are the same as [auth.md](./auth.md); success is HTTP 200; for the envelope see [primitives.md](./primitives.md).
 
-## 数据模型
+## Data Model
 
 profile:
 
-| 字段 | 类型 | 说明 |
+| Field | Type | Description |
 | --- | --- | --- |
-| `displayName` | string | 展示名;1–30 字符(修剪首尾空白后) |
-| `avatarUrl` | string? | 头像地址(可选;响应恒含该字段,未设置 = 空串;只存 URL,素材归接入方) |
-| `createdAt` / `updatedAt` | timestamp | 档案创建/最近修改 |
+| `displayName` | string | Display name; 1–30 characters (after trimming leading/trailing whitespace) |
+| `avatarUrl` | string? | Avatar URL (optional; responses always contain the field, unset = empty string; only the URL is stored, the assets belong to the integrator) |
+| `createdAt` / `updatedAt` | timestamp | Profile creation / last modification |
 
-character(角色映射):
+character (character mapping):
 
-| 字段 | 类型 | 说明 |
+| Field | Type | Description |
 | --- | --- | --- |
-| `playerId` | string | 游戏侧角色 ID;1–64 字符,由各游戏定义与解释 |
-| `boundAt` | timestamp | 绑定时间 |
+| `playerId` | string | Game-side character ID; 1–64 characters, defined and interpreted by each game |
+| `boundAt` | timestamp | Binding time |
 
-- 绑定上限:每账号每 scope ≤50 条;超出 → `COMMON_INVALID_ARGUMENT`(接入方按「先解绑再绑定」的产品流程处理;v1 不做解绑端点,预留 v1.1)。
-- `POST /v1/player/characters` **幂等**:重复绑定同 `playerId` 返回既有记录(200),不是错误。
+- Binding cap: ≤50 records per account per scope; exceeding it → `COMMON_INVALID_ARGUMENT` (integrators handle it with an "unbind first, then bind" product flow; v1 has no unbind endpoint, reserved for v1.1).
+- `POST /v1/player/characters` is **idempotent**: binding the same `playerId` again returns the existing record (200), not an error.
 
-## 错误码(域表)
+## Error Codes (Domain Table)
 
-本域**无新增错误码**:参数非法(展示名长度、playerId 长度、超绑定上限)一律 `COMMON_INVALID_ARGUMENT`,认证/限流/能力关闭一律通用码([errors.md](./errors.md))。
+This domain **adds no new error codes**: invalid arguments (display-name length, playerId length, over the binding cap) are always `COMMON_INVALID_ARGUMENT`; auth/rate limiting/capability disabled are always the generic codes ([errors.md](./errors.md)).
 
-## 客户端要求(各端 SDK)
+## Client Requirements (per-platform SDKs)
 
-- `PATCH` 成功后以响应体为准(服务端修剪后的 displayName);
-- 绑定幂等:重复调用不报错,以返回的既有记录为准;
-- `501 COMMON_CAPABILITY_DISABLED` = 能力未接:SDK 返回「未启用」态(null),接入方隐藏档案入口,不进报错路径。
+- After a successful `PATCH`, the response body is authoritative (the server-trimmed displayName);
+- Binding is idempotent: repeated calls do not error; the returned existing record is authoritative;
+- `501 COMMON_CAPABILITY_DISABLED` = the capability is not wired in: the SDK returns a "not enabled" state (null); integrators hide the profile entry and never enter the error path.
 
-## 扩展预留(2026-10-11 补注)
+## Extension Reservations (Note Added 2026-10-11)
 
-| 可能的扩展 | 兼容处理方式 |
+| Possible Extension | Compatible Handling |
 | --- | --- |
-| 角色解绑端点 | v1.1 预留(上文绑定上限注:v1 不做解绑,「先解绑再绑定」流程);加端点 = 兼容 |
-| 新档案字段 | 加可选字段 + 未知容忍(基元规则);第三方资料(头像/昵称)只存 URL 字符串,素材托管归接入方(红线不变) |
-| 角色删除/恢复 | 加端点提案(软删除 + 宽限),语义对齐 auth F03 注销提案;v1 不覆盖 |
-| 跨游戏档案聚合 | v1 档案与映射挂 scope;公司级聚合属管理面分析,不进玩家契约 |
-| 绑定上限调整 | 管理面配置(≤50/scope),契约不冻结具体值 |
+| Character unbind endpoint | Reserved for v1.1 (see the binding-cap note above: v1 has no unbind, the "unbind first, then bind" flow); adding an endpoint = compatible |
+| New profile fields | Add optional fields + unknown-field tolerance (primitive rules); third-party profile data (avatar/nickname) stores only the URL string, asset hosting belongs to the integrator (red line unchanged) |
+| Character deletion/restoration | Add-endpoint proposal (soft delete + grace period), semantics aligned with the auth F03 deregistration proposal; not covered in v1 |
+| Cross-game profile aggregation | The v1 profile and mappings hang off the scope; company-level aggregation belongs to management-plane analytics and does not enter the player contract |
+| Binding-cap adjustment | Management-plane configuration (≤50/scope); the contract does not freeze a specific value |

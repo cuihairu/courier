@@ -58,7 +58,7 @@ Service Provider 服务提供者接口 + 默认实现(可插拔:自建/第三方
 Gateway          玩家 API 网关(Go:auth、session、scope、routing、aggregation、middleware、providers)
 ```
 
-分层设计见 [docs/layers.md](docs/layers.md);总体架构、能力树、SDK 生命周期、Provider 治理见 [docs/architecture.md](docs/architecture.md);**契约宪法见 [docs/contract/](docs/contract/index.md)**;分批落地见 [docs/todo.md](docs/todo.md)。
+分层设计见 [docs/layers.md](docs/zh/layers.md);总体架构、能力树、SDK 生命周期、Provider 治理见 [docs/architecture.md](docs/zh/architecture.md);**契约宪法见 [docs/contract/](docs/zh/contract/index.md)**;分批落地见 [docs/todo.md](docs/zh/todo.md)。
 
 ## 定位
 
@@ -108,7 +108,7 @@ Game Client (Unity / UE / Cocos / 小程序 / Layabox / Godot)
 - **支付形态开放**:契约只定 Order/Purchase/Receipt,账号钱包/游戏钱包/直购/外部支付由各游戏选择,不做统一钱包假设。
 - **统一客服**:工单/FAQ 按账号维度(Provider 内无游戏维度,按游戏隔离属部署面),同一账号的历史工单可跨游戏查看。
 
-scope 模型:`game_id + env` 全局隔离,初始化指定一次,URL 与 payload 不得携带(见 [契约 scope.md](docs/contract/scope.md))。
+scope 模型:`game_id + env` 全局隔离,初始化指定一次,URL 与 payload 不得携带(见 [契约 scope.md](docs/zh/contract/scope.md))。
 
 ## 能力树
 
@@ -170,14 +170,14 @@ tools/      仓库门禁:contractgen(契约测试骨架)、packcheck(UPM 结构)
 6. **采集/合规默认关闭**:Diagnostics 与 RealName 的红线内建于契约——默认关闭、显式开启、开启明示数据范围。
 7. **UI 永远可选**:Core/Service/UI 三包分离;Core 无 UI、无品牌逻辑。
 8. **无 any/unknown 敷衍**:各端 SDK 公共类型以契约对齐,禁止各自发明字段。
-9. **实时与渠道不做**:实时多人/匹配(Nakama/Agones 地盘)与渠道聚合联运(MSDK/QuickSDK 地盘)不在范围内,详见[竞品调研](docs/research/competitive.md)。
+9. **实时与渠道不做**:实时多人/匹配(Nakama/Agones 地盘)与渠道聚合联运(MSDK/QuickSDK 地盘)不在范围内,详见[竞品调研](docs/zh/research/competitive.md)。
 
 ## 文档索引
 
-- 契约宪法(M0):[docs/contract/](docs/contract/index.md) — 基元/错误/Scope/版本/事件基元契约 + 全部已冻结域契约:认证(M1)、OAuth(第三方登录,可选)、公告/客服/推送(M2)、实名(M2)、配置/应用/品牌/档案/诊断(M3)、助手(M4)、支付(M5);诊断为客户端可选包,直发不经网关
-- 架构:[docs/architecture.md](docs/architecture.md) · 五层:[docs/layers.md](docs/layers.md)
-- 竞品调研:[docs/research/competitive.md](docs/research/competitive.md)
-- 路线图:[docs/roadmap.md](docs/roadmap.md) · 分批 TODO:[docs/todo.md](docs/todo.md)
+- 契约宪法(M0):[docs/contract/](docs/zh/contract/index.md) — 基元/错误/Scope/版本/事件基元契约 + 全部已冻结域契约:认证(M1)、OAuth(第三方登录,可选)、公告/客服/推送(M2)、实名(M2)、配置/应用/品牌/档案/诊断(M3)、助手(M4)、支付(M5);诊断为客户端可选包,直发不经网关
+- 架构:[docs/architecture.md](docs/zh/architecture.md) · 五层:[docs/layers.md](docs/zh/layers.md)
+- 竞品调研:[docs/research/competitive.md](docs/zh/research/competitive.md)
+- 路线图:[docs/roadmap.md](docs/zh/roadmap.md) · 分批 TODO:[docs/todo.md](docs/zh/todo.md)
 
 ## 开发
 

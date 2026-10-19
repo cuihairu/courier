@@ -1,61 +1,61 @@
 
-# F62 邮件/礼包码:评估结论
+# F62 Mail / Redeem Codes: Evaluation Conclusion
 
-> 状态:**评估完成,不立项** · 2026-10-16 巡检 FW1016D 代决 · 依据 [features.md §10](./features.md)「仅 F62 邮件/礼包码值得优先评估」。
-> 结论先行:**契约面与既有面同构度高,立项成本低;但运营需求未触发,维持不立项。解锁条件不变(运营侧实际需求触发)。** 评估落地后,立项 = 按草图冻结,非从零设计。
+> Status: **evaluation complete, not initiated** · 2026-10-16 patrol FW1016D delegated decision · per [features.md §10](./features.md) "only F62 mail / redeem codes warrants priority evaluation".
+> Bottom line up front: **the contract surface is highly isomorphic to existing surfaces, so the initiation cost is low; but no ops need has triggered, so it stays not-initiated. The unlock condition is unchanged (triggered by an actual ops-side need).** After this evaluation, initiating = freezing per the sketch, not designing from zero.
 
-## 代决记录(2026-10-16,巡检 FW1016D)
+## Delegated Decision Record (2026-10-16, patrol FW1016D)
 
-- **决定**:完成评估(本档),不立项。
-- **理由**:F62 属「需求取舍」卡点(需运营需求触发);features.md §10 结论「本节是玩法不是服务,全列待议防范围失控」是既有裁决,本评估不重开它——评估本身是该节明示的合法动作(「仅 F62 值得优先评估」)。
-- **推翻路径**:运营需求落地 → 按本档草图冻结立项;拍板人亦可直接否决该方向,本档归档即可。
+- **Decision**: complete the evaluation (this document), do not initiate.
+- **Reason**: F62 is a "demand trade-off" blocker (needs an ops-demand trigger); the features.md §10 conclusion "this section is gameplay, not services; everything stays under discussion to prevent scope creep" is the standing verdict, and this evaluation does not reopen it — the evaluation itself is the legitimate action that section explicitly allows ("only F62 warrants priority evaluation").
+- **Overturn path**: an ops need lands → initiate by freezing per this document's sketch; the decision-maker may also reject the direction outright, and this document is simply archived.
 
-## 需求拆解(运营侧发,玩家侧收)
+## Requirement Breakdown (ops side sends, player side receives)
 
-| 能力 | 说明 | 与既有面关系 |
+| Capability | Description | Relation to existing surfaces |
 | --- | --- | --- |
-| 全服邮件 | 运营群发公告型 / 带附件邮件 | 公告(herald)同构:发布一次,玩家侧按游标拉取 |
-| 单人邮件 | 定向补偿 / 客服附函 | 工单附件(croupier)同构:属主索引 + 附件 |
-| 礼包码(兑换码) | 一码一换 / 一码限次 | 幂等领取与支付域(payment)同构 |
+| Server-wide mail | Ops broadcast announcement-type mail / mail with attachments | Isomorphic to announcements (herald): published once, pulled by players via cursor |
+| Individual mail | Targeted compensation / support cover letters | Isomorphic to ticket attachments (croupier): owner index + attachments |
+| Redeem codes (cdk) | One code one redemption / one code limited redemptions | Idempotent claiming is isomorphic to the payments domain (payment) |
 
-## 契约草图(评估用,未冻结)
+## Contract Sketch (for evaluation, not frozen)
 
 ```text
-mail 域(挂载 /v1/mail/*):
-  GET  /v1/mail              游标分页 + unread 计数
-  GET  /v1/mail/{id}         详情
-  POST /v1/mail/{id}/claim   附件领取(幂等:重复领取同结果)
-  DELETE /v1/mail/{id}       已读/删除(软删,游标语义不变)
-  推送事件 mail.updated       复用推送通道(同 config.updated / realname.consent.updated 形状)
+mail domain (mounted at /v1/mail/*):
+  GET  /v1/mail              cursor pagination + unread count
+  GET  /v1/mail/{id}         detail
+  POST /v1/mail/{id}/claim   attachment claim (idempotent: repeated claims give the same result)
+  DELETE /v1/mail/{id}       read/delete (soft delete; cursor semantics unchanged)
+  push event mail.updated     reuses the push channel (same shape as config.updated / realname.consent.updated)
 
-cdk 域(挂载 /v1/cdk/*):
-  POST /v1/cdk/redeem        { code } → 兑换结果(幂等键 = account + code)
+cdk domain (mounted at /v1/cdk/*):
+  POST /v1/cdk/redeem        { code } → redemption result (idempotency key = account + code)
 ```
 
-- 全服邮件**不做服务端扇出**:玩家侧拉取时按 audience(all | segment)过滤,公告同款;避免 O(全服) 写放大。
-- 附件模型与 payment 域货币/物品语义对齐,**不引入第二套价值单位**(价值发放仍经支付域语义,邮件只是载体)。
-- 兑换码防刷:既有全局限流 + 失败退避覆盖;code 一次性(原子核销)或限次(计数),语义归 Provider。
+- Server-wide mail **does no server-side fan-out**: the player side filters by audience (all | segment) at pull time, same as announcements; this avoids O(all players) write amplification.
+- The attachment model aligns with the payment domain's currency/item semantics and **does not introduce a second unit of value** (value granting still goes through the payments domain's semantics; mail is only the carrier).
+- Redeem-code anti-abuse: covered by the existing global rate limiting + failure backoff; a code is one-time (atomic redemption) or limited-redemption (counting); the semantics belong to Provider.
 
-## 同构度(立项成本)
+## Isomorphism (initiation cost)
 
-| 立项要素 | 复用 | 新增面 |
+| Initiation factor | Reuse | New surface |
 | --- | --- | --- |
-| 分页 | primitives 游标(cursor) | 无 |
-| 推送 | chirp SSE / 公告推送通道 | `mail.updated` 事件名 |
-| 幂等领取 | payment claim 语义 | mail/claim 幂等键 |
-| 审计 | `gateway/audit.AuditSink` 接缝 | mail.claimed / cdk.redeemed 事件类型 |
-| 六端生成 | tools/contractgen 全自动 | fixture 增补 |
-| 两实现收口 | 九域两实现模式 | 每域 2 个 Provider 实现 |
+| Pagination | primitives cursor | none |
+| Push | chirp SSE / the announcement push channel | the `mail.updated` event name |
+| Idempotent claiming | payment claim semantics | the mail/claim idempotency key |
+| Audit | the `gateway/audit.AuditSink` seam | mail.claimed / cdk.redeemed event types |
+| Six-platform generation | tools/contractgen fully automatic | fixture additions |
+| Two-implementation closure | the nine-domain two-implementation pattern | 2 Provider implementations per domain |
 
-## 边界(不做的部分)
+## Boundaries (what is not being done)
 
-- **发放 / 运营面不进网关**:运营端任何界面是 [roadmap 非目标](../roadmap.md);发信、码批次生成、核销报表归运营工具 / 接入方,经 Provider S2S 或直写其存储。
-- 邮件不做富文本渲染规范(客户端 UI 自由);不做跨端已读同步之外的消息语义(与 messages/chirp 划界:mail 是运营触达存储面,chirp 是会话推送通道)。
+- **Granting / the ops surface does not enter the gateway**: any ops-side UI is a [roadmap non-goal](../roadmap.md); sending mail, code-batch generation, and redemption reporting belong to live-ops tooling / the integrator, via Provider S2S or direct writes to their storage.
+- Mail has no rich-text rendering spec (the client UI is free); no message semantics beyond cross-platform read sync (boundary vs. messages/chirp: mail is the ops-reach storage surface; chirp is the session push channel).
 
-## 立项触发后的步骤清单
+## Step Checklist Once Initiation Is Triggered
 
-1. 草图评审 → mail.md / cdk.md 冻结(错误码进 errors.md v9)。
-2. fixtures → `go run ./tools/contractgen -write` 六端再生成。
-3. 网关两 Provider 实现同形状 + 审计事件。
-4. 六端 SDK + UI(邮件列表 / 领取 / 兑换入口)+ e2e。
-5. 台账按批次惯例分批落地。
+1. Sketch review → freeze mail.md / cdk.md (error codes go into errors.md v9).
+2. fixtures → `go run ./tools/contractgen -write` to regenerate the six platforms.
+3. Gateway: two Provider implementations with the same shape + audit events.
+4. Six-platform SDK + UI (mail list / claim / redemption entry) + e2e.
+5. Ledger lands batch by batch following the usual batch conventions.

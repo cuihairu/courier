@@ -1,132 +1,132 @@
 
-# 五层架构:L1–L5
+# Five-Layer Architecture: L1–L5
 
-> **状态**:Current — 随实现维护(2026-10-08 M0 立宪冻结,M1–M5 已全部落地)。原则:**不堆业务,先立骨架**;总纲见 [architecture.md](./architecture.md)(设计原则 / Provider 原则 / 能力树 / 生命周期),契约宪法见 [contract/index.md](./contract/index.md),分批节奏见 [todo.md](./todo.md)。
+> **Status**: Current — maintained alongside the implementation (2026-10-08 M0 constitution frozen; M1–M5 all landed). Principle: **no business stacking — skeleton first**. The master outline lives in [architecture.md](./architecture.md) (design principles / Provider principles / capability tree / lifecycle); the contract constitution lives in [contract/index.md](./contract/index.md); batch cadence lives in [todo.md](./todo.md).
 
-## 分层总览
+## Layer Overview
 
 ```text
- 游戏客户端:Unity / Unreal / Cocos / Godot / 小程序 / Layabox
- ───────────────────────── 客户端侧 ─────────────────────────
- L1 SDK Contract      语言无关契约:DTO、错误模型、scope、事件、生命周期(唯一事实源)
- L2 Core              平台无关内核:状态机、token 存储接口、重试、序列化
- L3 Platform Adapter  平台绑定:原生网络栈、安全存储、生命周期、打包形态(+可选 UI 包)
- ───────────────────────── 线 路 ───────────────────────────
-                      HTTPS JSON(SSE 推送通道 M2+,通道为 Provider 能力)
- ───────────────────────── 服务端 ───────────────────────────
- L5 Gateway           唯一入口:auth / session / scope / routing / aggregation / middleware
- L4 Service Provider  Provider 接口 + 默认实现(默认供应商可换可关)
- ───────────────────────── 生 态 ────────────────────────────
-   默认供应商(仅以 Provider 角色存在):courier-account(账号,第二实现 courier-account-alt 可换) herald(公告,第二实现 herald-alt 写时索引可换) croupier(客服,第二实现 croupier-alt 写时属主索引+键集游标可换) chirp(推送,第二实现 chirp-alt 环形日志+游标可换) warden(实名,第二实现 warden-alt 托管核验可换) scribe(配置/品牌/版本,第二实现 scribe-alt 写时维度索引可换) archivist(档案,第二实现 archivist-alt 事件日志可换) sage(助手,第二实现 sage-alt 写时预计算规范化可换) teller(支付,第二实现 teller-alt 事件账本投影可换)
+ Game clients: Unity / Unreal / Cocos / Godot / Mini Programs / Layabox
+ ───────────────────────── Client side ─────────────────────────
+ L1 SDK Contract      Language-agnostic contract: DTOs, error model, scope, events, lifecycle (single source of truth)
+ L2 Core              Platform-agnostic kernel: state machine, token storage interface, retry, serialization
+ L3 Platform Adapter  Platform bindings: native network stack, secure storage, lifecycle, packaging shape (+ optional UI packages)
+ ───────────────────────── Wire ───────────────────────────
+                      HTTPS JSON (SSE push channel M2+; the channel is a Provider capability)
+ ───────────────────────── Server side ───────────────────────────
+ L5 Gateway           Single entry point: auth / session / scope / routing / aggregation / middleware
+ L4 Service Provider  Provider interface + default implementation (default vendor swappable / disableable)
+ ───────────────────────── Ecosystem ────────────────────────────
+   Default vendors (existing only in the Provider role): courier-account (account; second implementation courier-account-alt, swappable) herald (announcements; second implementation herald-alt, write-time index, swappable) croupier (support; second implementation croupier-alt, write-time owner index + keyset cursor, swappable) chirp (messaging; second implementation chirp-alt, ring log + cursor, swappable) warden (real name; second implementation warden-alt, managed verification, swappable) scribe (config/branding/version; second implementation scribe-alt, write-time dimension index, swappable) archivist (player profile; second implementation archivist-alt, event log, swappable) sage (assistant; second implementation sage-alt, write-time precomputed normalization, swappable) teller (payments; second implementation teller-alt, event ledger projection, swappable)
 ```
 
-L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不依赖任何层。
+L1–L3 sit on the client side, L4–L5 on the server side; L1 is depended on by every layer and depends on no layer itself.
 
-## L1 SDK Contract(契约层)
+## L1 SDK Contract (contract layer)
 
-**职责**
+**Responsibilities**
 
-- 跨端公共类型与行为约定:DTO、统一错误模型、scope 规则、事件信封、SDK 生命周期状态机、各能力接口形状。
-- 基元契约已立宪:[contract/](./contract/index.md)(primitives / errors / scope / versioning / events);域契约随里程碑冻结。
+- Cross-platform shared types and behavior conventions: DTOs, unified error model, scope rules, event envelopes, SDK lifecycle state machine, and the interface shape of each capability.
+- The primitives contract is already chartered: [contract/](./contract/index.md) (primitives / errors / scope / versioning / events); domain contracts freeze along with milestones.
 
-**边界**
+**Boundaries**
 
-- 不含任何实现与平台细节;**不感知任何供应商**——契约描述能力,不描述实现者。
-- 采集/合规类能力(诊断、实名)的红线内建于契约:默认关闭、显式开启、开启明示数据范围。
-- 变更走 [contract/index.md](./contract/index.md) 变更流程;冻结后只加不改,破坏性变更升版本。
+- Contains no implementation or platform details; **aware of no vendor** — the contract describes capabilities, not implementers.
+- The red lines for collection/compliance capabilities (diagnostics, real name) are built into the contract: off by default, explicit opt-in, and enabling must state the data scope.
+- Changes follow the change process in [contract/index.md](./contract/index.md); once frozen, additive-only — breaking changes bump the version.
 
-**接口形状**
+**Interface shape**
 
-- 基元:primitives / errors / scope / versioning / events;域:auth(Frozen v1.1)、announcement/support/messages(Frozen v1.1)、realname(Frozen v1.1;consent 组 2026-10-18 冻结)、config/app/branding/player/diagnostics(Frozen v1 · M3)、assistant(Frozen v1 · M4)、payment(Frozen v1.1 · M5)、oauth(Frozen v1,批次 52)。
+- Primitives: primitives / errors / scope / versioning / events; domains: auth (Frozen v1.1), announcement/support/messages (Frozen v1.1), realname (Frozen v1.1; the consent group frozen 2026-10-18), config/app/branding/player/diagnostics (Frozen v1 · M3), assistant (Frozen v1 · M4), payment (Frozen v1.1 · M5), oauth (Frozen v1, batch 52).
 
-**现仓映射**:`docs/contract/`(本仓)+ `docs/contract/fixtures/` + `tools/contractgen`(契约测试骨架:fixture 生成六端契约源,漂移即测试红)。
+**Repo mapping**: `docs/contract/` (this repo) + `docs/contract/fixtures/` + `tools/contractgen` (contract test skeleton: fixtures generate contract sources for all six platforms; any drift turns tests red).
 
-**下一步**:基元五件、auth、M2 三域、realname、M3 五域(config/app/branding/player/diagnostics)、assistant(M4)、payment(M5)均已冻结;新域随新里程碑开工前冻结。
+**Next steps**: the five primitives, auth, the three M2 domains, realname, the five M3 domains (config/app/branding/player/diagnostics), assistant (M4), and payment (M5) are all frozen; new domains freeze before work starts under new milestones.
 
-## L2 Core(平台无关内核)
+## L2 Core (platform-agnostic kernel)
 
-**职责**
+**Responsibilities**
 
-- 可单测纯逻辑:DTO 解析与校验、**生命周期状态机**(Uninitialized→…→PlayerReady、Suspended/Resuming)、token 存储接口、transport 接口、重试与超时、错误归一(错误码→本端枚举)。
-- `CourierClient` 门面仅组 Identity / Session 两接入点;能力树九域接入点归 Service 包 `CourierServices` 门面(各端同构)。
+- Unit-testable pure logic: DTO parsing and validation, **lifecycle state machine** (Uninitialized→…→PlayerReady, Suspended/Resuming), token storage interface, transport interface, retry and timeout, error normalization (error codes → per-platform enums).
+- The `CourierClient` facade composes only the two entry points Identity / Session; the nine capability-tree domain entry points belong to the Service package's `CourierServices` facade (same shape on every platform).
 
-**边界**
+**Boundaries**
 
-- 不 import 任何平台 API(ITransport / ITokenStore / IClock 注入);不写 UI;**不含品牌逻辑**;不感知 Provider 实现。
+- Imports no platform APIs (ITransport / ITokenStore / IClock injected); no UI; **no branding logic**; unaware of Provider implementations.
 
-**接口形状**
+**Interface shape**
 
-- `CourierClient.Init({ gameId, env, endpoint })` → 按域子模块;域接口与 L1 一一对应。
+- `CourierClient.Init({ gameId, env, endpoint })` → per-domain submodules; domain interfaces correspond one-to-one with L1.
 
-**现仓映射**:`sdks/unity/packages/com.courier.core/Runtime`(Core/ 状态机与 API 客户端、Identity/ Session/ auth 域、CourierClient.cs 门面、Core/Contract/ 生成物);`CoreTests~`(65 例 Fact,xunit;dotnet test 本地可验,引擎 Test Runner 亦跑);`sdks/cocos src/core`(transport/apiClient/session/identity/sseStream/utf8,courierClient.ts 门面)+ `src/service`(九域客户端 + SseStreamClient 流编排,`CourierServices` 门面)+ `src/ui` / `src/diagnostics`(可选包),node:test 200 例(契约 6 / core 35 / coreTransport 13 / lifecycle 35 / utf8 9 / service 18 / service2 16 含 consent v1.1 / stream 20 / wechat 9 / wechatStream 8 / ui 17 / diagnostics 14);`sdks/ue/core`(纯 ISO C++17 header-only:json 解析器、transport/apiClient/session/identity/lifecycle/courierClient/sse_stream)+ `sdks/ue/service`(SSE 解析器 + 流编排 + 九域客户端,`run_tests.sh` 七套 g++ 独立编译全绿);`sdks/godot src/core`(lifecycle/transport/tokenStore/courierError/apiClient/identity/session/courierClient)+ `src/service`(SSE 解析器 + 九域客户端 + `CourierServices` 门面,headless 八套 SceneTree 测试全绿);其余端同构。
+**Repo mapping**: `sdks/unity/packages/com.courier.core/Runtime` (Core/ state machine and API client, Identity/ Session/ auth domain, CourierClient.cs facade, Core/Contract/ generated artifacts); `CoreTests~` (65 Fact cases, xunit; runnable locally with dotnet test, also run by the engine Test Runner); `sdks/cocos src/core` (transport/apiClient/session/identity/sseStream/utf8, courierClient.ts facade) + `src/service` (nine-domain clients + SseStreamClient stream orchestration, `CourierServices` facade) + `src/ui` / `src/diagnostics` (optional packages), 200 node:test cases (contract 6 / core 35 / coreTransport 13 / lifecycle 35 / utf8 9 / service 18 / service2 16 incl. consent v1.1 / stream 20 / wechat 9 / wechatStream 8 / ui 17 / diagnostics 14); `sdks/ue/core` (pure ISO C++17 header-only: json parser, transport/apiClient/session/identity/lifecycle/courierClient/sse_stream) + `sdks/ue/service` (SSE parser + stream orchestration + nine-domain clients, `run_tests.sh` seven suites independently compiled with g++, all green); `sdks/godot src/core` (lifecycle/transport/tokenStore/courierError/apiClient/identity/session/courierClient) + `src/service` (SSE parser + nine-domain clients + `CourierServices` facade, eight headless SceneTree suites all green); the remaining platforms are the same shape.
 
-**下一步**:六端 messages SSE 流客户端同构落位(unity/godot 真流读接线;TS 三端 fetch 流源 + UE SseSource 接缝,批次 38;微信 enableChunked 流源 + 手写增量 UTF-8 解码,批次 39;laya XHR 流源,批次 40);平台特化流源残留 UE SseSource 引擎接线随引擎环境;真机联调随部署面。
+**Next steps**: land the messages SSE stream client with the same shape on all six platforms (unity/godot wired to real stream reads; fetch stream source for the three TS platforms + UE SseSource seam, batch 38; WeChat enableChunked stream source + hand-written incremental UTF-8 decoding, batch 39; laya XHR stream source, batch 40); the one platform-specific stream source still outstanding is the UE SseSource engine wiring, which waits on the engine environment; real-device integration waits on the deployment side.
 
-## L3 Platform Adapter(平台绑定层)
+## L3 Platform Adapter (platform binding layer)
 
-**职责**
+**Responsibilities**
 
-- 平台翻译四件事:网络(原生 HTTP / SSE 流式读)、存储(ITokenStore 安全存储实现)、生命周期(前后台/进程信号→状态机事件)、线程(主线程回调调度);打包形态(UPM / npm 已落;UE 插件化与 Godot 插件化打包随引擎集成面,仓内 UE 为引擎无关 C++ 头文件树、Godot 为项目形态)。
-- **可选 UI 包挂在平台侧**:AnnouncementPanel / CustomerServicePanel / AssistantPanel / RealNamePanel,消费 Branding 下发(见 L2 边界:Core 无品牌逻辑)。
+- The adapter translates four things per platform: networking (native HTTP / SSE streaming reads), storage (ITokenStore secure-storage implementations), lifecycle (foreground/background and process signals → state machine events), threading (main-thread callback scheduling); plus packaging shape (UPM / npm landed; UE pluginization and Godot addon packaging wait on the engine integration side — in this repo UE is an engine-agnostic C++ header tree and Godot is in project form).
+- **Optional UI packages hang on the platform side**: AnnouncementPanel / CustomerServicePanel / AssistantPanel / RealNamePanel, consuming the branding delivered from the server (see L2 boundaries: Core has no branding logic).
 
-**边界**
+**Boundaries**
 
-- **禁带业务**:Adapter 不出现任何业务语义;业务逻辑要么上移 Core/Service,要么属 UI 包。
-- 每平台一个适配器;平台特有扩展以 Core 接口为基类;跨平台共享逻辑上移。
+- **No business logic allowed**: the Adapter carries no business semantics; business logic either moves up into Core/Service or belongs in a UI package.
+- One adapter per platform; platform-specific extensions build on Core interfaces as their base; cross-platform shared logic moves up.
 
-**接口形状**
+**Interface shape**
 
-- ITokenStore:Unity 加密存储 / 微信 storage / Layabox LocalStorage / Godot user:// 持久文件已落地;UE 平台凭证与 Cocos localStorage 未落仓(仓内仅 MemoryTokenStore,平台持久化随接入方/引擎面提供);ITransport:各平台网络栈。
+- ITokenStore: Unity encrypted storage / WeChat storage / Layabox LocalStorage / Godot user:// persistent files have landed; UE platform credentials and Cocos localStorage are not yet in the repo (in-repo there is only MemoryTokenStore; platform persistence is provided by the integrator/engine side); ITransport: each platform's network stack.
 
-**现仓映射**:Unity——`sdks/unity/packages/com.courier.core/Runtime/Adapter`(UnityWebRequest 传输 / SecureTokenStore 加密存储 / ApplicationLifecycleMonitor 前后台 + 引擎无关的 LifecycleSignalRelay 信号归一化(批次 81 拆出,去重/成对恢复/被拒不丢挂起/未绑定 no-op 纯 dotnet 可测)/ UnityWebRequestSseSource messages SSE 流读,批次 37 落位),`tools/packcheck` 结构验收,UPM 四包(core/service/ui/diagnostics)落位;TS 三端 adapter——cocos 与 miniprogram 的 `platform/wechat`、laybox 的 `platform/laya`(wx.request / wx storage / LayaAir 可见性与 onLine 信号;微信端 sseSource.ts——wx.request enableChunked 分块流读 + 增量 UTF-8 解码,批次 39 落位;laybox 端 sseSource.ts——XHR 流读 onprogress 增量 + onload 净关流重连,批次 40 落位);UE C++ header-only 批次 14 落位(引擎集成面 HttpModule 待引擎环境);Godot `src/platform`(httpTransport——HTTPClient poll 真传输、fileTokenStore——user:// 持久令牌存储、sseStreamTransport——messages SSE 流读 chunked 分框+退避重连、lifecycleMonitor——前后台信号→状态机事件,批次 34/35/36 落位,八套 headless 全绿)。
+**Repo mapping**: Unity — `sdks/unity/packages/com.courier.core/Runtime/Adapter` (UnityWebRequest transport / SecureTokenStore encrypted storage / ApplicationLifecycleMonitor foreground-background + the engine-agnostic LifecycleSignalRelay signal normalization (split out in batch 81; dedup / paired resume / rejection keeps pending / unbound no-op, all pure-dotnet testable) / UnityWebRequestSseSource messages SSE stream reads, landed in batch 37), `tools/packcheck` structure acceptance, four UPM packages (core/service/ui/diagnostics) in place; the three TS platforms' adapters — `platform/wechat` for cocos and miniprogram, `platform/laya` for laybox (wx.request / wx storage / LayaAir visibility and onLine signals; WeChat-side sseSource.ts — wx.request enableChunked chunked stream reads + incremental UTF-8 decoding, landed in batch 39; laybox-side sseSource.ts — XHR stream reads with onprogress increments + clean close-and-reconnect on onload, landed in batch 40); UE C++ header-only landed in batch 14 (engine integration via HttpModule waits on the engine environment); Godot `src/platform` (httpTransport — real HTTPClient poll transport, fileTokenStore — user:// persistent token storage, sseStreamTransport — messages SSE stream reads with chunked framing + backoff reconnect, lifecycleMonitor — foreground/background signals → state machine events, landed in batches 34/35/36, eight headless suites all green).
 
-**下一步**:UE 引擎集成面与真机联调随部署面;Godot TLS 路径真机验证待接。
+**Next steps**: UE engine integration and real-device joint debugging wait on the deployment side; Godot TLS-path real-device verification is pending wiring.
 
-## L4 Service Provider(Provider 接口 + 默认实现,服务端)
+## L4 Service Provider (Provider interface + default implementation, server side)
 
-**职责**
+**Responsibilities**
 
-- 定义每个能力的 Provider 接口,并提供默认实现;数据事实留在实现侧,Courier 只做投影与编排。
+- Defines the Provider interface for each capability and ships a default implementation; the data facts stay on the implementation side — Courier only does projection and orchestration.
 
-| Provider | 接口职责 | 默认实现(可换/可关) |
+| Provider | Interface responsibility | Default implementation (swappable / disableable) |
 | --- | --- | --- |
-| AccountProvider | 注册/登录/凭证核验 | courier-account(自建;第二实现 courier-account-alt 同契约可换) |
-| AnnouncementProvider | 玩家侧公告投影 | herald(读时扫描;第二实现 herald-alt 写时索引可换) |
-| SupportProvider | 工单/FAQ 投影 | croupier(读时扫描;第二实现 croupier-alt 写时属主索引+键集游标可换) |
-| MessageProvider | 推送通道/会话复用 | chirp(扇出;第二实现 chirp-alt 环形日志+游标可换) |
-| RealNameProvider | 实名核验(热插拔/降级链/熔断) | warden(自建核验;第二实现 warden-alt 托管核验,判定经注入 CloudVerifier;阿里云/腾讯云慧眼/易盾/Webhook 同形状可接) |
-| ConfigProvider | 远程配置下发 | scribe(条件投影 + 灰度分桶;config/branding/app 同由 scribe.AppProvider 单接口覆盖;第二实现 scribe-alt 写时维度索引,同契约可换) |
-| BrandingProvider | 品牌素材下发 | scribe(与 config 同管道;第二实现 scribe-alt 同管道可换) |
-| PlayerProvider | 账号档案 + 账号↔角色映射 | archivist(scope 隔离;第二实现 archivist-alt 事件日志可换) |
-| AssistantProvider | FAQ 检索问答(命中原样快照不生成) | sage(自建;第二实现 sage-alt 写时预计算规范化可换;转人工复用 support 域,LLM 预留默认不依赖) |
-| PaymentsProvider | 订单-回调支付(服务端定价;渠道签名即认证) | teller(沙箱渠道;真实渠道按同一回调签名面接入;第二实现 teller-alt 事件账本投影,同契约可换) |
-| DiagnosticsProvider | 诊断上报 | 默认关闭;客户端可选包直发自托管端点(Sentry/GlitchTip/OTLP 生态),不经网关 |
+| AccountProvider | Registration / login / credential verification | courier-account (in-house; second implementation courier-account-alt, same contract, swappable) |
+| AnnouncementProvider | Player-facing announcements projection | herald (read-time scan; second implementation herald-alt with write-time indexing, swappable) |
+| SupportProvider | Ticket / FAQ projection | croupier (read-time scan; second implementation croupier-alt with write-time owner index + keyset cursor, swappable) |
+| MessageProvider | Push channel / session reuse | chirp (fan-out; second implementation chirp-alt with ring log + cursor, swappable) |
+| RealNameProvider | Real-name verification (hot-swap / degradation chain / circuit breaker) | warden (in-house verification; second implementation warden-alt with managed verification, verdicts via an injected CloudVerifier; Alibaba Cloud / Tencent Cloud Huiyan / Yidun / Webhook all attach with the same shape) |
+| ConfigProvider | Remote config delivery | scribe (conditional projection + gray-release bucketing; config/branding/app are all covered by the single scribe.AppProvider interface; second implementation scribe-alt with write-time dimension indexing, same contract, swappable) |
+| BrandingProvider | Branding asset delivery | scribe (same pipeline as config; second implementation scribe-alt, same pipeline, swappable) |
+| PlayerProvider | Account profile + account↔character mapping | archivist (scope isolation; second implementation archivist-alt with event log, swappable) |
+| AssistantProvider | FAQ retrieval Q&A (hits return verbatim snapshots, nothing generated) | sage (in-house; second implementation sage-alt with write-time precomputed normalization, swappable; handoff to human agents reuses the support domain; LLM reserved, not a dependency by default) |
+| PaymentsProvider | Order-callback payments (server-side pricing; the channel signature is the authentication) | teller (sandbox channels; real channels attach via the same callback signature surface; second implementation teller-alt with event ledger projection, same contract, swappable) |
+| DiagnosticsProvider | Diagnostics reporting | Off by default; the client-side optional package ships directly to self-hosted endpoints (Sentry/GlitchTip/OTLP ecosystem), bypassing the gateway |
 
-**边界**
+**Boundaries**
 
-- 不做入口治理(鉴权/限流归 L5);不做 UI;Provider 未配置 = 能力降级(`COMMON_CAPABILITY_DISABLED`),不报错、不拖垮其他能力。
-- 治理规则:配置驱动路由表(`primary`+`fallbacks[]`)、降级链、HealthCheck 全 Provider 通用;全域路由表热重载经 `routing.Hot` 落地(SIGHUP 重读 COURIER_GATEWAY_CONFIG,批次 99/F78 一期);域内细粒度熔断仍实名域专属(`providers/router`),其余域为预留接缝(详见 architecture.md「Provider 治理」)。
+- No entry governance (authentication / rate limiting belong to L5); no UI; an unconfigured Provider = capability degraded (`COMMON_CAPABILITY_DISABLED`), raising no error and dragging down no other capability.
+- Governance rules: config-driven routing table (`primary`+`fallbacks[]`), degradation chain, HealthCheck common to all Providers; whole-table hot reload across all domains landed via `routing.Hot` (SIGHUP re-reads COURIER_GATEWAY_CONFIG, batch 99 / F78 phase 1); in-domain fine-grained circuit breaking remains realname-specific (`providers/router`), the other domains are reserved seams (see "Provider governance" in architecture.md).
 
-**接口形状**
+**Interface shape**
 
-- 每域一个 Provider 接口;实现 `providers.Handler` 后由装配方 `reg.Register(h)` 注册(接口与实现分离,默认实现可整体替换)。
+- One Provider interface per domain; after implementing `providers.Handler`, registration goes through the assembler's `reg.Register(h)` (interface and implementation are separate; the default implementation can be replaced wholesale).
 
-**现仓映射**:`gateway/providers/`(接口形状批次 2 冻结;`account/` AccountProvider 批次 3;`herald/` `croupier/` `chirp/` 三域默认实现批次 6,Notify 钩子装配解耦——发布/回复事件经注入的 `Publish` 进 chirp Hub,Provider 互不 import;`router/` 治理引擎 + `warden/` 实名自建核验批次 7——降级链/熔断/热重载首个完整落地,后续域复用,批次 102 增 consent 组 v1.1(六态状态机/防回拨/VPC TTL 幂等/S2S 判定面/main.go env 装配);`scribe/` config/app/branding 同管道 + `archivist/` 玩家档案批次 8——M3 热生效/维护门/品牌热切换 e2e 验收;`sage/` 小助手批次 9——M4 检索问答/命中率统计/转人工 e2e 验收;`teller/` 支付批次 10——M5 服务端定价/回调 HMAC 签名面/断单对账 e2e 验收;`accountalt/` 第二 identity 实现(同契约异构,HMAC 自验证令牌)批次 18——装配期读 COURIER_GATEWAY_CONFIG 随 identity primary 重指;`wardenalt/` 第二 realname 实现(托管核验,判定经注入 CloudVerifier,网关侧只存判定态)批次 64(consent 组批次 102 同形状)——同 wire 场景一致性 e2e(批次 18 先例同构;consent 场景批次 102);`archivistalt/` 第二 player 实现(事件日志模型:变更追加事件、读=投影重放)批次 67——同 wire 场景一致性 e2e(批次 18/64 先例同构);`chirpalt/` 第二 messages 实现(共享环形日志 + 每连接游标拉取,发布只追加一次)批次 68——同 wire 场景一致性 e2e(批次 18/64/67 先例同构);`heraldalt/` 第二 announcements 实现(写时索引:map 详情 O(1) + 发布时维护 publishedAt 升序切片)批次 69——同 wire 场景一致性 e2e(批次 18/64/67/68 先例同构);`sagealt/` 第二 assistant 实现(写时预计算规范化文本:AddEntry 时规范化一次,查询零重复计算)批次 70——同 wire 场景一致性 e2e(批次 18/64/67/68/69 先例同构);`scribealt/` 第二 app 实现(写时维度索引:Publish 时条件切片转维度→允许值索引,投影按请求维度分阶段过滤)批次 71——同 wire 场景一致性 e2e(批次 18/64/67/68/69/70 先例同构);维护门回调跟随 app 域 primary 重指(同推送源先例);`telleralt/` 第二 payments 实现(追加式事件账本:状态转移追加不可变事件,status/时间戳=投影重放,历史不可变)批次 72——同 wire 场景一致性 e2e(批次 18/64/67/68/69/70/71 先例同构);`croupieralt/` 第二 support 实现(写时属主有序索引:建单/追加/回复/关单/附件登记即时重排,游标=`<毫秒>|<工单ID>` 键集锚点,读时零扫描零排序,并发插入不漂移)批次 73——同 wire 场景一致性 e2e + 跨实现分页等价显式证明(批次 18/64/67/68/69/70/71/72 先例同构))。
+**Repo mapping**: `gateway/providers/` (interface shape frozen in batch 2; `account/` AccountProvider batch 3; `herald/` `croupier/` `chirp/` default implementations for the three domains batch 6, with the Notify hook decoupled at assembly — publish/reply events enter the chirp Hub through the injected `Publish`, Providers never import each other; `router/` governance engine + `warden/` in-house real-name verification batch 7 — the first complete landing of degradation chain / circuit breaker / hot-reload, reused by later domains; batch 102 adds the consent group v1.1 (six-state machine / anti-rollback / VPC TTL idempotency / S2S verdict surface / main.go env assembly); `scribe/` config/app/branding on one pipeline + `archivist/` player profile batch 8 — M3 hot-apply / maintenance gate / branding hot-swap e2e acceptance; `sage/` assistant batch 9 — M4 retrieval Q&A / hit-rate stats / handoff-to-human e2e acceptance; `teller/` payments batch 10 — M5 server-side pricing / callback HMAC signature surface / broken-order reconciliation e2e acceptance; `accountalt/` second identity implementation (heterogeneous under the same contract, HMAC self-verifying tokens) batch 18 — reads COURIER_GATEWAY_CONFIG at assembly time and re-points with the identity primary; `wardenalt/` second realname implementation (managed verification, verdicts via an injected CloudVerifier, the gateway side stores only the verdict state) batch 64 (the consent group landed same-shape in batch 102) — same-wire scenario consistency e2e (same shape as the batch 18 precedent; consent scenarios batch 102); `archivistalt/` second player implementation (event log model: changes append events, reads = projection replay) batch 67 — same-wire scenario consistency e2e (same shape as the batch 18/64 precedents); `chirpalt/` second messages implementation (shared ring log + per-connection cursor pulls, each publish appended exactly once) batch 68 — same-wire scenario consistency e2e (same shape as the batch 18/64/67 precedents); `heraldalt/` second announcements implementation (write-time indexing: O(1) map detail lookups + a publishedAt ascending slice maintained at publish time) batch 69 — same-wire scenario consistency e2e (same shape as the batch 18/64/67/68 precedents); `sagealt/` second assistant implementation (write-time precomputed normalized text: normalized once at AddEntry, zero recomputation at query time) batch 70 — same-wire scenario consistency e2e (same shape as the batch 18/64/67/68/69 precedents); `scribealt/` second app implementation (write-time dimension indexing: at Publish, conditional slices become dimension→allowed-value indexes, projection filters in stages by the requested dimensions) batch 71 — same-wire scenario consistency e2e (same shape as the batch 18/64/67/68/69/70 precedents); maintenance-gate callbacks follow the app-domain primary re-pointing (same precedent as the push source); `telleralt/` second payments implementation (append-only event ledger: state transitions append immutable events, status/timestamps = projection replay, history immutable) batch 72 — same-wire scenario consistency e2e (same shape as the batch 18/64/67/68/69/70/71 precedents); `croupieralt/` second support implementation (write-time owner-ordered index: ticket creation / append / reply / close / attachment registration re-sort immediately, cursor = `<milliseconds>|<ticketID>` keyset anchor, zero scans and zero sorting at read time, no drift under concurrent inserts) batch 73 — same-wire scenario consistency e2e + explicit proof of cross-implementation pagination equivalence (same shape as the batch 18/64/67/68/69/70/71/72 precedents)).
 
-**下一步**:Diagnostics 为客户端可选包(不经网关,批次 8 落 `sdks/unity/packages/com.courier.diagnostics`);payments 批次 10 已接入(teller)。
+**Next steps**: Diagnostics is a client-side optional package (bypassing the gateway; batch 8 landed it at `sdks/unity/packages/com.courier.diagnostics`); payments landed in batch 10 (teller).
 
-## L5 Gateway(入口治理层,服务端)
+## L5 Gateway (entry governance layer, server side)
 
-**职责**
+**Responsibilities**
 
-- 唯一入口:auth / session / scope / routing / aggregation / middleware(限流、trace、恢复、scope、维护门、1MiB 请求体上限);审计依赖 trace 贯穿,实名域已落结构化审计事件面(`gateway/audit` 共享接缝:两个 realname 实现同注入 `AuditSink`,nil = 不产出;`COURIER_REALNAME_AUDIT=log` 开日志半边),落库随部署面。
-- Provider 注册表管理:已知能力域的路由全量挂载;未配置能力的路由在分发期返回 `COMMON_CAPABILITY_DISABLED`(501),非路由缺位。
+- Single entry point: auth / session / scope / routing / aggregation / middleware (rate limiting, trace, recovery, scope, maintenance gate, 1MiB request-body cap); auditing relies on trace running end to end — the real-name domain has landed a structured audit event surface (`gateway/audit` shared seam: both realname implementations inject the same `AuditSink`, nil = emits nothing; `COURIER_REALNAME_AUDIT=log` turns on the logging half), with persistence waiting on the deployment side.
+- Provider registry management: routes for all known capability domains are mounted in full; routes for unconfigured capabilities return `COMMON_CAPABILITY_DISABLED` (501) at dispatch time — not a missing route.
 
-**边界**
+**Boundaries**
 
-- 不含业务目录(`accounts/`、`announcements/` 等名字不允许出现在 gateway 一级);中间件只处理横切面,不认识业务字段;无管理接口。
+- No business directories (names like `accounts/`, `announcements/` are not allowed at the gateway's first level); middleware handles only cross-cutting concerns and knows no business fields; no admin interface.
 
-**接口形状**
+**Interface shape**
 
 ```text
 gateway/
@@ -136,33 +136,33 @@ gateway/
 └── providers/
 ```
 
-Go `http.ServeMux` + 中间件链(trace → 结构化错误 → 限流 → scope,冻结顺序;认证按能力在路由内挂载 Bearer 校验);`/healthz`;`/v1/{domain}/*`。
+Go `http.ServeMux` + middleware chain (trace → structured errors → rate limiting → scope, frozen order; per capability, authentication mounts Bearer validation inside the route); `/healthz`; `/v1/{domain}/*`.
 
-**现仓映射**:`gateway/{cmd,routing,middleware,scope,aggregation}`(批次 2 骨架)+ `auth`/`session`(批次 3 实装,Bearer→身份注入/会话验证)+ `e2e`(批次 6,M2 全链路;批次 8 增 M3 热生效/维护/品牌,批次 9 增 M4 检索问答/转人工,批次 10 增 M5 下单/回调/对账 e2e);能力驱动路由 `/v1/{capability}/` 随 Provider 注册自动挂载,未配置 = 501 降级;维护门 `middleware.Maintenance` 包入口(批次 8,app.md 白名单内建:维护开启 `/v1/*` 除 `/v1/app/*` 与 `/healthz` 一律 503);降级语义与中间件链已有测试覆盖。
+**Repo mapping**: `gateway/{cmd,routing,middleware,scope,aggregation}` (batch 2 skeleton) + `auth`/`session` (implemented in batch 3, Bearer → identity injection / session validation) + `e2e` (batch 6, full M2 chain; batch 8 adds M3 hot-apply / maintenance / branding, batch 9 adds M4 retrieval Q&A / handoff-to-human, batch 10 adds M5 order placement / callback / reconciliation e2e); capability-driven routes `/v1/{capability}/` mount automatically as Providers register, unconfigured = 501 degradation; the maintenance gate `middleware.Maintenance` wraps the entry point (batch 8, app.md whitelist built in: when maintenance is on, everything under `/v1/*` returns 503 except `/v1/app/*` and `/healthz`); degradation semantics and the middleware chain are covered by tests.
 
-**下一步**:持久化存储与多实例限流协同。
+**Next steps**: persistent storage and multi-instance rate-limit coordination.
 
-## 依赖规则
+## Dependency Rules
 
-1. **只允许向下依赖**:L3 → L2 → L1;L5 → L4 → L1;禁止逆向。
-2. **契约不感知供应商**:L1 提能力不提实现者;默认供应商只出现在 L4 的实现与配置里。
-3. **内核不碰平台**:L2 面向接口注入;L4 只经 L5 中间件拿身份。
-4. **契约先行**:L2–L5 的公共类型必须能在 L1 找到定义;各端不得私造字段。
-5. **差异各归其位**:平台差异只在 L3;供应商差异只在 L4;L1/L2 跨端一致。
-6. **红线内建**:默认关闭、开启明示数据范围是 L1 契约属性,L3–L5 不得绕过。
-7. **UI 可选**:UI 包与 Diagnostics 包不进 Core 包;Core 无 UI、无品牌逻辑。
+1. **Dependencies point downward only**: L3 → L2 → L1; L5 → L4 → L1; reverse dependencies are forbidden.
+2. **The contract is vendor-agnostic**: L1 offers capabilities without naming implementers; default vendors appear only in L4's implementations and configuration.
+3. **The kernel never touches the platform**: L2 programs against injected interfaces; L4 obtains identity only through L5 middleware.
+4. **Contract first**: every public type in L2–L5 must have its definition findable in L1; no platform may invent fields of its own.
+5. **Each difference stays in its place**: platform differences live only in L3; vendor differences only in L4; L1/L2 are identical across platforms.
+6. **Red lines are built in**: off by default and explicit data scope on enable are L1 contract properties that L3–L5 must not bypass.
+7. **UI is optional**: the UI and Diagnostics packages stay out of the Core package; Core has no UI and no branding logic.
 
-## 与现仓结构映射
+## Mapping to the Current Repo Structure
 
-| 层 | 现仓落点 | 状态 |
+| Layer | Location in repo | Status |
 | --- | --- | --- |
-| L1 SDK Contract | `docs/contract/` + `tools/contractgen` | 基元五件 Frozen v1 + auth v1.1 + M2 三域 v1.1 + realname v1.1(consent 组批次 102 落地)+ M3 五域(config/app/branding/player/diagnostics)v1 + assistant(M4)v1 + payment(M5)v1.1 + oauth v1(批次 52);错误码 v8 |
-| L2 Core | `sdks/unity/packages/com.courier.core/Runtime/{Core,Identity,Session}`;`sdks/cocos/src/core`;`sdks/ue/core` | Unity 批次 4 落位(状态机+auth 域,48 用例;批次 37 SseStream 接缝+退避);cocos TS 批次 12-13 落位(core+service 全域);批次 38 messages 流客户端落位(TS 三端 node:test 111 例,真 chunked 服务器 e2e);批次 39 增量 UTF-8 解码器落位(跨块多字节不撕裂,node:test 123 例);UE C++ 批次 14 落位(core+service 全域,纯 ISO C++17 header-only);批次 38 流编排落位(g++ 七套全绿) |
-| L3 Platform Adapter | `sdks/unity/packages/com.courier.core/Runtime/Adapter`(+UPM 包;`tools/packcheck`);TS 三端 adapter(`sdks/cocos`、`sdks/miniprogram` 的 platform/wechat,`sdks/laybox` 的 platform/laya) | Unity 批次 5 落位(传输/安全存储/前后台);批次 6 service 域服务+SSE 解析、ui 面板;批次 8 App/Config/Branding/Player 域服务 + diagnostics 可选包(默认全关 no-op);批次 9 Assistant 域服务 + 助手面板(转人工);批次 10 Payment 域服务(下单/轮询);批次 37 SSE 流读接线(`UnityWebRequestSseSource`,编排退避/重连/解析在 Core+Service 纯逻辑,dotnet 77 例 [Fact] 覆盖——SSE 专属仅 16 例,引擎内 Test Runner 实跑随部署面);TS 三端批次 12-17 落位(wechat/laya 绑定;ui 包批次 17、diagnostics 包批次 20);批次 38 TS 三端 FetchSseSource(fetch 流读默认实现)+ UE SseSource 接缝落位;批次 39 微信 enableChunked 流源落位(cocos/miniprogram,头到回填连接 + 手写 UTF-8 解码);批次 40 laya XHR 流源落位(onprogress 增量 + onload 净关流重连;UE 引擎接线随引擎环境);ui 包批次 17、diagnostics 包批次 20 落位(cocos 首落,批次 41 三端对齐——TS 三端 node:test 各 123 例);Godot 批次 34/35/36 落位(HTTPClient 传输 + user:// 存储 + messages SSE 流读 + 前后台信号,真 socket 验证) |
-| L4 Service Provider | `gateway/providers/*` | 接口形状批次 2 冻结;account 批次 3;herald/croupier/chirp 批次 6(M2 三域,e2e 验收);router 治理引擎 + warden 实名批次 7(consent 组 v1.1 批次 102);scribe + archivist 批次 8(M3,e2e 验收);sage 批次 9(M4,e2e 验收);teller 批次 10(M5,e2e 验收);accountalt 第二 identity 实现(同契约异构)批次 18;wardenalt 第二 realname 实现(托管核验)批次 64(consent 同形状批次 102);archivistalt 第二 player 实现(事件日志)批次 67;chirpalt 第二 messages 实现(环形日志+游标)批次 68;heraldalt 第二 announcements 实现(写时索引)批次 69;sagealt 第二 assistant 实现(写时预计算规范化)批次 70;scribealt 第二 app 实现(写时维度索引)批次 71;telleralt 第二 payments 实现(事件账本投影)批次 72;croupieralt 第二 support 实现(写时属主索引 + 键集游标)批次 73 |
-| L5 Gateway | `gateway/{cmd,routing,middleware,scope,aggregation,auth,session,e2e}` | 批次 2 骨架;auth/session 批次 3;能力驱动路由+SSE 通道+e2e 批次 6;维护门批次 8 |
+| L1 SDK Contract | `docs/contract/` + `tools/contractgen` | five primitives Frozen v1 + auth v1.1 + three M2 domains v1.1 + realname v1.1 (consent group landed batch 102) + five M3 domains (config/app/branding/player/diagnostics) v1 + assistant (M4) v1 + payment (M5) v1.1 + oauth v1 (batch 52); error codes v8 |
+| L2 Core | `sdks/unity/packages/com.courier.core/Runtime/{Core,Identity,Session}`;`sdks/cocos/src/core`;`sdks/ue/core` | Unity landed in batch 4 (state machine + auth domain, 48 cases; batch 37 SseStream seam + backoff); cocos TS landed in batches 12-13 (core + service, all domains); batch 38 landed the messages stream client (111 node:test cases across the three TS platforms, e2e against a real chunked server); batch 39 landed the incremental UTF-8 decoder (multi-byte sequences never torn across chunks, 123 node:test cases); UE C++ landed in batch 14 (core + service, all domains, pure ISO C++17 header-only); batch 38 landed stream orchestration (seven g++ suites all green) |
+| L3 Platform Adapter | `sdks/unity/packages/com.courier.core/Runtime/Adapter` (+UPM packages; `tools/packcheck`); the three TS platforms' adapters (`platform/wechat` in `sdks/cocos` and `sdks/miniprogram`, `platform/laya` in `sdks/laybox`) | Unity landed in batch 5 (transport / secure storage / foreground-background); batch 6 service domain services + SSE parsing, UI panels; batch 8 App/Config/Branding/Player domain services + the diagnostics optional package (all off by default, no-op); batch 9 Assistant domain service + assistant panel (handoff to human); batch 10 Payment domain service (order placement / polling); batch 37 SSE stream-read wiring (`UnityWebRequestSseSource`, with backoff / reconnect / parsing orchestration as pure logic in Core+Service, covered by 77 dotnet [Fact] cases — only 16 of them SSE-specific; actual runs in the engine Test Runner wait on the deployment side); the three TS platforms landed in batches 12-17 (wechat/laya bindings; ui package batch 17, diagnostics package batch 20); batch 38 landed FetchSseSource for the three TS platforms (default fetch stream-read implementation) + the UE SseSource seam; batch 39 landed the WeChat enableChunked stream source (cocos/miniprogram, headers-then-backfill connection + hand-written UTF-8 decoding); batch 40 landed the laya XHR stream source (onprogress increments + clean close-and-reconnect on onload; UE engine wiring waits on the engine environment); the ui package (batch 17) and diagnostics package (batch 20) landed (cocos first, batch 41 aligned all three platforms — 123 node:test cases each on the TS platforms); Godot landed in batches 34/35/36 (HTTPClient transport + user:// storage + messages SSE stream reads + foreground/background signals, verified over real sockets) |
+| L4 Service Provider | `gateway/providers/*` | interface shape frozen in batch 2; account batch 3; herald/croupier/chirp batch 6 (three M2 domains, e2e acceptance); router governance engine + warden real name batch 7 (consent group v1.1 batch 102); scribe + archivist batch 8 (M3, e2e acceptance); sage batch 9 (M4, e2e acceptance); teller batch 10 (M5, e2e acceptance); accountalt second identity implementation (heterogeneous under the same contract) batch 18; wardenalt second realname implementation (managed verification) batch 64 (consent same shape batch 102); archivistalt second player implementation (event log) batch 67; chirpalt second messages implementation (ring log + cursor) batch 68; heraldalt second announcements implementation (write-time indexing) batch 69; sagealt second assistant implementation (write-time precomputed normalization) batch 70; scribealt second app implementation (write-time dimension indexing) batch 71; telleralt second payments implementation (event ledger projection) batch 72; croupieralt second support implementation (write-time owner index + keyset cursor) batch 73 |
+| L5 Gateway | `gateway/{cmd,routing,middleware,scope,aggregation,auth,session,e2e}` | batch 2 skeleton; auth/session batch 3; capability-driven routing + SSE channel + e2e batch 6; maintenance gate batch 8 |
 
-## 演进原则
+## Evolution Principles
 
-- 每层先立「接口形状 + 一个最小实现」再横向铺;不做半个功能。
-- 分批节奏与验收见 [todo](./todo.md);业务里程碑见 [roadmap](./roadmap.md)。
+- Each layer first stands up "interface shape + one minimal implementation" before spreading horizontally; no half-features.
+- For batch cadence and acceptance see [todo](./todo.md); for business milestones see [roadmap](./roadmap.md).

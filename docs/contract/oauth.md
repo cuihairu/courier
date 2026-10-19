@@ -1,107 +1,107 @@
 
-# 第三方身份提供方契约(OAuth / SSO)
+# Third-Party Identity Provider Contract (OAuth / SSO)
 
-> 状态:**Frozen v1**(2026-10-12,批次 52 冻结;原 Draft v0.1 提案 2026-10-11 批次 49,按原文冻结不改语义)· 能力域 `oauth`(路由 `/v1/identity/oauth/*`)。
-> 域前缀 `OAUTH` 随本域冻结入 [errors.md](./errors.md) v6(不动现有冻结行)。
+> Status: **Frozen v1** (2026-10-12, frozen in batch 52; the original Draft v0.1 proposal was 2026-10-11 batch 49, frozen as written without changing semantics) · Capability domain `oauth` (routes `/v1/identity/oauth/*`).
+> The domain prefix `OAUTH` enters [errors.md](./errors.md) v6 with this domain's freeze (existing frozen rows are untouched).
 
-## 为什么是独立域
+## Why a Separate Domain
 
-- [auth.md](./auth.md) v1 冻结口径(第 10 行)明示「第三方 OAuth / 手机号」不覆盖,留给后续域契约扩展;F03 提案的扩展表亦约定「OAuth 域契约扩展时 `type` 加枚举值即覆盖」。
-- 第三方提供方(Google / Apple / 微信 / Facebook / Line / Discord / Steam …)本质是**供应商**:验证机制(JWKS / introspection / code 换 token)、client secret、app 配置全在管理面,玩家契约只见「拿第三方凭证换 Courier 会话」。契约必须对「有哪些供应商」保持无感。
-- 与 [auth.md](./auth.md) 的边界:本域**不重新设计账号、会话、token 模型**——`accounts` / `sessions` / `devices` 与 token 轮换、重放检测、scope 绑定全部复用 auth 域;本域只加「第三方身份 ↔ 账号」的映射与换绑/解绑端点。
+- [auth.md](./auth.md) v1's frozen wording (line 10) explicitly states that "third-party OAuth / phone number" is not covered, leaving it for later domain contract extensions; the F03 proposal's extension table likewise stipulates that "when the OAuth domain contract is extended, adding an enum value to `type` covers it".
+- Third-party providers (Google / Apple / WeChat / Facebook / Line / Discord / Steam …) are essentially **vendors**: the verification mechanism (JWKS / introspection / code-for-token), client secret, and app configuration all live on the admin side, and the player contract only sees "exchange third-party credentials for a Courier session". The contract must remain agnostic about "which vendors exist".
+- Boundary with [auth.md](./auth.md): this domain **does not redesign the account, session, or token model** — `accounts` / `sessions` / `devices`, token rotation, replay detection, and scope binding are all reused from the auth domain; this domain only adds the "third-party identity ↔ account" mapping and the rebind/unbind endpoints.
 
-## 能力与范围
+## Capabilities and Scope
 
-- 能力域 `oauth`(`providers.CapOAuth`),默认供应商 **courier-account**(可换可关,同 auth 域供应商面)。
-- 提供三件事:**用第三方身份换 Courier 会话**、**把第三方身份绑到已登录账号**、**解绑与查询绑定**。
-- 本契约**不覆盖**:第三方 SDK 集成(接入方自行集成并取凭证)、手机号验证码登录(同构域,另提)、第三方账号资料(头像/昵称归 [player.md](./player.md) 或 Provider)、第三方账号注销(归 auth.md F03 提案的 `OnAccountDeleted` 钩子链)。
+- Capability domain `oauth` (`providers.CapOAuth`), default provider **courier-account** (swappable and disableable, the same provider surface as the auth domain).
+- Provides three things: **exchange a third-party identity for a Courier session**, **bind a third-party identity to a logged-in account**, and **unbind and query bindings**.
+- This contract **does not cover**: third-party SDK integration (integrators integrate on their own and obtain the credentials), phone-number verification-code login (an isomorphic domain, proposed separately), third-party account profile (avatar/nickname belong to [player.md](./player.md) or the Provider), third-party account deletion (belongs to the `OnAccountDeleted` hook chain of the auth.md F03 proposal).
 
-## 端点总览(挂载 `/v1/identity/oauth/*`)
+## Endpoint Overview (mounted at `/v1/identity/oauth/*`)
 
-| 端点 | 认证 | 说明 |
+| Endpoint | Auth | Description |
 | --- | --- | --- |
-| `POST /v1/identity/oauth/exchange` | 匿名 | 第三方凭证换 Courier 会话(无匹配即创建账号) |
-| `POST /v1/identity/oauth/bind` | Bearer | 当前账号绑定第三方身份 |
-| `DELETE /v1/identity/oauth/bindings/{provider}` | Bearer | 解绑当前账号的指定提供方 |
-| `GET /v1/identity/oauth/bindings` | Bearer | 当前账号已绑定列表 |
+| `POST /v1/identity/oauth/exchange` | anonymous | Exchange third-party credentials for a Courier session (creates an account if there is no match) |
+| `POST /v1/identity/oauth/bind` | Bearer | Bind a third-party identity to the current account |
+| `DELETE /v1/identity/oauth/bindings/{provider}` | Bearer | Unbind the specified provider from the current account |
+| `GET /v1/identity/oauth/bindings` | Bearer | List of the current account's bindings |
 
-- scope header、信封、分页、限流口径同 [auth.md](./auth.md) / [primitives.md](./primitives.md);成功响应 HTTP 200。
-- 敏感端点(`exchange` / `bind`)并入 auth 域 IP 限流桶。
+- The scope header, envelope, pagination, and rate limiting follow [auth.md](./auth.md) / [primitives.md](./primitives.md); successful responses are HTTP 200.
+- Sensitive endpoints (`exchange` / `bind`) join the auth domain's IP rate-limit bucket.
 
-## 数据模型
+## Data Model
 
-沿用 auth 域 `accounts` / `sessions` / `devices`,本域只加一张映射表:
+The auth domain's `accounts` / `sessions` / `devices` are reused; this domain adds only one mapping table:
 
-### account_identities(第三方身份映射,account 维度)
+### account_identities (third-party identity mapping, account dimension)
 
-| 字段 | 说明 |
+| Field | Description |
 | --- | --- |
 | `accountId` | → accounts.id |
-| `provider` | 提供方标识(小写字母数字与连字符,如 `google` / `apple` / `wechat`);**管理面注册集合,契约不枚举** |
-| `subject` | 第三方用户唯一标识(经第三方验证后取得的归一标识) |
-| `createdAt` | 绑定时间 |
+| `provider` | Provider identifier (lowercase letters, digits, and hyphens, e.g. `google` / `apple` / `wechat`); **an admin-side registered set, not enumerated by the contract** |
+| `subject` | The third-party user's unique identifier (the normalized identifier obtained after third-party verification) |
+| `createdAt` | Binding time |
 
-- `(provider, subject)` 全局唯一;`(accountId, provider)` 唯一。
-- `accounts.type` 增枚举值 `OAUTH`(加法,随本域冻结一并落 auth.md):纯第三方登录创建的账号为 `OAUTH` 类型,无凭证行,行为对齐 `GUEST` 的最小凭证形态。
+- `(provider, subject)` is globally unique; `(accountId, provider)` is unique.
+- `accounts.type` gains the enum value `OAUTH` (additive, landing in auth.md with this domain's freeze): an account created by pure third-party login is of type `OAUTH`, has no credential row, and behaves like `GUEST`'s minimal credential form.
 
-### 数据红线(内建,不采集即不承诺)
+### Data Red Lines (built in; no collection means no commitment)
 
-- **不存第三方凭证原文**:只存 `provider + subject` 映射;每次登录重新向第三方在线验证,不缓存 id_token / access_token。
-- **不向第三方回传 Courier 数据**:验证是无请求侧交互(拉取式校验),不把 accountId / email / 设备信息推给任何第三方。
-- `subject` 必须来自第三方验证结果,**客户端不得自报**;验证失败一律 `OAUTH_IDENTITY_INVALID`,不区分「无效」与「过期」(防枚举)。
+- **Never store third-party credentials in the clear**: only the `provider + subject` mapping is stored; every login re-verifies online against the third party, and no id_token / access_token is cached.
+- **Never send Courier data back to the third party**: verification is a pull-based check with no request-side interaction; accountId / email / device information is never pushed to any third party.
+- `subject` must come from the third-party verification result and **must not be self-reported by the client**; any verification failure gives `OAUTH_IDENTITY_INVALID`, without distinguishing "invalid" from "expired" (prevents enumeration).
 
-## 端点契约
+## Endpoint Contracts
 
 ### POST /v1/identity/oauth/exchange — `{ provider, token, tokenType?, deviceId?, platform? }`
 
-- `provider` 必填;未在管理面注册或未开启 → `OAUTH_PROVIDER_UNKNOWN`(400)。
-- `token` 必填:第三方颁发的凭证;`tokenType` 可选枚举 `ID_TOKEN` / `ACCESS_TOKEN` / `CODE`,缺省 `ID_TOKEN`——具体校验方式由提供方实现决定(JWKS 验签 / introspection / code 换 token),**契约不描述校验细节**。
-- 校验流程:服务端向第三方在线验证 → 取得 `subject` → 查 `account_identities` → 命中则登录该账号,未命中则创建 `type=OAUTH` 账号并写入映射 → 签发绑定 scope 的会话。
-- 响应 `data` 与 [auth.md](./auth.md) `POST /login` 同构(`tokens` + `account` + `deviceId?`),`account.type = "OAUTH"`。
-- 第三方凭证无效/过期/伪造 → `OAUTH_IDENTITY_INVALID`(401);能力域关闭 → `COMMON_CAPABILITY_DISABLED`(501,域级降级统一语义,见 [errors.md](./errors.md));已达设备上限 → `AUTH_DEVICE_LIMIT`(403)。
+- `provider` is required; not registered or not enabled on the admin side → `OAUTH_PROVIDER_UNKNOWN` (400).
+- `token` is required: the credential issued by the third party; `tokenType` is an optional enum `ID_TOKEN` / `ACCESS_TOKEN` / `CODE`, defaulting to `ID_TOKEN` — the concrete verification method is decided by the provider implementation (JWKS signature verification / introspection / code-for-token), and **the contract does not describe verification details**.
+- Verification flow: the server verifies online against the third party → obtains `subject` → looks up `account_identities` → on a hit, logs in that account; on a miss, creates an account with `type=OAUTH` and writes the mapping → issues a scope-bound session.
+- The response `data` is isomorphic to [auth.md](./auth.md) `POST /login` (`tokens` + `account` + `deviceId?`), with `account.type = "OAUTH"`.
+- Third-party credentials invalid/expired/forged → `OAUTH_IDENTITY_INVALID` (401); capability domain disabled → `COMMON_CAPABILITY_DISABLED` (501, the unified semantics of domain-level degradation, see [errors.md](./errors.md)); device cap reached → `AUTH_DEVICE_LIMIT` (403).
 
-### POST /v1/identity/oauth/bind — `{ provider, token }`(Bearer)
+### POST /v1/identity/oauth/bind — `{ provider, token }` (Bearer)
 
-- 当前账号绑定该第三方身份,供下次一键登录(同 provider 多次绑定 = 覆盖前先解绑,重复绑定同 provider 返回 `COMMON_INVALID_ARGUMENT`)。
-- 该 `subject` 已绑定其他账号 → `OAUTH_IDENTITY_TAKEN`(409,提示已绑定其他账号);验证失败 → `OAUTH_IDENTITY_INVALID`(401)。
+- Binds that third-party identity to the current account for next-time one-tap login (binding the same provider multiple times = unbind first, then overwrite; a repeat binding of the same provider returns `COMMON_INVALID_ARGUMENT`).
+- That `subject` is already bound to another account → `OAUTH_IDENTITY_TAKEN` (409, indicating it is bound to another account); verification failure → `OAUTH_IDENTITY_INVALID` (401).
 
-### DELETE /v1/identity/oauth/bindings/{provider}(Bearer)
+### DELETE /v1/identity/oauth/bindings/{provider} (Bearer)
 
-- 解绑并删除映射行;幂等(不存在再删仍 200,返回 `data: {}`)。
-- 解绑不影响账号本身——`type=OAUTH` 账号解绑后仍存在(下次可重新绑定);是否回收空账号归管理面策略。
+- Unbinds and deletes the mapping row; idempotent (deleting a nonexistent one still returns 200 with `data: {}`).
+- Unbinding does not affect the account itself — a `type=OAUTH` account still exists after unbinding (it can be rebound next time); whether to reclaim empty accounts is an admin-side policy.
 
-### GET /v1/identity/oauth/bindings(Bearer)
+### GET /v1/identity/oauth/bindings (Bearer)
 
-- `data.items[]`:`{ provider, createdAt }`;按 `createdAt` 升序;不返回 `subject`(避免客户端侧泄露第三方标识)。
+- `data.items[]`: `{ provider, createdAt }`; sorted by `createdAt` ascending; `subject` is not returned (to avoid leaking the third-party identifier to the client).
 
-## 错误码(拟新增,随冻结入 errors.md)
+## Error Codes (proposed additions, entering errors.md with the freeze)
 
-| code | HTTP | retryable | 说明 |
+| code | HTTP | retryable | Description |
 | --- | --- | --- | --- |
-| `OAUTH_PROVIDER_UNKNOWN` | 400 | false | 提供方未注册或未开启 |
-| `OAUTH_IDENTITY_INVALID` | 401 | false | 第三方凭证验证失败/过期/伪造 |
-| `OAUTH_IDENTITY_TAKEN` | 409 | false | 该第三方身份已绑定其他账号 |
+| `OAUTH_PROVIDER_UNKNOWN` | 400 | false | Provider not registered or not enabled |
+| `OAUTH_IDENTITY_INVALID` | 401 | false | Third-party credential verification failed/expired/forged |
+| `OAUTH_IDENTITY_TAKEN` | 409 | false | That third-party identity is already bound to another account |
 
-域前缀 `OAUTH` 登记于 [errors.md](./errors.md) 注册表;其余(认证、scope、限流、能力关闭)一律通用码。
+The domain prefix `OAUTH` is registered in the [errors.md](./errors.md) registry; everything else (authentication, scope, rate limiting, capability disabled) uses generic codes throughout.
 
-## 客户端要求(各端 SDK)
+## Client Requirements (SDKs on each platform)
 
-- SDK **不内置任何第三方 SDK**:接入方自行集成 Google / Apple / 微信等 SDK 取得凭证,调 `exchange`;Courier 只见一个 `{ provider, token }` 形状。
-- 第三方凭证**只发一次**给本域端点,不得本地长期缓存;`OAUTH_IDENTITY_INVALID` → 引导重新授权,不自动重试。
-- `OAUTH_IDENTITY_TAKEN` → 提示「已绑定其他账号」,可引导改用该账号登录;`OAUTH_PROVIDER_UNKNOWN` → 提示该登录方式不可用(可能未配置)。
-- `COMMON_CAPABILITY_DISABLED`(oauth 域)→ 不展示对应登录入口。
-- token 存储、刷新、重放检测全部复用 auth 域口径([auth.md](./auth.md) 客户端要求节),本域签发的会话行为与普通会话无差异。
+- The SDK **bundles no third-party SDK**: integrators integrate Google / Apple / WeChat etc. themselves to obtain the credentials and call `exchange`; Courier sees only one `{ provider, token }` shape.
+- The third-party credential is **sent only once** to this domain's endpoint and must not be cached locally long-term; `OAUTH_IDENTITY_INVALID` → guide the user to re-authorize, do not retry automatically.
+- `OAUTH_IDENTITY_TAKEN` → indicate "already bound to another account" and optionally guide the user to log in with that account instead; `OAUTH_PROVIDER_UNKNOWN` → indicate that this login method is unavailable (possibly not configured).
+- `COMMON_CAPABILITY_DISABLED` (oauth domain) → do not show the corresponding login entry.
+- Token storage, refresh, and replay detection all reuse the auth domain's wording (the client requirements section of [auth.md](./auth.md)); sessions issued by this domain behave no differently from ordinary sessions.
 
-## 扩展与演进
+## Extensions and Evolution
 
-| 可能的扩展 | 兼容处理方式 |
+| Possible extension | Compatible handling |
 | --- | --- |
-| 新提供方(微信 / Line / Discord / Steam / Apple 中国区 …) | 管理面注册 + 提供方实现;`provider` 是开集字符串,**契约不动不升版** |
-| 手机号验证码登录 | 同构域:另一认证域提案(短信链路有独立验证语义与滥用防护,不塞进本域) |
-| OAuth 账号转正(绑邮箱) | 复用 auth 域 `bind` 语义扩展(写入 `account_credentials`),`type` 由 `OAUTH` 转 `EMAIL`;加字段不改表 |
-| 账号级联删除 | 复用 auth.md F03 提案的 `OnAccountDeleted` 钩子链;`account_identities` 行随账号匿名化清理,`accounts.id` 保留 |
-| 跨游戏身份贯通 | `account_identities` 挂公司级 account,天然跨游戏;但 token 跨游戏永不原地放开([scope.md](./scope.md) 红线) |
-| 同一 provider 多标识(微信 openid vs unionid) | Provider 配置层面归一到单一 `subject`,契约只见归一后的标识 |
-| 第三方资料展示(头像 / 昵称) | 归 [player.md](./player.md) 或 Provider,不进本域(字段最小化) |
-| 第三方凭证轮换 / 长期免登 | **不存第三方凭证**是红线,不因扩展松动;每次登录重新验证 |
-| 注销申诉 / 处罚拦截 | 归 support 域 F45 提案;本域签发的会话同样受其约束 |
+| New providers (WeChat / Line / Discord / Steam / Apple China region …) | Admin-side registration + provider implementation; `provider` is an open-set string, so **the contract is unchanged and the version does not bump** |
+| Phone-number verification-code login | An isomorphic domain: a separate auth domain proposal (the SMS path has its own verification semantics and abuse protection, so it is not stuffed into this domain) |
+| OAuth account upgrade (bind email) | Extends the auth domain's `bind` semantics for reuse (writing `account_credentials`), with `type` moving from `OAUTH` to `EMAIL`; fields are added without changing the table |
+| Account cascade deletion | Reuses the `OnAccountDeleted` hook chain of the auth.md F03 proposal; `account_identities` rows are cleaned up as the account is anonymized, and `accounts.id` is retained |
+| Cross-game identity linkage | `account_identities` hangs off the company-level account, so it is cross-game by nature; but tokens are never opened up across games in place ([scope.md](./scope.md) red line) |
+| Multiple identifiers per provider (WeChat openid vs unionid) | Normalized to a single `subject` at the Provider configuration level; the contract only sees the normalized identifier |
+| Third-party profile display (avatar / nickname) | Belongs to [player.md](./player.md) or the Provider, not to this domain (field minimization) |
+| Third-party credential rotation / long-term login-free | **Not storing third-party credentials** is a red line and does not loosen for extensions; every login re-verifies |
+| Deletion appeals / sanction interception | Belongs to the support domain F45 proposal; sessions issued by this domain are equally bound by it |

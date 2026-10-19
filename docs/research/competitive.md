@@ -1,68 +1,68 @@
 
-# 竞品调研:Courier 的取位与边界
+# Competitive Research: Courier's Positioning and Boundaries
 
-> 数据口径:GitHub 星数/活跃度经 GitHub API 核查,**截至 2026-10-13**(批次 55 复核:仅 Nakama 13,478→13,495、活跃度月份顺延;其余星数/停更状态未变,外部链接逐一 200);商业产品以官方文档为准。本文只做盘点与推论,不做背书;链接随论断给出,失效请提 issue。
+> Data basis: GitHub star counts/activity verified via the GitHub API, **as of 2026-10-13** (batch 55 re-check: only Nakama moved 13,478→13,495 with the activity month shifted; all other star counts/stalling states unchanged, external links verified 200 one by one); commercial products are based on official documentation. This document only inventories and infers; it does not endorse; links are given with the claims, and broken links should be reported via an issue.
 
-## 一句话结论
+## One-Sentence Conclusion
 
-「跨引擎客户端 SDK + 服务递送聚合」这个品类在开源世界是空位:开源强在游戏服务器(Nakama),商业强在渠道聚合(MSDK/QuickSDK/XDSDK),**没有人把「账号 + 公告 + 客服 + 支付 + 合规 + 配置」当作跨引擎统一契约来管**。Courier 取这个位;同时明确不做实时多人/匹配与渠道聚合。
+The category of "cross-engine client SDK + service delivery aggregation" is a gap in the open-source world: open source is strong at game servers (Nakama), commercial products are strong at channel aggregation (MSDK/QuickSDK/XDSDK), and **nobody manages "account + announcements + support + payments + compliance + config" as a cross-engine unified contract**. Courier takes this position; at the same time it explicitly does not do realtime multiplayer/matching or channel aggregation.
 
-![竞品取位图:品类空位在「开源 × 服务递送」象限](./assets/competitive-position.svg)
+![Competitive positioning map: the category gap is in the "open source × service delivery" quadrant](./assets/competitive-position.svg)
 
-## 开源直接对标
+## Open-Source Direct Competitors
 
-> **结论先行:开源阵营没有「服务型聚合 SDK」——最近的 Nakama 是另一个物种,其余要么停滞要么绑云。**
+> **Bottom line up front: the open-source camp has no "service-aggregation SDK" — the nearest, Nakama, is a different species entirely; the rest are either stalled or cloud-bound.**
 
-| 项目 | 定位 | 星数 | 活跃度(最后推送) | 与 Courier 的差异 |
+| Project | Positioning | Stars | Activity (last push) | Difference from Courier |
 | --- | --- | --- | --- | --- |
-| [Nakama](https://github.com/heroiclabs/nakama) | 开源游戏服务器(实时多人/匹配/排行榜/聊天/社交) | 13,495 | 2026-10(活跃,Go,Apache-2.0) | 它是**一整套服务器**;Courier 是客户端 SDK + 轻网关,不碰实时多人/匹配 |
-| [Open Game Backend(OpenGB)](https://github.com/OpenGameBackend/OpenGameBackend) | 模块化可脚本化游戏后端(TypeScript,Rivet 系) | 主仓 2;插件 57/10/5 | 2024-11 起停更;[Rivet 侧已 archived](https://github.com/rivet-dev/toolchain) | 方向相近但已停滞/被吸收——品类的反面教材 |
-| [XtraLife](https://github.com/xtralifecloud/xtralife-server) | 开源游戏 BaaS(前身 Clan of the Cloud,Node.js) | 5 | 2024-10(零星),org 多数仓 2016–2022 停更 | 用户/存储/货币型 BaaS,无公告/客服/合规面;事实上无人维护 |
-| [Playgama Bridge](https://github.com/Playgama/bridge)([Unity 版](https://github.com/Playgama/bridge-unity)) | HTML5 游戏一键发 20+ web 平台的平台抽象 SDK | 121 / 56 | 2026-10(活跃,TS/LGPL、C#/MIT) | 抽象的是「**发布平台**」(Poki/CrazyGames/Yandex),Courier 抽象的是「**游戏服务后端**」;Web 桥 ≠ 通用服务 SDK |
-| [AWS Game Backend Framework](https://github.com/aws-solutions-library-samples/guidance-for-custom-game-backend-hosting-on-aws) | AWS 托管服务组合的后端模板(Cognito/AppSync/DynamoDB 等 Guidance) | 60 | 2026-08 | 云绑定的基础设施模板,非引擎 SDK;Courier 云中立、SDK 优先 |
+| [Nakama](https://github.com/heroiclabs/nakama) | Open-source game server (realtime multiplayer/matching/leaderboards/chat/social) | 13,495 | 2026-10 (active, Go, Apache-2.0) | It is **a whole server**; Courier is a client SDK + lightweight gateway and does not touch realtime multiplayer/matching |
+| [Open Game Backend (OpenGB)](https://github.com/OpenGameBackend/OpenGameBackend) | Modular scriptable game backend (TypeScript, Rivet-affiliated) | main repo 2; plugins 57/10/5 | Stalled since 2024-11; [the Rivet side is archived](https://github.com/rivet-dev/toolchain) | Closest direction but stalled/absorbed — a cautionary tale for the category |
+| [XtraLife](https://github.com/xtralifecloud/xtralife-server) | Open-source game BaaS (formerly Clan of the Cloud, Node.js) | 5 | 2024-10 (sporadic), most org repos stalled 2016–2022 | A user/storage/currency BaaS with no announcements/support/compliance surface; effectively unmaintained |
+| [Playgama Bridge](https://github.com/Playgama/bridge) ([Unity version](https://github.com/Playgama/bridge-unity)) | Platform abstraction SDK that publishes HTML5 games to 20+ web platforms with one click | 121 / 56 | 2026-10 (active, TS/LGPL, C#/MIT) | It abstracts "**publishing platforms**" (Poki/CrazyGames/Yandex); Courier abstracts "**game service backends**"; a web bridge is not a general-purpose services SDK |
+| [AWS Game Backend Framework](https://github.com/aws-solutions-library-samples/guidance-for-custom-game-backend-hosting-on-aws) | Backend template composed of AWS managed services (Cognito/AppSync/DynamoDB and similar Guidance) | 60 | 2026-08 | Cloud-bound infrastructure template, not an engine SDK; Courier is cloud-neutral and SDK-first |
 
-### Nakama:最近的邻居,不同的物种
+### Nakama: The Nearest Neighbor, a Different Species
 
-Nakama 是这个领域质量最高的开源项目,值得尊重也有明确边界:
+Nakama is the highest-quality open-source project in this space, deserving respect and having clear boundaries:
 
-- 它的核心价值是**服务器能力**(实时多人、匹配、排行榜、聊天),客户端 SDK 是其服务器的接入层。
-- 账号体系绑定 Nakama 自身服务器;公告、客服工单、支付递送、实名合规、远程配置不在其能力面。
-- Courier 的核心价值是**客户端契约与能力编排**:Gateway 只是契约的实现者,后端可整体替换。两者可共存(游戏用 Nakama 做对战服,用 Courier 做账号/公告/客服/支付递送),不互斥。
+- Its core value is **server capabilities** (realtime multiplayer, matching, leaderboards, chat); the client SDK is the access layer to its server.
+- Its account system is bound to Nakama's own server; announcements, support tickets, payment delivery, real-name compliance, and remote config are not in its capability surface.
+- Courier's core value is **client-side contract and capability orchestration**: the Gateway is merely the implementer of the contract, and the backend can be replaced wholesale. The two can coexist (the game uses Nakama for battle servers and Courier for accounts/announcements/support/payment delivery) — they are not mutually exclusive.
 
-## 商业参照(闭源,看方向不看代码)
+## Commercial References (closed source; look at direction, not code)
 
-> **结论先行:商业聚合证明了需求真实,且共同趋势是「模块化选装 + UI 剥离给游戏 + 合规内置」——三条都与 Courier 设计互相印证。**
+> **Bottom line up front: commercial aggregation proves the demand is real, and the common trend is "modular on-demand selection + UI stripped to the game + compliance built in" — all three corroborate Courier's design.**
 
-| 产品 | 切入点 | 对 Courier 的启示 |
+| Product | Angle of entry | Lesson for Courier |
 | --- | --- | --- |
-| [腾讯 MSDK](https://docs.msdk.qq.com/) | 登录渠道(WeChat/QQ/Facebook/GameCenter/GooglePlay)、支付、Bugly 等全部**插件化按需选装**(GCloud 管理端下载时选模块,见[模块说明](https://docs.msdk.qq.com/v5/zh-CN/Module/Modules.html)、[PC 接入](https://docs.msdk.qq.com/v5/zh-CN/Access/PC.html)) | 「按需选装」验证了 Courier 的 Provider/可选包设计;商业聚合证明了需求真实存在 |
-| [QuickSDK](https://www.quicksdk.com/) | 国内手游渠道聚合(登录+充值),联运发行方案;强调服务端 token 验证防伪造 | 渠道聚合是发行侧生意,Courier 不做;但「客户端拿到的凭证必须服务端验证」的安全口径一致 |
-| [XDSDK](https://sdk-docs.xindong.com/anti-addiction)([文档中心](https://xindong.github.io/XDSDK-Doc/),[PC SDK](https://github.com/xd-platform/XDSDK-UE-PC)) | TapTap 登录/支付;实名防沉迷模块(v6.4.0 起剥离,指向 [TapSDK 合规认证](https://developer.taptap.cn/docs/v3/sdk/anti-addiction/guide),分「已有版号/暂无版号」方案) | 两条:①实名防沉迷是国内 SDK 的**必备合规项**(印证 Courier RealName 的必要性);②登录 UI 由游戏自绘、SDK 剥离 UI 的趋势,与 Courier「UI 永远可选」的口径一致 |
+| [Tencent MSDK](https://docs.msdk.qq.com/) | Login channels (WeChat/QQ/Facebook/GameCenter/GooglePlay), payments, Bugly and the rest all **plugged in and selected on demand** (modules chosen when downloading from the GCloud console, see [module descriptions](https://docs.msdk.qq.com/v5/zh-CN/Module/Modules.html), [PC integration](https://docs.msdk.qq.com/v5/zh-CN/Access/PC.html)) | "On-demand selection" validates Courier's Provider/optional-package design; commercial aggregation proves the demand is real |
+| [QuickSDK](https://www.quicksdk.com/) | China domestic mobile-game channel aggregation (login + top-up), co-publishing distribution; emphasizes server-side token verification against forgery | Channel aggregation is a distribution-side business, which Courier does not do; but the security posture "credentials obtained by the client must be server-verified" is identical |
+| [XDSDK](https://sdk-docs.xindong.com/anti-addiction) ([doc center](https://xindong.github.io/XDSDK-Doc/), [PC SDK](https://github.com/xd-platform/XDSDK-UE-PC)) | TapTap login/payment; the real-name anti-addiction module (stripped out starting v6.4.0, pointing to [TapSDK compliance certification](https://developer.taptap.cn/docs/v3/sdk/anti-addiction/guide), split into "already has a game license / no license yet" plans) | Two lessons: ① real-name anti-addiction is a **must-have compliance item** for domestic SDKs (confirming the necessity of Courier RealName); ② the trend of the game drawing its own login UI while the SDK strips UI matches Courier's "UI is always optional" posture |
 
-## 三条结论
+## Three Conclusions
 
-**1. 品类有空位:开源没有「服务型聚合 SDK」。**
-开源阵营里,Nakama 管服务器,OpenGB/XtraLife 已停滞或无人维护,AWS 方案绑云——没有人把「账号 + 公告 + 客服 + 支付递送 + 合规 + 远程配置」作为跨引擎客户端统一契约来经营。商业聚合(MSDK/QuickSDK/XDSDK)闭源、绑渠道、绑发行体系,不服务自建后端的团队。Courier 取位:开源的「服务递送聚合 SDK」,后端 Provider 开放可换。
+**1. The category has a gap: open source has no "service-aggregation SDK".**
+In the open-source camp, Nakama owns the server; OpenGB/XtraLife are stalled or unmaintained; AWS's solution is cloud-bound — nobody runs "account + announcements + support + payment delivery + compliance + remote config" as a cross-engine client-side unified contract. Commercial aggregation (MSDK/QuickSDK/XDSDK) is closed source, channel-bound, and bound to distribution systems, and does not serve teams building their own backends. Courier takes the position: an open-source "service delivery aggregation SDK" with an open, swappable backend Provider.
 
-**2. 抄两点:Nakama 的多引擎工程实践 + MSDK 的插件化选装。**
-Nakama 值得抄的是工程面:每个引擎一等公民、示例与文档齐平、契约行为跨端一致(这正是 Courier M0 立宪要保证的)。MSDK 值得抄的是产品面:功能全部插件化、按需选装、可拆可删(与 Courier「Provider 可换可关 + UI/Diagnostics 可选包」同一哲学,互相印证)。
+**2. Copy two things: Nakama's multi-engine engineering practice + MSDK's modularized selection.**
+What is worth copying from Nakama is the engineering side: every engine is a first-class citizen, examples and docs are at parity, and contract behavior is consistent across platforms (exactly what Courier's M0 constitution must guarantee). What is worth copying from MSDK is the product side: all features are pluggable, selected on demand, and removable (the same philosophy as Courier's "Provider swappable and shutoff + UI/Diagnostics optional packages", corroborating each other).
 
-**3. 边界:实时与渠道,不做。**
-实时多人/匹配/大厅服务器是 Nakama / Agones 的地盘,Courier 不碰;渠道包聚合联运是 MSDK / QuickSDK / XDSDK 的地盘,Courier 不碰。Courier 是「玩家世界与游戏服务生态之间的门」:服务递送层。这条边界同时写进 [roadmap 非目标](../roadmap.md)。
+**3. Boundaries: realtime and channels, not doing.**
+Realtime multiplayer/matching/lobby servers are Nakama / Agones's territory, which Courier does not touch; channel-package aggregation and co-publishing are MSDK / QuickSDK / XDSDK's territory, which Courier does not touch. Courier is "the gate between the player world and the game service ecosystem": the service delivery layer. This boundary is also written into the [roadmap non-goals](../roadmap.md).
 
-## 可参考分析
+## Reference-Worthy Analysis
 
-> **结论先行:9 个对标对象里 6 条可参考/可借鉴(全部已或将有本仓落点),3 条不适用(边界佐证)。**
+> **Bottom line up front: of the 9 benchmark targets, 6 are reference-worthy/borrowable (all already have or will have landing points in this repo), 3 are not applicable (boundary evidence).**
 
-| 对象/做法 | 判定 | 为什么 | 落到本仓哪里 |
+| Target / practice | Verdict | Why | Where it lands in this repo |
 | --- | --- | --- | --- |
-| Nakama 的多引擎工程实践(每引擎一等公民、契约行为跨端一致) | ✅ 可参考 | 「跨端一致」是本品类最稀缺的承诺,Nakama 证明了它在开源世界可维护 | 五层架构与 L1 契约测试骨架(`tools/contractgen` 六端生成、漂移即测试红,[todo 批次 1](../todo.md) 已落地);各端 Adapter 按批次推进 |
-| Nakama 实时多人/匹配/大厅/聊天 | ⬜ 不适用 | 玩法服务器能力,Courier 定位是服务递送层;做进去就是第二个 Nakama | [roadmap 非目标](../roadmap.md)(已登记,维持) |
-| OpenGB 的模块化可脚本化后端 | ⚠️ 可借鉴(反面) | 方向与 Courier 最接近却停滞、被 Rivet 吸收——教训:**先冻结契约、小核心大生态**,否则插件仓失焦 | M0「契约先行」(实现动工前基元+auth+M2 三域已冻结);Provider 接口形状批次 2 冻结而非开放生长 |
-| XtraLife 开源 BaaS | ⬜ 不适用 | 无公告/客服/合规面且事实上停止维护,无工程可抄 | —(仅作品类停滞旁证) |
-| Playgama Bridge 的 20+ 平台适配组织 | ⚠️ 可借鉴 | 它抽象「发布平台」、Courier 抽象「服务后端」,是两个品类;但其「平台差异全部压进一层适配」的组织方式值得镜鉴 | L3 Adapter 边界([layers.md](../layers.md)):平台差异只进 Adapter,Core 不碰平台(packcheck 结构验收守) |
-| AWS Game Backend Framework | ⬜ 不适用 | 云绑定基础设施模板,与「云中立、SDK 优先」定位相反 | —(反衬云中立原则;Gateway/Provider 不绑云) |
-| MSDK 插件化按需选装 | ✅ 可参考 | 商业聚合验证了「不为用不到的功能付体积」是真实付费需求 | Provider 可换可关原则 + UPM 四包(core/service/ui/diagnostics);Diagnostics/UI 永远可选 |
-| QuickSDK 的服务端 token 验签口径 | ✅ 可参考 | 「客户端凭证不可信、必须服务端验证」跨品类成立(登录凭证与支付收据同理) | [auth.md](../contract/auth.md) Token 模型(Bearer+轮换+吊销,已冻结);支付收据验真已随 M5 冻结(payment.md) |
-| XDSDK 实名防沉迷(模块剥离给 TapSDK) | ✅ 可参考 | 国内合规是上架硬门槛,「实名做成默认路径而非扩展模块」被头部发行验证 | [realname.md](../contract/realname.md) 契约 + [todo 批次 7](../todo.md) 热插拔/降级链/熔断;红线(默认关、开启明示数据范围)已写进契约宪法 |
-| XDSDK/MSDK 的登录 UI 剥离趋势 | ✅ 可参考 | 递送型 SDK 不该绑 UI 是行业共同走向 | `com.courier.ui` 独立可选包;Core 无品牌逻辑、无强制 UI(layers.md L2/L3 边界) |
+| Nakama's multi-engine engineering practice (every engine first-class, contract behavior consistent across platforms) | ✅ worth referencing | "Consistent across platforms" is the scarcest promise in this category, and Nakama proved it is maintainable in the open-source world | The five-layer architecture and the L1 contract test skeleton (`tools/contractgen` six-platform generation, drift turns tests red, [todo batch 1](../todo.md) landed); per-platform Adapters advance batch by batch |
+| Nakama's realtime multiplayer/matching/lobby/chat | ⬜ not applicable | Gameplay-server capabilities; Courier's positioning is the service delivery layer; building them in would make it a second Nakama | [roadmap non-goals](../roadmap.md) (registered, maintained) |
+| OpenGB's modular scriptable backend | ⚠️ worth borrowing (cautionary) | The direction closest to Courier, yet stalled and absorbed by Rivet — the lesson: **freeze the contract first, keep the core small and the ecosystem large**, otherwise plugin repos lose focus | M0's "contract first" (primitives + auth + the M2 three domains frozen before implementation started); Provider interface shapes frozen at batch 2 rather than growing openly |
+| XtraLife's open-source BaaS | ⬜ not applicable | No announcements/support/compliance surface and effectively stopped maintaining; nothing engineering-wise to copy | — (serves only as side evidence of category stagnation) |
+| Playgama Bridge's 20+ platform adaptation organization | ⚠️ worth borrowing | It abstracts "publishing platforms" while Courier abstracts "service backends" — two categories; but its organization of "pressing all platform differences into one adaptation layer" is worth mirroring | The L3 Adapter boundary ([layers.md](../layers.md)): platform differences only enter the Adapter, Core never touches platforms (guarded by packcheck structure acceptance) |
+| AWS Game Backend Framework | ⬜ not applicable | Cloud-bound infrastructure template, the opposite of the "cloud-neutral, SDK-first" positioning | — (serves as a foil for the cloud-neutral principle; Gateway/Provider are not cloud-bound) |
+| MSDK's modularized on-demand selection | ✅ worth referencing | Commercial aggregation validated that "not paying size for features you don't use" is a real paying demand | The Provider swappable-and-shutoff principle + the four UPM packages (core/service/ui/diagnostics); Diagnostics/UI are always optional |
+| QuickSDK's server-side token verification stance | ✅ worth referencing | "Client credentials are untrusted and must be server-verified" holds across categories (login credentials and payment receipts alike) | The [auth.md](../contract/auth.md) Token model (Bearer + rotation + revocation, frozen); payment receipt validation was frozen along with M5 (payment.md) |
+| XDSDK's real-name anti-addiction (module stripped to TapSDK) | ✅ worth referencing | Domestic compliance is a hard store-listing gate, and "real name as the default path rather than an extension module" has been validated by top publishers | The [realname.md](../contract/realname.md) contract + [todo batch 7](../todo.md) hot-swap/degradation chain/circuit breaker; the red line (off by default, data scope stated explicitly when enabled) is written into the contract constitution |
+| The login-UI stripping trend of XDSDK/MSDK | ✅ worth referencing | That a delivery-type SDK should not bind UI is the industry's common direction | `com.courier.ui` as a separate optional package; Core has no branding logic and no forced UI (layers.md L2/L3 boundary) |

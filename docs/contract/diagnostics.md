@@ -1,31 +1,31 @@
 
-# 诊断契约(Diagnostics)——可选能力
+# Diagnostics Contract (Diagnostics) — Optional Capability
 
-> 状态:**Frozen v1**(2026-10-09,M3)· 可选包(不进核心包)· 默认全关。
-> 哲学:**未配置即 no-op,零开销**——不初始化实例、不起后台线程、不建队列。
-> 诊断数据直发接入方自选端点(Sentry / OTLP collector / 自有 HTTP),**不经 Courier 网关**;网关与默认供应商均不感知本域。
+> Status: **Frozen v1** (2026-10-09, M3) · optional package (not in the core package) · off by default.
+> Philosophy: **unconfigured = no-op with zero overhead** — no instance is initialized, no background thread is started, no queue is built.
+> Diagnostic data goes straight to an integrator-chosen endpoint (Sentry / OTLP collector / their own HTTP), **never through the Courier gateway**; neither the gateway nor the default providers are aware of this domain.
 
-## 红线(内建,Provider 不得覆盖)
+## Red Lines (built in, Providers must not override)
 
-1. **默认关闭**:四类能力全部 off。
-2. **显式开启**:每类独立开关(`diagnostics.crash.enabled` 等),开启必须同时配置上报端点;只开端点不开启关 = 关。
-3. **开启即明示**:下文数据范围表即对外口径;接入方隐私政策须覆盖所选类别。
-4. **关闭即零上报**:关闭后不留缓冲、不发缓存队列、不补报。v1 上报为直发不缓冲,该红线由构造保证(见「发送语义」)。
-5. **敏感接口隔离**:实名等敏感接口的请求/响应体永不进入任何诊断采集(全局红线,非本模块可配)。
-6. **永不反噬游戏**:诊断上报失败(网络错/非 2xx)静默丢弃,不重试、不缓存、不抛错、不阻塞调用线程。
+1. **Off by default**: all four capability types are off.
+2. **Explicit opt-in**: each type has its own switch (`diagnostics.crash.enabled` etc.); enabling requires configuring the reporting endpoint at the same time; configuring the endpoint without flipping the switch = still off.
+3. **Enabling means disclosure**: the data-scope table below is the external wording; the integrator's privacy policy must cover the selected categories.
+4. **Disabled means zero reporting**: once off, no buffer remains, no cached queue is sent, no catch-up reports. v1 reporting is direct-send with no buffering, so this red line is guaranteed by construction (see the send semantics below).
+5. **Sensitive-interface isolation**: request/response bodies of sensitive interfaces such as real-name verification never enter any diagnostic collection (a global red line, not configurable per module).
+6. **Never hurts the game**: a failed diagnostic report (network error / non-2xx) is silently dropped — no retry, no caching, no throwing, no blocking of the calling thread.
 
-## 四类能力与 Provider 生态
+## The Four Capability Types and the Provider Ecosystem
 
-| 类别 | 内容 | Provider 生态 |
+| Category | Content | Provider Ecosystem |
 | --- | --- | --- |
-| Crash / Error Tracking | 未捕获异常、错误上报、breadcrumb | Sentry 协议(Sentry SaaS 或自托管 GlitchTip / Sentry) |
-| Trace | 分布式追踪 | 官方 OTel SDK,OTLP 导出,接任意 OTLP collector(自托管优先) |
-| Performance | 启动耗时、卡顿帧、网络 RTT | OTel Metrics 或 Sentry 性能面,按 Provider 能力映射 |
-| Event Analytics | 游戏埋点 | 自有 HTTP 端点(默认)或接入方指定 |
+| Crash / Error Tracking | Uncaught exceptions, error reporting, breadcrumbs | Sentry protocol (Sentry SaaS or self-hosted GlitchTip / Sentry) |
+| Trace | Distributed tracing | Official OTel SDK, OTLP export, connects to any OTLP collector (self-hosted preferred) |
+| Performance | Startup duration, jank frames, network RTT | OTel Metrics or the Sentry performance surface, mapped per Provider capability |
+| Event Analytics | Game instrumentation events | Own HTTP endpoint (default) or as specified by the integrator |
 
-SDK 侧统一接口(每类一个 Provider 接口),实现可插拔;可只开其中一类。Courier 内置实现为**自有 HTTP 端点直发**(下文 wire schema);Sentry / OTLP 适配由接入方按同一接口接入生态 SDK,契约不绑定其私有 wire。
+The SDK side has one unified interface (one Provider interface per type); implementations are pluggable; a single type may be enabled on its own. The implementation built into Courier is **direct send to its own HTTP endpoint** (the wire schema below); the Sentry / OTLP adapters are wired to ecosystem SDKs by integrators via the same interface, and the contract does not bind their private wire.
 
-## 配置形状(每类同构)
+## Configuration Shape (isomorphic for every type)
 
 ```json
 {
@@ -36,24 +36,24 @@ SDK 侧统一接口(每类一个 Provider 接口),实现可插拔;可只开其�
 }
 ```
 
-- `enabled=false`(缺省)→ 该类接口为 no-op:不初始化实例、不起线程、不建队列,调用零副作用。
-- 运行时开关:关闭立即生效——后续调用变 no-op,未发出的数据丢弃(v1 无未发缓冲,天然满足)。
-- 资源上下文(game_id/env/platform/app 版本/engine 版本/sessionId)由宿主在创建时注入,不采集则缺省。
+- `enabled=false` (default) → that type's interface is a no-op: no instance is initialized, no thread started, no queue built, and calls have zero side effects.
+- Runtime switch: turning off takes effect immediately — subsequent calls become no-ops and unsent data is dropped (v1 has no unsent buffer, so this holds naturally).
+- The resource context (game_id/env/platform/app version/engine version/sessionId) is injected by the host at creation time; defaults apply when not collected.
 
-## SDK 侧接口语义
+## SDK-side Interface Semantics
 
-| 类别 | 方法语义 |
+| Category | Method Semantics |
 | --- | --- |
-| Crash | `Report(错误/异常, 堆栈)`:上报一次错误;`Breadcrumb(文本)`:为下一次错误报告附加上下文(内存环形,上限 20 条,关闭即清空) |
-| Trace | `Span(name, durationMs, path)`:上报一个已结束的 span;URL 只记 path 不记 query |
-| Performance | `Startup(ms)` / `Jank(ms)` / `Rtt(ms)`:三个注册指标,见指标注册表 |
-| Analytics | `Track(eventName, props)`:一次埋点;校验见数据范围 |
+| Crash | `Report(error/exception, stack)`: report one error; `Breadcrumb(text)`: attach context to the next error report (in-memory ring, capped at 20 entries, cleared when off) |
+| Trace | `Span(name, durationMs, path)`: report a finished span; the URL records only the path, not the query |
+| Performance | `Startup(ms)` / `Jank(ms)` / `Rtt(ms)`: the three registered metrics, see the metric registry |
+| Analytics | `Track(eventName, props)`: one instrumentation event; validation see Data Scope |
 
-各方法均为非阻塞 fire-and-forget:签名不返回上报结果,失败不影响调用方。
+Every method is non-blocking fire-and-forget: the signature returns no reporting result, and a failure never affects the caller.
 
-## 上报 Schema 与数据范围(自有端点 wire)
+## Reporting Schema and Data Scope (own-endpoint wire)
 
-统一:POST `application/json`,单条一请求,body 为单对象;响应 2xx = 受理(响应体丢弃),其余丢弃该条。字段缺省即不下发。
+Uniform: POST `application/json`, one request per record, the body is a single object; a 2xx response = accepted (the response body is discarded), anything else drops the record. Absent fields are simply not sent.
 
 **Crash / Error**
 
@@ -63,9 +63,9 @@ SDK 侧统一接口(每类一个 Provider 接口),实现可插拔;可只开其�
   "message": "...", "stack": "...", "breadcrumbs": ["..."], "traceId": "..." }
 ```
 
-| 采集 | 不采集 |
+| Collected | Not Collected |
 | --- | --- |
-| sessionId、app/engine 版本、platform、os 版本、设备型号、堆栈、breadcrumb(接入方自行添加)、traceId | 位置、通讯录、相册、剪贴板、实名等敏感接口报文 |
+| sessionId, app/engine version, platform, OS version, device model, stack, breadcrumbs (added by the integrator), traceId | Location, contacts, photo library, clipboard, and payloads of sensitive interfaces such as real-name verification |
 
 **Trace**
 
@@ -76,7 +76,7 @@ SDK 侧统一接口(每类一个 Provider 接口),实现可插拔;可只开其�
   "traceId": "...", "name": "support.ticket.create", "durationMs": 42, "path": "/v1/support/tickets" }
 ```
 
-resource 属性为固定集;span 内不采集任何请求体;URL 只记 path,不记 query。
+The resource attributes are a fixed set; no request body is collected inside a span; the URL records only the path, not the query.
 
 **Performance**
 
@@ -85,7 +85,7 @@ resource 属性为固定集;span 内不采集任何请求体;URL 只记 path,不
   "dims": { "platform": "ios", "appVersion": "2.0.0" } }
 ```
 
-指标名注册表:`startup_duration_ms` / `frame_jank_ms` / `network_rtt_ms`;值 + 维度(platform、app.version),无设备标识维度。
+Metric-name registry: `startup_duration_ms` / `frame_jank_ms` / `network_rtt_ms`; value + dimensions (platform, app.version), with no device-identifier dimension.
 
 **Event Analytics**
 
@@ -93,27 +93,27 @@ resource 属性为固定集;span 内不采集任何请求体;URL 只记 path,不
 { "eventName": "level_complete", "sessionId": "...", "level": 7, "durationS": 95.5 }
 ```
 
-props 平铺进对象,仅原始类型(string/number/bool);`eventName` 1-64 字符非空;单条总大小 ≤ 1KB——违例是使用方错误,SDK 拒绝该条(抛参数错),不是静默截断。事件名与 props 结构由接入方登记,Courier 不做服务端字段解释。
+props are flattened into the object, primitive types only (string/number/bool); `eventName` is 1–64 characters and non-empty; a single record is at most 1KB in total — a violation is a caller error: the SDK rejects the record (throws an argument error), it does not silently truncate. Event names and the props structure are registered by the integrator; Courier does no server-side field interpretation.
 
-## 分包与验收
+## Packaging and Acceptance
 
-- 归 **Diagnostics 可选包**;核心包/服务包/UI 包不依赖它、不携带任何诊断代码路径(含 no-op 路径)。
-- 开启即意味着接入方接受该类别的数据范围表;运行时关闭开关立即停止采集并丢弃未发缓冲。
-- 验收:四类默认零上报(一次发送都不发生);逐类开启逐类生效(只该类上报,其余仍零);关闭立即归零。
+- Belongs to the **Diagnostics optional package**; the core / service / UI packages do not depend on it and carry no diagnostic code path at all (including the no-op path).
+- Enabling means the integrator accepts that category's data-scope table; turning the runtime switch off immediately stops collection and drops the unsent buffer.
+- Acceptance: all four types report zero by default (not a single send happens); enabling them category by category takes effect category by category (only that category reports, the rest stay at zero); turning off returns to zero immediately.
 
-## v1 边界
+## v1 Boundaries
 
-- 直发不缓冲:崩溃现场重报(上次会话崩溃下次启动补发)归 Provider 生态(Sentry SDK 等自带),契约不内置。
-- 采样/脱敏配置不进 v1;接入方在自托管端点侧处理。
+- Direct send with no buffering: crash-scene re-reporting (re-sending a last-session crash at the next startup) belongs to the Provider ecosystem (the Sentry SDK etc. carry it); the contract does not build it in.
+- Sampling/redaction configuration is not in v1; integrators handle it on their self-hosted endpoint side.
 
 ---
 
-## 扩展预留(2026-10-11 补注)
+## Extension Reservations (Note Added 2026-10-11)
 
-| 可能的扩展 | 兼容处理方式 |
+| Possible Extension | Compatible Handling |
 | --- | --- |
-| 新诊断类别(如 ANR / 电量 / 网络质量) | 加 Provider 接口 = 兼容;可选包默认关红线不变——**新类别同样默认关闭** |
-| 上报载荷扩展 | analytics `props` 已是开集(原始值,≤1KB);其余类别加可选字段,未知字段容忍 |
-| 采样 / 保留 / 脱敏策略 | 接入方在自托管端点侧处理(本契约口径);契约侧预留 `sampling` 可选配置位(v1.1+) |
-| 同意状态联动(隐私撤回) | v1.1+ 预留:宿主传入 consent 状态 → 全类停发;红线「关闭立即生效」已内建 |
-| 经网关上报 | **永不**——直发不经网关是契约红线,不因扩展松动 |
+| New diagnostic categories (e.g. ANR / battery / network quality) | Adding a Provider interface = compatible; the optional package's off-by-default red line is unchanged — **new categories are also off by default** |
+| Report payload extension | analytics `props` is already an open set (primitive values, ≤1KB); the other categories add optional fields with unknown-field tolerance |
+| Sampling / retention / redaction policies | Handled by the integrator on the self-hosted endpoint side (this contract's wording); the contract side reserves an optional `sampling` configuration slot (v1.1+) |
+| Consent-state linkage (privacy withdrawal) | Reserved for v1.1+: the host passes in a consent state → all types stop reporting; the red line "turning off takes effect immediately" is already built in |
+| Reporting through the gateway | **Never** — direct send bypassing the gateway is a contract red line and does not loosen with extensions |

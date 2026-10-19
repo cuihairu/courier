@@ -36,7 +36,8 @@ func loadErrorsFixture(t *testing.T) errorsFixture {
 // TestErrorsMarkdownMatchesFixture 冻结文档 ↔ fixture 不漂移:错误码表与域前缀
 // 注册表逐行对齐(顺序、HTTP、retryable)。
 func TestErrorsMarkdownMatchesFixture(t *testing.T) {
-	md := string(readRepoFile(t, "docs/contract/errors.md"))
+	// 事实源是中文契约(i18n 迁移后位于 docs/zh/contract/,root 为英文镜像)。
+	md := string(readRepoFile(t, "docs/zh/contract/errors.md"))
 	f := loadErrorsFixture(t)
 
 	rowRe := regexp.MustCompile(`(?m)^\| ([A-Z][A-Z0-9_]*) \| (\d{3}) \| (true|false) \|`)
@@ -112,7 +113,7 @@ func TestErrorCodesWiredOrReserved(t *testing.T) {
 	// errors.md「注册保留码」注记点名的码。
 	reservedRe := regexp.MustCompile("`([A-Z][A-Z0-9_]*)`")
 	reserved := map[string]bool{}
-	for _, line := range strings.Split(string(readRepoFile(t, "docs/contract/errors.md")), "\n") {
+	for _, line := range strings.Split(string(readRepoFile(t, "docs/zh/contract/errors.md")), "\n") {
 		if !strings.Contains(line, "注册保留码") {
 			continue
 		}

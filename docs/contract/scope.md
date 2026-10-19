@@ -1,38 +1,38 @@
 
-# Scope 契约:game_id + env
+# Scope Contract: game_id + env
 
-> 状态:Frozen v1(2026-10-08,M0 跨端评审冻结)。与生态(Croupier / Oddsmaker)同一隔离模型。
+> Status: Frozen v1 (2026-10-08, frozen at the M0 cross-platform review). The same isolation model as the ecosystem (Croupier / Oddsmaker).
 
-## 规则
+## Rules
 
-- 隔离单元是二元组 `game_id + env`,全局唯一。
-- SDK 初始化时指定**一次**(`CourierClient.Init({ gameId, env, endpoint })`),之后对调用方不可见。
-- **URL path 与 payload 一律不携带 scope 字段**;scope 只走 header。
+- The isolation unit is the pair `game_id + env`, globally unique.
+- Specified **once** at SDK initialization (`CourierClient.Init({ gameId, env, endpoint })`), and invisible to callers afterwards.
+- **URL paths and payloads never carry scope fields**; scope travels only in headers.
 
-## 传输
+## Transport
 
-| header | 说明 |
+| header | Description |
 | --- | --- |
-| `X-Courier-Game-Id` | 游戏标识,SDK 每请求自动携带 |
-| `X-Courier-Env` | 环境枚举:`dev` / `staging` / `prod`(注册表制,可扩展) |
+| `X-Courier-Game-Id` | Game identifier, attached automatically by the SDK on every request |
+| `X-Courier-Env` | Environment enum: `dev` / `staging` / `prod` (registry-based, extensible) |
 
-## 网关校验
+## Gateway Validation
 
-1. 两个 header 缺失或不在注册表 → `COMMON_INVALID_ARGUMENT`。
-2. 网关以 header 为唯一事实源注入下游;下游实现不得从 path/payload 读取 scope。
-3. token 签发时绑定 scope;用 A 游戏 scope 的 token 访问 B 游戏 scope 的资源 → `SCOPE_MISMATCH`(账号是公司级实体,跨游戏要重新走登录或未来的 token exchange,不共用 player 级 token)。
+1. Either header missing or not in the registry → `COMMON_INVALID_ARGUMENT`.
+2. The gateway uses the headers as the single source of truth and injects them downstream; downstream implementations must not read scope from the path/payload.
+3. Tokens are bound to a scope at issuance; using a token scoped to game A to access resources scoped to game B → `SCOPE_MISMATCH` (an account is a company-level entity; crossing games requires going through login again or a future token exchange, not sharing player-level tokens).
 
-## 与账号模型的关系
+## Relationship to the Account Model
 
-- `account` 是公司级实体,跨游戏存在;`player` 是 game 维度实体。
-- 因此同一账号在 M1 中按 `game_id + env` 各自登录,产出各自 scope 的会话;「一个账号登录所有游戏」指账号可复用,不是 token 可跨游戏。
+- `account` is a company-level entity that exists across games; `player` is a game-dimension entity.
+- Hence in M1 the same account signs in separately per `game_id + env`, producing sessions scoped to each; "one account signs in to all games" means the account is reusable, not that tokens cross games.
 
 ---
 
-## 扩展预留(2026-10-11 补注)
+## Extension Reserve (note added 2026-10-11)
 
-| 可能的扩展 | 兼容处理方式 |
+| Possible extension | Compatibility handling |
 | --- | --- |
-| 新环境值(如 `qa` / `canary`) | **客户端不得封闭枚举 env**——按字符串处理并容忍未知值;新值随本契约 v1.1 登记(wire 兼容) |
-| 新隔离维度(如公司/组织级 `orgId`) | v1.1+ 加可选 header;缺省 = 单组织,存量客户端不受影响 |
-| 跨游戏身份联动 | 账号复用已内建(公司级实体);token 跨游戏使用属破坏性语义,永不原地放开 |
+| New environment values (e.g. `qa` / `canary`) | **Clients must not treat env as a closed enum** — handle it as a string and tolerate unknown values; new values are registered with this contract's v1.1 (wire-compatible) |
+| New isolation dimension (e.g. company/org-level `orgId`) | v1.1+ adds an optional header; absent = single organization, existing clients are unaffected |
+| Cross-game identity linkage | Account reuse is already built in (company-level entity); using tokens across games is breaking semantics and will never be enabled in place |

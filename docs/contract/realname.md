@@ -1,193 +1,193 @@
 
-# 实名认证契约(RealName)
+# Real Name Contract (RealName)
 
-> 状态:**Frozen v1.1** · 合规能力 · 默认关闭 · 里程碑 M2 后段 · v1 冻结 2026-10-08 / v1.1 冻结 2026-10-18(PATROL1018E 代决:`consent` 组,只加不改)。
-> 域前缀 `REALNAME` 已注册([errors.md](./errors.md));冻结后只加不改,破坏性变更升版本(见 [versioning.md](./versioning.md))。
-> 红线:实名数据是最高敏感级个人数据。本能力默认关闭;接入即视为接入方向玩家收集实名信息,**数据范围明示义务在接入方**,本文档的数据范围表即对外口径的事实源。
+> Status: **Frozen v1.1** · compliance capability · off by default · late in milestone M2 · v1 frozen 2026-10-08 / v1.1 frozen 2026-10-18 (delegated decision PATROL1018E: the `consent` group, additive-only).
+> The domain prefix `REALNAME` is registered ([errors.md](./errors.md)); once frozen it is additive-only, and breaking changes bump the version (see [versioning.md](./versioning.md)).
+> Red line: real-name data is the highest-sensitivity personal data. This capability is off by default; integrating it counts as the integrator collecting real-name information from players, and **the obligation to disclose the data scope lies with the integrator** — the data scope table in this document is the single source of truth for the external wording.
 
-## 能力与范围
+## Capabilities and Scope
 
-- 能力域 `realname`(`providers.CapRealname`),路由 `/v1/realname/*`;**默认关闭**——未配置 Provider 时与其他能力一致的降级信号(`501 COMMON_CAPABILITY_DISABLED`),接入方据此隐藏实名 UI,不进报错路径。
-- 开启须同时给出 Provider 配置与明示文案;二者缺一按关闭处理。
-- 本契约**不覆盖**:核验执行本身(归 Provider:自建库/阿里云/腾讯云慧眼/易盾/Webhook)、防沉迷策略执行(时段/额度的**策略与配置**归接入方,本契约只提供**查询与校验端点**)。
-- 调研依据:必备链路 F27–F30(见 [features.md §14](../research/features.md))——实名核验(F27)、时段查询(F28)、额度校验(F29)、S2S 上报(F30)。
+- Capability domain `realname` (`providers.CapRealname`), routed at `/v1/realname/*`; **off by default** — with no Provider configured it shares the degradation signal of other capabilities (`501 COMMON_CAPABILITY_DISABLED`), and the integrator uses it to hide the real-name UI and stay out of the error path.
+- Enabling requires both a Provider configuration and the disclosure wording; missing either is treated as off.
+- This contract **does not cover**: the verification execution itself (belongs to the Provider: self-built library / Alibaba Cloud / Tencent Cloud Huiyan / NetEase Yidun / Webhook), or anti-addiction policy enforcement (the **policy and configuration** of time windows / spending limits belong to the integrator; this contract only provides **query and validation endpoints**).
+- Research basis: the must-have chain F27–F30 (see [features.md §14](../research/features.md)) — real-name verification (F27), time-window query (F28), spending-limit validation (F29), S2S reporting (F30).
 
-## 客户端接口(L2/L4 投影)
+## Client Interface (L2/L4 projection)
 
 ```text
 RealName
-  .Submit({ name, idNumber })   提交核验 → 状态见下
+  .Submit({ name, idNumber })   submit verification → states below
   .Status()                     → { state, isMinor?, verifiedAt? }
   .Curfew()                     → { playable, nextWindowAt? }
   .ChargeCheck(amountCents)     → { allowed, singleLimitCents?, monthlyLimitCents?, monthlyUsedCents? }
 ```
 
-- `state`:`UNVERIFIED | PENDING_REVIEW | VERIFIED | REJECTED`
-- `isMinor`:仅 `VERIFIED` 后由服务端下发判定结果;客户端不得自行推断。
-- 提交接口要求会话已认证(挂在 account 维度,非 player 维度)。
-- 脱敏口径落 UI:姓名保留首字余 `*`(张三 → 张\*);证件号前 3 后 4,中间 `*`(110101199001011234 → 110\*\*\*\*\*\*\*\*\*\*\*\*1234)。SDK 提供 `RealNameMask` 纯函数(service 包实现,dotnet 可测;UI 面板与接入方共用),接入方不得自造口径。
+- `state`: `UNVERIFIED | PENDING_REVIEW | VERIFIED | REJECTED`
+- `isMinor`: the verdict is issued by the server only after `VERIFIED`; the client must not infer it on its own.
+- The submit endpoint requires an authenticated session (attached at the account dimension, not the player dimension).
+- The masking rule lands in the UI: keep the first character of the name and mask the rest with `*` (张三 → 张\*); for the ID number keep the first 3 and last 4, masking the middle with `*` (110101199001011234 → 110\*\*\*\*\*\*\*\*\*\*\*\*1234). The SDK provides the pure function `RealNameMask` (implemented in the service package, testable in dotnet; shared by the UI panel and integrators), and integrators must not invent their own masking rule.
 
-## 端点总览(挂载 `/v1/realname/*`)
+## Endpoint Overview (mounted at `/v1/realname/*`)
 
-| 端点 | 认证 | 说明 | 调研落点 |
+| Endpoint | Auth | Description | Research basis |
 | --- | --- | --- | --- |
-| `POST /v1/realname/verify` | Bearer | 提交实名核验 | F27 |
-| `GET /v1/realname/status` | Bearer | 查询实名状态 | F27 |
-| `GET /v1/realname/curfew` | Bearer | 可玩时段查询(未成年限玩窗口) | F28 |
-| `POST /v1/realname/charge-check` | Bearer | 充值额度校验 | F29 |
-| `POST /v1/realname/playtime-report` | **S2S** | 防沉迷数据上报(服务端对服务端) | F30 |
+| `POST /v1/realname/verify` | Bearer | Submit real-name verification | F27 |
+| `GET /v1/realname/status` | Bearer | Query real-name status | F27 |
+| `GET /v1/realname/curfew` | Bearer | Playable time-window query (minor play windows) | F28 |
+| `POST /v1/realname/charge-check` | Bearer | Spending-limit validation | F29 |
+| `POST /v1/realname/playtime-report` | **S2S** | Anti-addiction data reporting (server to server) | F30 |
 
-- 玩家侧端点认证与 scope header 要求同 [auth.md](./auth.md);缺失 → 对应通用码。
-- `playtime-report` 为 **S2S 端点**:认证走接入方服务端凭证(非玩家 Bearer);SDK 不得调用——玩家端上报会造成重复统计,统一由接入方服务端汇总上报。
-- 成功响应 HTTP 200,信封见 [primitives.md](./primitives.md)。
+- Player-side endpoint authentication and scope-header requirements are as in [auth.md](./auth.md); missing → the corresponding common code.
+- `playtime-report` is an **S2S endpoint**: authentication uses the integrator's server credentials (not the player's Bearer); the SDK must not call it — client-side reporting would double-count, so reporting is consolidated and submitted by the integrator's server.
+- Successful responses are HTTP 200; for the envelope see [primitives.md](./primitives.md).
 
-## 数据模型
+## Data Model
 
-### status(实名状态)
+### status (real-name status)
 
-| 字段 | 类型 | 说明 |
+| Field | Type | Description |
 | --- | --- | --- |
-| `state` | 枚举 | `UNVERIFIED` / `PENDING_REVIEW` / `VERIFIED` / `REJECTED` |
-| `isMinor` | bool? | 仅 `VERIFIED` 后下发;其余 state 缺省 |
-| `verifiedAt` | timestamp? | 核验通过时间 |
+| `state` | enum | `UNVERIFIED` / `PENDING_REVIEW` / `VERIFIED` / `REJECTED` |
+| `isMinor` | bool? | Issued only after `VERIFIED`; omitted in the other states |
+| `verifiedAt` | timestamp? | Verification pass time |
 
-### curfew(可玩时段,F28)
+### curfew (playable time window, F28)
 
-| 字段 | 类型 | 说明 |
+| Field | Type | Description |
 | --- | --- | --- |
-| `playable` | bool | 当前是否可玩 |
-| `nextWindowAt` | timestamp? | 下一可玩窗口起点(不可玩时下发;可玩时缺省) |
+| `playable` | bool | Currently playable |
+| `nextWindowAt` | timestamp? | Start of the next playable window (issued when not playable; omitted when playable) |
 
-- 判定输入 = `status.isMinor` + Provider 时段配置;成年人恒 `playable = true`。
-- 策略配置(哪些日子、哪些窗口)归 Provider,不在契约——契约只保证查询语义。
+- Decision input = `status.isMinor` + the Provider's time-window configuration; adults always get `playable = true`.
+- The policy configuration (which days, which windows) belongs to the Provider and is outside the contract — the contract only guarantees query semantics.
 
-### charge-check(F29)
+### charge-check (F29)
 
-请求 `{ "amountCents": int }`(本次充值金额,分)。
+Request `{ "amountCents": int }` (the amount of this charge, in cents).
 
-响应 `data`:
+Response `data`:
 
-| 字段 | 类型 | 说明 |
+| Field | Type | Description |
 | --- | --- | --- |
-| `allowed` | bool | 本次充值是否放行 |
-| `singleLimitCents` | int? | 单次上限 |
-| `monthlyLimitCents` | int? | 当月上限 |
-| `monthlyUsedCents` | int? | 当月已用 |
+| `allowed` | bool | Whether this charge is allowed through |
+| `singleLimitCents` | int? | Per-transaction cap |
+| `monthlyLimitCents` | int? | Monthly cap |
+| `monthlyUsedCents` | int? | Monthly used |
 
-- `allowed = false` → 接入方引导;支付域(M5)在下单前调用本端点做前置校验。
+- `allowed = false` → integrator guides the player; the payment domain (M5) calls this endpoint before order placement for pre-validation.
 
-### playtime-report(F30,S2S)
+### playtime-report (F30, S2S)
 
-请求 `{ "accountId": "acc_...", "date": "YYYY-MM-DD", "playMinutes": int, "chargeAmountCents": int }`(裸对象信封外);响应 `data: {}`。
+Request `{ "accountId": "acc_...", "date": "YYYY-MM-DD", "playMinutes": int, "chargeAmountCents": int }` (bare object, outside the envelope); response `data: {}`.
 
-- 优先服务端 S2S 上报,避免客户端重复上报;幂等键 = `accountId + date`(同日重报取最新)。
+- Server-side S2S reporting is preferred, to avoid duplicate client-side reporting; the idempotency key = `accountId + date` (same-day re-reports take the latest).
 
-## 字段脱敏与数据红线
+## Field Masking and the Data Red Line
 
-| 环节 | 口径 |
+| Stage | Rule |
 | --- | --- |
-| 传输 | 仅 HTTPS(TLS 1.2+);SDK 不做二次加密,信封加密归 Provider 实现 |
-| SDK 侧 | **不落盘**:不进安全存储、不进日志、不进 breadcrumb / trace / 诊断采集 |
-| UI 展示 | 一律脱敏(姓\*、证件号前 3 后 4;口径见「客户端接口」节,由 UI 包函数统一) |
-| 服务端 | 加密存储;日志与 trace 禁明文;保留期按接入方合规要求,取最短必要 |
-| 诊断 | 实名接口的请求/响应体**永不进入**任何诊断采集(见 [diagnostics.md](./diagnostics.md) 红线) |
+| Transport | HTTPS only (TLS 1.2+); the SDK does not apply a second layer of encryption — envelope encryption belongs to the Provider implementation |
+| SDK side | **Never persisted**: not into secure storage, not into logs, not into breadcrumb / trace / diagnostics collection |
+| UI display | Always masked (name first character kept with the rest `*`, ID number first 3 / last 4; see the rule in the "Client Interface" section, unified by the UI-package function) |
+| Server side | Encrypted storage; logs and traces forbid plaintext; retention follows the integrator's compliance requirement, taking the shortest necessary period |
+| Diagnostics | The request/response bodies of real-name endpoints **never enter** any diagnostics collection (see the red line in [diagnostics.md](./diagnostics.md)) |
 
-采集字段清单(全部):`name`、`idNumber`、核验结果、成年/未成年判定、时段/额度判定输出。其余一律不采。
+Collected field list (complete): `name`, `idNumber`, verification result, adult/minor verdict, time-window / spending-limit decision output. Nothing else is collected.
 
-## 防沉迷钩子(接口位)
+## Anti-Addiction Hooks (interface slots)
 
-- `Status().isMinor` 与 `Curfew().playable` 是唯二判定输出;策略执行不在本契约(接入方游戏侧,或未来独立防沉迷模块)。
-- 预留:`OnRealNameVerified` 客户端回调;服务端 Provider 结果中保留 `policyExtension` 扩展位,当前必须忽略未知字段。
-- v1.1 已冻结:海外年龄门/家长同意 `consent` 组,见下文「同意管理(consent,v1.1)」节(调研 F31;2026-10-18 PATROL1018E 代决冻结,只加不改;设计过程见 [research/consent-v1.1-draft.md](../research/consent-v1.1-draft.md))。
+- `Status().isMinor` and `Curfew().playable` are the only two decision outputs; policy execution is not in this contract (the integrator's game side, or a future standalone anti-addiction module).
+- Reserved: the `OnRealNameVerified` client callback; the server-side Provider result keeps the `policyExtension` extension slot, and unknown fields must currently be ignored.
+- Frozen in v1.1: the overseas age gate / parental consent `consent` group — see the "Consent Management (consent, v1.1)" section below (research F31; frozen 2026-10-18 by delegated decision PATROL1018E, additive-only; the design history is in [research/consent-v1.1-draft.md](../research/consent-v1.1-draft.md)).
 
-## 同意管理(consent,v1.1)
+## Consent Management (consent, v1.1)
 
-> v1.1 新增,只加不改:现有 `verify` / `status` / `curfew` / `charge-check` / `playtime-report` 端点与字段一律不动。2026-10-18 巡检 PATROL1018E 代决冻结(设计草案见 [research/consent-v1.1-draft.md](../research/consent-v1.1-draft.md))。**冻结 ≠ 实现**:网关与六端 SDK 实现面待开工拍板(F31,登记见 [todo.md](../todo.md))。
+> Added in v1.1, additive-only: the existing `verify` / `status` / `curfew` / `charge-check` / `playtime-report` endpoints and fields are untouched. Frozen 2026-10-18 by patrol PATROL1018E delegated decision (design draft: [research/consent-v1.1-draft.md](../research/consent-v1.1-draft.md)). **Frozen ≠ implemented**: the gateway and the six-SDK implementation surface awaits a go-ahead call (F31, registered in [todo.md](../todo.md)).
 
-- **默认关闭**:未配置 consent 通道 = 能力关闭语义(`501 COMMON_CAPABILITY_DISABLED`),查询返回「未启用」,接入方隐藏年龄门 UI,**不进报错路径**(同 v1)。
-- **判定经 200 载荷**:同意态进 `data` 不进错误码,**零新增错误码**。
-- **客户端不得自行推断**:年龄与同意判定均服务端下发(同 v1 `isMinor` 原则)。
-- **数据红线对齐 v1**:出生日期只经申报接口传输一次,不缓存、不落盘、不进诊断采集;UI 展示仅年份。
+- **Off by default**: with no consent channel configured, the capability-disabled semantics apply (`501 COMMON_CAPABILITY_DISABLED`) — queries return "not enabled", the integrator hides the age-gate UI, and **no error path is entered** (same as v1).
+- **Verdicts ride the 200 payload**: consent state goes in `data`, not in error codes; **zero new error codes**.
+- **The client must not infer on its own**: both the age verdict and the consent verdict are server-issued (same principle as v1 `isMinor`).
+- **Data red lines align with v1**: the birth date travels only once through the declare endpoint — never cached, never persisted, never sent to diagnostics collection; UI display shows the year only.
 
-### 状态机(consent 状态)
+### State machine (consent state)
 
-| state | 语义 | 游戏侧处理 |
+| state | Semantics | Game-side handling |
 | --- | --- | --- |
-| `UNDECLARED` | 未申报年龄 | 首启年龄门(申报前不放行受保护操作) |
-| `ADULT` | 成年 | 终态,不再要求同意 |
-| `PENDING_PARENT` | 未成年且同意未决 | 门槛关闭;可发起 / 重发 VPC 请求,按 `requestExpiresAt` 提示 |
-| `GRANTED` | 家长同意成立 | 门槛放行 |
-| `DENIED` | 家长拒绝 | 门槛关闭;是否允许再次请求归 Provider 策略 |
-| `REVOKED` | 同意后被撤回 | 门槛关闭;撤回即停发诊断(见「诊断联动」) |
+| `UNDECLARED` | Age not declared | First-launch age gate (protected operations are not released until declared) |
+| `ADULT` | Adult | Terminal state; no consent is ever required |
+| `PENDING_PARENT` | Minor and consent undecided | Gate closed; VPC requests may be issued / reissued, prompt per `requestExpiresAt` |
+| `GRANTED` | Parental consent established | Gate opens |
+| `DENIED` | Parent refused | Gate closed; whether re-requesting is allowed is Provider policy |
+| `REVOKED` | Consent later withdrawn | Gate closed; withdrawal stops diagnostics (see "Diagnostics linkage") |
 
-- **防回拨**:重复申报年龄仅「趋严」生效(成年 → 未成年可,反向不行);纠错走 Provider 运维面,不进玩家契约。
+- **No rollback**: repeated age declarations only ever tighten (adult → minor allowed, never the reverse); corrections go through the Provider ops surface, not the player contract.
 
-### 端点(挂载 `/v1/realname/consent/*`)
+### Endpoints (mounted at `/v1/realname/consent/*`)
 
-| 端点 | 认证 | 说明 |
+| Endpoint | Auth | Notes |
 | --- | --- | --- |
-| `GET /v1/realname/consent/status` | Bearer | 同意状态查询 |
-| `POST /v1/realname/consent/declare-age` | Bearer | 首启年龄申报 `{ birthDate: "YYYY-MM-DD" }`,响应 `data` = 下表 status(申报即得判定) |
-| `POST /v1/realname/consent/parent-consent/request` | Bearer | 发起 VPC 请求 `{}` → `{ requestId, requestExpiresAt }`;`PENDING_PARENT` 期间幂等(未过期返回同一请求,过期换新 `requestId`) |
-| 推送事件 `realname.consent.updated` | SSE | 状态变化通知(复用 M3 推送通道,同 `config.updated` 形状) |
+| `GET /v1/realname/consent/status` | Bearer | Consent status query |
+| `POST /v1/realname/consent/declare-age` | Bearer | First-launch age declaration `{ birthDate: "YYYY-MM-DD" }`; response `data` = the status table below (declaration immediately yields the verdict) |
+| `POST /v1/realname/consent/parent-consent/request` | Bearer | Initiate a VPC request `{}` → `{ requestId, requestExpiresAt }`; idempotent while `PENDING_PARENT` (same request returned before expiry, new `requestId` after) |
+| Push event `realname.consent.updated` | SSE | State-change notification (reuses the M3 push channel, same shape as `config.updated`) |
 
-- 玩家侧端点认证与 scope header 要求同 [auth.md](./auth.md);账号维度(同 v1,非 player 维度)。
-- 家长验证本身**不在本契约**(归 Provider:信用卡验证 / 签署表单 / 政府证件 / 邮件增强等法域机制);本契约只表达「请求发起 + 结果状态 + 变化推送」。
+- Player-side endpoint auth and scope requirements follow [auth.md](./auth.md); account-dimension (same as v1, not player-dimension).
+- Parental verification itself is **not in this contract** (Provider territory: credit-card verification / signed forms / government ID / email step-up and other jurisdictional mechanisms); this contract only expresses "request initiation + resulting state + change push".
 
-### 数据模型:status(同意状态)
+### Data model: status (consent status)
 
-| 字段 | 类型 | 说明 |
+| Field | Type | Notes |
 | --- | --- | --- |
-| `state` | 枚举 | 上表六态 |
-| `declaredAt` | timestamp? | 年龄申报时间 |
-| `grantedAt` | timestamp? | 同意成立时间(`GRANTED` 下发) |
-| `revokedAt` | timestamp? | 撤回时间(`REVOKED` 下发) |
-| `requestExpiresAt` | timestamp? | 当前 VPC 请求到期点(`PENDING_PARENT` 下发) |
+| `state` | enum | The six states above |
+| `declaredAt` | timestamp? | Age declaration time |
+| `grantedAt` | timestamp? | Consent establishment time (sent under `GRANTED`) |
+| `revokedAt` | timestamp? | Withdrawal time (sent under `REVOKED`) |
+| `requestExpiresAt` | timestamp? | Expiry of the current VPC request (sent under `PENDING_PARENT`) |
 
-请求 / 响应走 primitives 信封([primitives.md](./primitives.md))。
+Requests / responses use the primitives envelope ([primitives.md](./primitives.md)).
 
-### 法域中立:阈值与规则归 Provider 配置
+### Jurisdiction-neutral: thresholds and rules belong to Provider config
 
-| 配置 | 说明 | 契约关系 |
+| Config | Notes | Contract relation |
 | --- | --- | --- |
-| `minimumAge` | 最低游玩年龄(低于则始终 `DENIED` 语义,由 Provider 决定表达) | 不进契约 |
-| `digitalConsentAge` | 数字同意年龄(GDPR-K 各成员国 13–16;COPPA 13) | 不进契约 |
-| `vpc.mechanism / ttl` | 家长验证机制与请求有效期 | 不进契约 |
+| `minimumAge` | Minimum play age (below it, always `DENIED` semantics; expression decided by the Provider) | Not in the contract |
+| `digitalConsentAge` | Digital consent age (GDPR-K member states 13–16; COPPA 13) | Not in the contract |
+| `vpc.mechanism / ttl` | Parental-verification mechanism and request validity period | Not in the contract |
 
-- 判定输入 = `birthDate` + Provider 阈值配置;换法域 = 换配置,契约与六端 SDK 不动。
+- The verdict input = `birthDate` + Provider threshold config; switching jurisdictions = switching config, with the contract and the six SDKs untouched.
 
-### Provider 接口扩展(加法,不动 v1 方法)
+### Provider interface extension (additive; v1 methods untouched)
 
 ```text
-RealNameProvider 追加:
+RealNameProvider adds:
   ConsentStatus(accountId) → ConsentState
-  DeclareAge(accountId, birthDate) → ConsentState        // 防回拨:仅趋严生效
+  DeclareAge(accountId, birthDate) → ConsentState        // no rollback: only tightening takes effect
   RequestParentConsent(accountId) → ConsentRequest{ requestId, expiresAt }
 ```
 
-- 热插拔 / 降级链 / 熔断沿用 v1 通用 Provider 治理规则;降级安全态 = `PENDING_PARENT`(不放行不拒绝,转人工)。
-- 审计:新增事件 `realname.consent.declared / parent_requested / granted / denied / revoked`,只含账号维度元数据;出生日期与家长身份输入**永不进事件**(同 v1 红线);经共享接缝 `gateway/audit.AuditSink`,两实现同形状。
-- 同意记录与身份数据**分存储、独立保留期**(合规要求可分别举证);保留天数归接入方合规口径(F33 同款边界)。
+- Hot-swap / fallback chain / circuit breaking follow the v1 general Provider governance rules; the degraded safe state = `PENDING_PARENT` (neither releases nor refuses; escalate to a human).
+- Audit: new events `realname.consent.declared / parent_requested / granted / denied / revoked` carry account-dimension metadata only; birth dates and parental identity inputs **never enter any event** (same red line as v1); they go through the shared seam `gateway/audit.AuditSink`, same shape for both implementations.
+- Consent records are **stored separately from identity data, with an independent retention period** (compliance can evidence each separately); retention days belong to the integrator's compliance stance (same boundary as F33).
 
-### SDK 面(L2/L4 投影)
+### SDK surface (L2/L4 projection)
 
 ```text
 RealName.Consent
   .Status()                  → { state, declaredAt?, grantedAt?, revokedAt?, requestExpiresAt? }
   .DeclareAge(birthDate)     → status
   .RequestParentConsent()    → { requestId, requestExpiresAt }
-OnConsentChanged 回调预留(消费 realname.consent.updated 推送)
+OnConsentChanged callback reserved (consumes the realname.consent.updated push)
 ```
 
-- `REVOKED` 到达 → SDK 内部触发诊断停发联动([diagnostics.md](./diagnostics.md) 预留位),无需接入方逐事件接线;「关闭立即生效」红线已内建。
+- On `REVOKED` → the SDK internally triggers the diagnostics stop-sending linkage ([diagnostics.md](./diagnostics.md) reserved slot), no per-event wiring by the integrator; the "off takes effect immediately" red line is built in.
 
-### 错误码
+### Error codes
 
-**零新增**——全部判定经 200 载荷表达(2026-10-15 代决口径)。实现面评审时若接入方游戏侧策略执行确需错误码,按「注册保留码」流程补([errors.md](./errors.md) + `TestErrorCodesWiredOrReserved` 门禁),不预注册。
+**Zero additions** — all verdicts ride the 200 payload (the 2026-10-15 delegated stance). If, during implementation review, an integrator's game-side policy execution genuinely needs codes, add them via the "registered reserved codes" process ([errors.md](./errors.md) + the `TestErrorCodesWiredOrReserved` gate); none are pre-registered.
 
-## Provider 热插拔(服务端,治理首个完整适用方)
+## Provider Hot-Swap (server side; first complete application of the governance)
 
-统一接口 `RealNameProvider`:
+Unified interface `RealNameProvider`:
 
 ```text
 Verify(accountId, identity) → Result      Query(accountId) → Status
@@ -195,67 +195,68 @@ Curfew(accountId, now) → Curfew           ChargeCheck(accountId, amountCents) 
 HealthCheck() → bool
 ```
 
-**内置适配(按需实现):**
+**Built-in adapters (implemented as needed):**
 
-| Provider | 说明 |
+| Provider | Description |
 | --- | --- |
-| 自建核验 | 本地库比对,数据不出自建环境(**首个实现**) |
-| 阿里云实人认证 | 云 API 适配(按需) |
-| 腾讯云慧眼 | 云 API 适配(按需) |
-| 网易易盾 | 云 API 适配(按需) |
-| 自定义 Webhook | 接入方自有核验服务的通用 HTTP 适配 |
+| Self-built verification | Local library comparison; data never leaves the self-built environment (**first implementation**) |
+| Alibaba Cloud real-person verification | Cloud API adapter (as needed) |
+| Tencent Cloud Huiyan | Cloud API adapter (as needed) |
+| NetEase Yidun | Cloud API adapter (as needed) |
+| Custom Webhook | Generic HTTP adapter for the integrator's own verification service |
 
-**热切换:**
+**Hot-switching:**
 
-- 配置驱动路由表:`primary` + `fallbacks[]`;运行时配置重载即生效,**不重启**。
-- 路由表原子替换;在途请求按旧表完成,新请求走新表。
+- Configuration-driven routing table: `primary` + `fallbacks[]`; runtime configuration reload takes effect immediately, **without a restart**.
+- The routing table is replaced atomically; in-flight requests complete against the old table, and new requests go to the new table.
 
-**降级链与熔断:**
+**Degradation chain and circuit breaker:**
 
-- 主 Provider 失败/超时 → 依序尝试 fallback;全部失败 → 返回 `PENDING_REVIEW`(安全态:不通过也不拒绝放量,转人工/延迟复核)。
-- 熔断:连续 N 次(默认 5)失败开路,开路后 **30 次调用**半开放行探测(实现按调用次数驱动,无定时器);熔断期间直接走 fallback。
-- 业务性「不匹配」(核验结果 `REJECTED`)是**有效结果**,不计入熔断失败;熔断只统计调用失败(网络/超时/5xx)。
-- HealthCheck 供路由表剔除不健康实例。
-- 审计留痕:关键动作(verify / curfew / charge_check / playtime_report)已落结构化审计事件面,接收面为接入方注入点(缺省 = 不产出;内置日志半边与 HTTP 直写半边,见 provider-guide §4);事件只含账号维度元数据,身份输入不入事件;保留策略与查询面归接入方存储实现(契约面不变)。接缝在共享包 `gateway/audit`,两个实现(warden / warden-alt)同形状注入——切换 Provider 不改变留痕面。
+- Primary Provider failure / timeout → fallbacks are tried in order; if all fail → return `PENDING_REVIEW` (safe state: neither pass nor reject for release; route to manual review / delayed re-verification).
+- Circuit breaker: N consecutive failures (default 5) trip it open, and after opening, **30 calls** get half-open probe passage (the implementation is call-count driven, with no timer); while the breaker is open, traffic goes straight to the fallback.
+- A business-level "no match" (verification result `REJECTED`) is a **valid result** and does not count as a circuit-breaker failure; the breaker only counts call failures (network / timeout / 5xx).
+- HealthCheck lets the routing table drop unhealthy instances.
+- Audit trail: key actions (verify / curfew / charge_check / playtime_report) already have a structured audit-event surface, with the sink as an integrator injection point (default = no output; built-in log half and HTTP direct-write half, see provider-guide §4); events contain only account-dimension metadata — identity inputs never enter events; the retention policy and query surface belong to the integrator's storage implementation (the contract surface is unchanged). The seam lives in the shared package `gateway/audit`, and both implementations (warden / warden-alt) inject the same shape — switching Providers does not change the audit surface.
 
-以上热插拔/降级/熔断规则为通用 Provider 治理规则(见 [architecture.md](../architecture.md)「Provider 治理」),RealName 是第一个完整适用方。
+The hot-swap / degradation / circuit-breaker rules above are the general Provider governance rules (see "Provider Governance" in [architecture.md](../architecture.md)); RealName is their first complete application.
 
-## 错误码(域表)
+## Error Codes (domain table)
 
-| code | HTTP | retryable | 说明 |
+| code | HTTP | retryable | Description |
 | --- | --- | --- | --- |
-| `REALNAME_REQUIRED` | 403 | false | 需要实名(未提交) |
-| `REALNAME_REJECTED` | 403 | false | 实名未通过 |
-| `REALNAME_PENDING_REVIEW` | 403 | false | 待复核(降级链全挂时的安全态) |
-| `REALNAME_CURFEW_BLOCKED` | 403 | false | 不可玩时段(F28;`data` 可带 `nextWindowAt`) |
-| `REALNAME_CHARGE_BLOCKED` | 403 | false | 超出充值额度(F29;`data` 可带限额字段) |
+| `REALNAME_REQUIRED` | 403 | false | Real name required (not yet submitted) |
+| `REALNAME_REJECTED` | 403 | false | Real-name verification not passed |
+| `REALNAME_PENDING_REVIEW` | 403 | false | Pending re-verification (the safe state when the whole degradation chain is down) |
+| `REALNAME_CURFEW_BLOCKED` | 403 | false | In a non-playable time window (F28; `data` may carry `nextWindowAt`) |
+| `REALNAME_CHARGE_BLOCKED` | 403 | false | Spending limit exceeded (F29; `data` may carry the limit fields) |
 
-> **本表当前为注册保留码,网关不发**(2026-10-15 巡检代决,判定载荷为唯一真相源):
-> 实名判定经 200 判定态载荷表达——`status.state`(`UNVERIFIED`/`PENDING_REVIEW`/
-> `VERIFIED`/`REJECTED`)+ `isMinor` + `curfew.playable` + `charge-check.allowed`。
-> `verify` / `curfew` / `charge-check` 是判定端点,返回 403 会把「查一下能不能充」
-> 变成异常路径;载荷可同时表达五种状态,单个 403 码不能。上表码保留不删,接入方在
-> 游戏侧执行防沉迷策略时仍可使用(见下文「策略执行不在本契约」);全表同 [errors.md](./errors.md)
-> 「注册保留码」注记,由 `TestErrorCodesWiredOrReserved` 门禁核对。
+> **The codes in this table are currently registered reserved codes, and the gateway does not emit them** (2026-10-15 patrol delegated decision; the decision payload is the single source of truth):
+> Real-name determinations travel in the 200 decision-state payload — `status.state` (`UNVERIFIED`/`PENDING_REVIEW`/
+> `VERIFIED`/`REJECTED`) + `isMinor` + `curfew.playable` + `charge-check.allowed`.
+> `verify` / `curfew` / `charge-check` are decision endpoints; returning 403 from them would turn "check whether I can charge"
+> into an error path; the payload can express all five states at once, which a single 403 code cannot. The codes above
+> are retained, not deleted, and integrators may still use them when enforcing anti-addiction policy on the game side
+> (see "Policy execution is not in this contract" below); the whole table is covered by the "registered reserved codes"
+> annotation in [errors.md](./errors.md), checked by the `TestErrorCodesWiredOrReserved` gate.
 
-其余(认证、scope、限流、能力关闭)一律通用码,见 [errors.md](./errors.md)。
+Everything else (authentication, scope, rate limiting, capability disabled) uses common codes; see [errors.md](./errors.md).
 
-## 客户端要求(各端 SDK)
+## Client Requirements (SDKs on each platform)
 
-- `501 COMMON_CAPABILITY_DISABLED` = 实名未开启:查询接口返回「未启用」,UI 隐藏入口,**不进报错路径**。
-- `PENDING_REVIEW` 是安全态:不引导重试、不放行受保护操作,提示「审核中」;是否转人工由接入方决定。
-- `REALNAME_REQUIRED` → 引导进入实名流程;`REALNAME_CURFEW_BLOCKED` / `REALNAME_CHARGE_BLOCKED` → 按 `data` 字段展示,不得自造文案口径。
-  (网关当前不发这三个码——同一判定在 200 载荷里:`state=UNVERIFIED` → 引导实名;
-  `curfew.playable=false` / `charge-check.allowed=false` → 按载荷 `nextWindowAt`、
-  限额字段展示。接入方在游戏侧执行策略并改用错误码时,客户端映射已就位,照此处理。)
-- 姓名与证件号**只经 `Submit` 传输一次**:不缓存、不重放、不打印;UI 展示一律走 `RealNameMask`。
+- `501 COMMON_CAPABILITY_DISABLED` = real name not enabled: the query endpoint returns "not enabled", the UI hides the entry, and it **stays out of the error path**.
+- `PENDING_REVIEW` is a safe state: no retry guidance, no release of protected operations; show "under review" — whether to route to manual handling is the integrator's decision.
+- `REALNAME_REQUIRED` → guide the player into the real-name flow; `REALNAME_CURFEW_BLOCKED` / `REALNAME_CHARGE_BLOCKED` → display per the `data` fields, without inventing your own copy wording.
+  (The gateway currently emits none of these three codes — the same determination lives in the 200 payload: `state=UNVERIFIED` → guide into real name;
+  `curfew.playable=false` / `charge-check.allowed=false` → display per the payload's `nextWindowAt` and
+  limit fields. When the integrator enforces policy on the game side and switches to error codes, the client mapping is already in place — handle it accordingly.)
+- The name and ID number are **transmitted only once, via `Submit`**: no caching, no replay, no printing; UI display always goes through `RealNameMask`.
 
-## 扩展预留(2026-10-11 补注)
+## Extension Reservations (addendum, 2026-10-11)
 
-| 可能的扩展 | 兼容处理方式 |
+| Possible extension | Compatible handling |
 | --- | --- |
-| 海外年龄门/家长同意(F31) | `consent` 端点组已于 v1.1 冻结(2026-10-18 PATROL1018E 代决,见「同意管理(consent,v1.1)」节);现有字段与端点不动,实现面待开工拍板 |
-| Provider 结果扩展 | `policyExtension` 扩展位已预留,未知字段必须忽略;新策略字段 = 加法兼容 |
-| 验证通过回调 | `OnRealNameVerified` 客户端回调已预留;触发时机细化 = 加参数提案 |
-| 第三方核验生态 | `RealNameProvider` 接口可插拔 + 路由表热切换已冻结;接新供应商 = 新适配,契约不动 |
-| 时段/额度规则调整 | 管理面配置(curfew 窗口、分龄限额);契约不冻结具体值,红线(默认关、显式开)不因扩展松动 |
+| Overseas age gate / parental consent (F31) | The `consent` endpoint group is frozen in v1.1 (2026-10-18 delegated decision PATROL1018E; see the "Consent Management (consent, v1.1)" section); existing fields and endpoints are untouched, the implementation surface awaits a go-ahead call |
+| Provider result extension | The `policyExtension` extension slot is reserved; unknown fields must be ignored; new policy fields = additive compatibility |
+| Verification-passed callback | The `OnRealNameVerified` client callback is reserved; refining the trigger timing = an add-parameter proposal |
+| Third-party verification ecosystem | The `RealNameProvider` interface is pluggable + routing-table hot-switching is frozen; onboarding a new vendor = a new adapter, the contract is unchanged |
+| Time-window / limit rule adjustments | Management-plane configuration (curfew windows, age-tiered limits); the contract does not freeze concrete values, and the red line (off by default, explicit enable) is not loosened by extensions |

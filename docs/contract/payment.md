@@ -1,135 +1,135 @@
 
-# 支付契约(Payment)——形态开放
+# Payment Contract (Payment) — Open Forms
 
-> 状态:**Frozen v1.1** · 里程碑 M5 · v1 冻结日期 2026-10-09;**v1.1(2026-10-09)追加推送事件**(`payment.paid` / `payment.delivered`,附加兼容变更,见「推送事件」)。
-> 域前缀 `PAYMENT` 已注册([errors.md](./errors.md));本文档是 M5 服务端(默认供应商 **teller**)与各端 SDK 的一致性依据,冻结后只加不改,破坏性变更升版本(见 [versioning.md](./versioning.md))。
+> Status: **Frozen v1.1** · Milestone M5 · v1 frozen 2026-10-09; **v1.1 (2026-10-09) added the push events** (`payment.paid` / `payment.delivered`, an additive compatible change, see "Push Events").
+> The domain prefix `PAYMENT` is registered ([errors.md](./errors.md)); this document is the consistency basis between the M5 server (default provider **teller**) and the SDKs on every platform. Once frozen it is additive-only; breaking changes bump the version (see [versioning.md](./versioning.md)).
 
-## 能力与范围
+## Capabilities and Scope
 
-- 能力域 `payments`(`providers.CapPayments`),路由 `/v1/payments/*`;默认供应商 **teller**(自建订单/沙箱渠道),可换可关。
-- 契约钉的是**订单-发货核心流**(下单 → 渠道回调 → 发货 → 对账),不假设钱包形态;渠道与钱包由接入方选择。
+- Capability domain `payments` (`providers.CapPayments`), routes `/v1/payments/*`; default provider **teller** (self-built orders/sandbox channel), replaceable and switchable off.
+- What the contract pins down is the **order-to-fulfillment core flow** (create order → channel callback → fulfillment → reconciliation); it assumes nothing about the wallet shape; channels and wallets are chosen by the integrator.
 
-### 四形态(订单的发货目标,开放不预设)
+### The Four Forms (the order's fulfillment target, open and unassumed)
 
-| form | 语义 | 发货(DELIVERED)意味着 |
+| form | Meaning | Fulfillment (DELIVERED) means |
 | --- | --- | --- |
-| `DIRECT_PURCHASE` | 直购 | 道具/权益已发放到游戏 |
-| `ACCOUNT_WALLET` | 账号钱包 | 余额已入账(账号维度) |
-| `GAME_WALLET` | 游戏钱包 | 游戏内货币已入账(游戏维度) |
-| `EXTERNAL_PAYMENT` | 外接支付 | 接入方自有商城订单已确认(本域仅登记对账) |
+| `DIRECT_PURCHASE` | Direct purchase | The item/entitlement has been granted in the game |
+| `ACCOUNT_WALLET` | Account wallet | The balance has been credited (account dimension) |
+| `GAME_WALLET` | Game wallet | The in-game currency has been credited (game dimension) |
+| `EXTERNAL_PAYMENT` | External payment | The integrator's own store order has been confirmed (this domain only records it for reconciliation) |
 
-- **不做统一钱包假设**:余额怎么存、货币叫什么,都是接入方的事;契约只保证订单状态与金额事实可查可对账。
-- 形态只是订单上的枚举标注与发货语义差异,不产生不同的端点或状态机。
+- **No unified-wallet assumption**: how the balance is stored and what the currency is called are the integrator's business; the contract only guarantees that order status and amount facts are queryable and reconcilable.
+- A form is merely an enum annotation on the order plus a difference in fulfillment semantics; it produces no different endpoints or state machine.
 
-## 安全边界(红线,实现不得绕过)
+## Security Boundaries (red lines, implementations must not bypass)
 
-1. **服务端定价**:客户端下单请求体只有 `skuId`;金额/货币一律取自服务端 SKU 价格表——客户端报价不可信。
-2. **回调只认渠道签名**:渠道→网关的 S2S 回调必须携带 `X-Payment-Signature`(对 raw body 的 HMAC-SHA256,密钥按渠道配置);签名缺失/不匹配一律 403,伪造签名**全部拒绝**。
-3. **回调幂等**:同一订单重复回调(同状态)= 幂等受理(200),不二次发货;发货幂等性由接入方发货钩子兜底(契约要求按订单幂等)。
-4. **订单归属校验**:非本人的订单一律 404 `PAYMENT_ORDER_NOT_FOUND`(不泄露存在性)。
-5. **风控前置**:下单可经 RiskProvider 前置(大额/异常频次);拒绝 → 403 `PAYMENT_RISK_REJECTED`(Provider 缺省不拦,接入方显式接)。
-6. **断单可对账恢复**:发货失败订单停在 `PAID`,不丢单;恢复走管理面对账重发(发货幂等)。
+1. **Server-side pricing**: the client's order-request body carries only `skuId`; amount/currency always come from the server's SKU price table — client-quoted prices are untrusted.
+2. **Callbacks trust only the channel signature**: the channel→gateway S2S callback must carry `X-Payment-Signature` (HMAC-SHA256 over the raw body, keys configured per channel); a missing/mismatched signature is always 403, and forged signatures are **rejected outright**.
+3. **Callback idempotency**: repeated callbacks for the same order (same status) = idempotent acceptance (200), no second fulfillment; fulfillment idempotency is backed by the integrator's fulfillment hook (the contract requires idempotency per order).
+4. **Order ownership check**: an order that is not yours is always 404 `PAYMENT_ORDER_NOT_FOUND` (existence is not leaked).
+5. **Risk check first**: order creation may go through a RiskProvider first (large amounts / abnormal frequency); rejected → 403 `PAYMENT_RISK_REJECTED` (by default the Provider does not block; integrators wire it in explicitly).
+6. **Broken orders recover via reconciliation**: an order whose fulfillment fails stays at `PAID`, never lost; recovery goes through management-plane reconciliation re-delivery (fulfillment is idempotent).
 
-## 数据模型
+## Data Model
 
-### sku(价格表条目,管理面登记)
+### sku (price-table entry, registered in the management plane)
 
-| 字段 | 类型 | 说明 |
+| Field | Type | Description |
 | --- | --- | --- |
-| `id` | id | 接入方定义的 SKU 标识 |
-| `productId` | string | 发货目标(道具/货币包 ID;语义归接入方) |
-| `form` | 枚举 | 四形态之一 |
-| `amountCents` | int64 | 服务端定价(分) |
-| `currency` | string | ISO 4217(如 `CNY`) |
+| `id` | id | Integrator-defined SKU identifier |
+| `productId` | string | Fulfillment target (item/currency-pack ID; semantics belong to the integrator) |
+| `form` | enum | One of the four forms |
+| `amountCents` | int64 | Server-side price (cents) |
+| `currency` | string | ISO 4217 (e.g. `CNY`) |
 
-### order(订单)
+### order (order)
 
-| 字段 | 类型 | 说明 |
+| Field | Type | Description |
 | --- | --- | --- |
-| `id` | id | 服务端生成,UUIDv7,前缀 `order_` |
-| `status` | 枚举 | `CREATED` / `PAID` / `DELIVERED` / `CLOSED`(大写) |
-| `skuId` / `productId` / `form` | — | 下单时从 SKU 落定(快照,SKU 后改不影响已建订单) |
-| `amountCents` / `currency` | — | 同上 |
-| `payToken` | string? | **仅下单响应**下发:渠道侧支付凭证(沙箱渠道为模拟凭证;真实渠道语义归渠道适配) |
-| `createdAt` / `updatedAt` | timestamp | RFC 3339 毫秒 UTC |
-| `paidAt` / `deliveredAt` | timestamp? | 可选,缺省不下发 |
+| `id` | id | Server-generated, UUIDv7, prefix `order_` |
+| `status` | enum | `CREATED` / `PAID` / `DELIVERED` / `CLOSED` (uppercase) |
+| `skuId` / `productId` / `form` | — | Settled from the SKU at order time (a snapshot; later SKU edits do not affect already-created orders) |
+| `amountCents` / `currency` | — | Same as above |
+| `payToken` | string? | Issued **only in the create-order response**: the channel-side payment credential (a simulated credential for the sandbox channel; semantics for real channels belong to the channel adapter) |
+| `createdAt` / `updatedAt` | timestamp | RFC 3339 milliseconds UTC |
+| `paidAt` / `deliveredAt` | timestamp? | Optional, not sent when unset |
 
-状态机:`CREATED → PAID → DELIVERED`(正向);`CREATED/PAID → CLOSED`(关单);回调对 `DELIVERED/CLOSED` 订单幂等受理不回退。**断单态 = 停在 `PAID`**(已付未发,对账恢复)。
+State machine: `CREATED → PAID → DELIVERED` (forward); `CREATED/PAID → CLOSED` (order closed); callbacks against `DELIVERED/CLOSED` orders are idempotently accepted and never rolled back. **Broken-order state = stuck at `PAID`** (paid but not delivered, recovered via reconciliation).
 
-## 端点总览(挂载 `/v1/payments/*`)
+## Endpoint Overview (mounted at `/v1/payments/*`)
 
-| 端点 | 认证 | 说明 |
+| Endpoint | Auth | Description |
 | --- | --- | --- |
-| `GET /v1/payments/skus` | Bearer | 可购 SKU 列表(价格表投影) |
-| `POST /v1/payments/orders` | Bearer | 下单(服务端定价;风控前置) |
-| `GET /v1/payments/orders` | Bearer | 我的订单列表(`updatedAt` 倒序,分页) |
-| `GET /v1/payments/orders/{orderId}` | Bearer | 订单详情(状态轮询;发货感知靠它) |
-| `POST /v1/payments/callback` | **渠道签名** | S2S:渠道支付回调(HMAC-SHA256;非玩家端点,无 Bearer) |
+| `GET /v1/payments/skus` | Bearer | Purchasable SKU list (price-table projection) |
+| `POST /v1/payments/orders` | Bearer | Create an order (server-side pricing; risk check first) |
+| `GET /v1/payments/orders` | Bearer | My order list (`updatedAt` descending, paginated) |
+| `GET /v1/payments/orders/{orderId}` | Bearer | Order detail (status polling; delivery awareness relies on it) |
+| `POST /v1/payments/callback` | **channel signature** | S2S: channel payment callback (HMAC-SHA256; not a player endpoint, no Bearer) |
 
-- 认证、scope header、信封与分页同 [auth.md](./auth.md) / [primitives.md](./primitives.md)。
+- Auth, scope headers, envelope, and pagination are the same as [auth.md](./auth.md) / [primitives.md](./primitives.md).
 
 ### `POST /v1/payments/orders`
 
-请求体(裸对象):`{ "skuId": "..." }`。
+Request body (bare object): `{ "skuId": "..." }`.
 
-成功响应 `data` = order 快照(`CREATED` + `payToken`)。SKU 不存在/不可购 → 404 `PAYMENT_SKU_NOT_FOUND`;风控拒绝 → 403 `PAYMENT_RISK_REJECTED`。
+Success response `data` = the order snapshot (`CREATED` + `payToken`). SKU missing/not purchasable → 404 `PAYMENT_SKU_NOT_FOUND`; rejected by risk → 403 `PAYMENT_RISK_REJECTED`.
 
-### `POST /v1/payments/callback`(S2S)
+### `POST /v1/payments/callback` (S2S)
 
-请求头:`X-Payment-Signature: <hex HMAC-SHA256(channelSecret, rawBody)>`;请求体(裸对象):
+Request header: `X-Payment-Signature: <hex HMAC-SHA256(channelSecret, rawBody)>`; request body (bare object):
 
 ```json
 { "orderId": "order_...", "paidAt": "2026-10-09T12:00:00.000Z" }
 ```
 
-- 签名验证**先于** body 解析(raw body 参与 HMAC);失败 → 403 `PAYMENT_INVALID_SIGNATURE`,不区分「密钥错/签名错/伪造」。
-- 受理 = 订单转 `PAID` → 同步执行发货钩子 → 成功转 `DELIVERED`;发货失败订单停 `PAID`(受理仍 200——回调本身成功,发货是对账问题)。
-- 对 `PAID`(已回调未发货)与 `DELIVERED` 订单重复回调 = 幂等 200,不二次发货。
+- Signature verification happens **before** body parsing (the raw body participates in the HMAC); on failure → 403 `PAYMENT_INVALID_SIGNATURE`, with no distinction between "wrong key / wrong signature / forgery".
+- Acceptance = the order moves to `PAID` → the fulfillment hook runs synchronously → on success it moves to `DELIVERED`; if fulfillment fails the order stays at `PAID` (acceptance is still 200 — the callback itself succeeded; fulfillment is a reconciliation matter).
+- Repeated callbacks against `PAID` (called back but not yet delivered) and `DELIVERED` orders = idempotent 200, no second fulfillment.
 
-## 发货与对账(管理面,不经网关玩家路由)
+## Fulfillment and Reconciliation (management plane, not through the gateway's player routes)
 
-- **发货钩子**:Provider 构造注入(接入方按订单发货:道具/入账/外部确认);幂等要求按订单。
-- **对账重发**:管理面枚举停 `PAID` 的订单逐个重试发货(断单可对账恢复的落点);本 v1 为进程内方法,持久化与定时对账随部署面。
+- **Fulfillment hook**: injected by Provider construction (integrators fulfill per order: grant items / credit balance / external confirmation); the idempotency requirement is per order.
+- **Reconciliation re-delivery**: the management plane enumerates orders stuck at `PAID` and retries fulfillment one by one (where "broken orders recover via reconciliation" lands); in this v1 it is an in-process method; persistence and scheduled reconciliation follow the deployment plane.
 
-## 推送事件(v1.1 新增)
+## Push Events (added in v1.1)
 
-经推送通道([messages.md](./messages.md),默认 Provider chirp)**广播**;载荷是最小提示,**不含金额/SKU 等业务字段**(广播信道人人可收,业务数据归拉取端点按归属过滤):
+**Broadcast** over the push channel ([messages.md](./messages.md), default Provider chirp); the payload is a minimal hint, **without business fields such as amount/SKU** (the broadcast channel is receivable by anyone; business data belongs to the pull endpoints, filtered by ownership):
 
-| type | 触发 | payload |
+| type | Trigger | payload |
 | --- | --- | --- |
-| `payment.paid` | 订单 `CREATED → PAID`(渠道回调受理) | `{ "orderId": "order_..." }` |
-| `payment.delivered` | 订单转 `DELIVERED`(回调同步发货;含对账恢复的重发) | `{ "orderId": "order_..." }` |
+| `payment.paid` | Order `CREATED → PAID` (channel callback accepted) | `{ "orderId": "order_..." }` |
+| `payment.delivered` | Order moves to `DELIVERED` (synchronous fulfillment on the callback; includes re-deliveries from reconciliation recovery) | `{ "orderId": "order_..." }` |
 
-- 语义同 [events.md](./events.md):at-most-once + 拉取兜底——推送只是「该去拉了」的提示,客户端收到后 `GET /v1/payments/orders/{orderId}`(归属校验:非本人 404,广播不泄露存在性以外的信息)。幂等重复回调不重复推送(只报状态转移,不报受理)。
-- 发货感知升级:**推送为提示、轮询为准**——未连流/丢帧时轮询(`GET orders/{id}`)仍是完整可用路径,不做实时期望。
+- Semantics as in [events.md](./events.md): at-most-once + pull as the fallback — the push is only a hint that "it is time to pull"; on receipt the client calls `GET /v1/payments/orders/{orderId}` (ownership check: 404 when it is not yours; the broadcast leaks nothing beyond existence). Idempotent repeated callbacks do not repeat the push (it reports state transitions only, not acceptances).
+- Delivery-awareness upgrade: **the push is a hint, polling is authoritative** — when not connected to the stream / on dropped frames, polling (`GET orders/{id}`) remains a fully usable path; no realtime expectations are made.
 
-## 错误码域表(前缀 `PAYMENT`,errors.md v4)
+## Error Code Domain Table (prefix `PAYMENT`, errors.md v4)
 
-| code | HTTP | retryable | 说明 |
+| code | HTTP | retryable | Description |
 | --- | --- | --- | --- |
-| `PAYMENT_SKU_NOT_FOUND` | 404 | false | SKU 不存在或不可购 |
-| `PAYMENT_ORDER_NOT_FOUND` | 404 | false | 订单不存在或不属于当前玩家 |
-| `PAYMENT_RISK_REJECTED` | 403 | false | 风控前置拒绝(大额/异常频次) |
-| `PAYMENT_INVALID_SIGNATURE` | 403 | false | 渠道回调签名校验失败(伪造一律拒绝) |
-| `PAYMENT_ORDER_STATE` | 409 | false | 订单状态机非法转移(管理面误操作防护) |
+| `PAYMENT_SKU_NOT_FOUND` | 404 | false | SKU missing or not purchasable |
+| `PAYMENT_ORDER_NOT_FOUND` | 404 | false | Order missing or not owned by the current player |
+| `PAYMENT_RISK_REJECTED` | 403 | false | Rejected by the risk pre-check (large amount / abnormal frequency) |
+| `PAYMENT_INVALID_SIGNATURE` | 403 | false | Channel callback signature verification failed (forgeries are always rejected) |
+| `PAYMENT_ORDER_STATE` | 409 | false | Illegal transition in the order state machine (protection against management-plane misoperation) |
 
-## 客户端要求(各端 SDK)
+## Client Requirements (per-platform SDKs)
 
-- 能力未接(501 `COMMON_CAPABILITY_DISABLED`)→ 各查询返回 null,隐藏商城/充值 UI。
-- **发货感知 = 推送为提示、轮询为准**(v1.1 起有 `payment.paid`/`payment.delivered` 推送;未连流/丢帧轮询详情仍完整可用,不做实时期望)。
-- `payToken` 只在下单响应出现一次:沙箱渠道直接回传模拟渠道完成支付;真实渠道按渠道 SDK 语义消费(契约不解释渠道 SDK)。
-- 金额展示用 `amountCents`/`currency` 原样渲染,**不得**在客户端做任何金额计算。
-- `PAYMENT_RISK_REJECTED` / `PAYMENT_INVALID_SIGNATURE` 不重试;429 按 `Retry-After` 退避。
+- Capability not wired in (501 `COMMON_CAPABILITY_DISABLED`) → every query returns null; hide the store/top-up UI.
+- **Delivery awareness = the push is a hint, polling is authoritative** (from v1.1 there are the `payment.paid`/`payment.delivered` pushes; when not connected to the stream / on dropped frames, polling the detail endpoint remains fully usable; no realtime expectations).
+- `payToken` appears exactly once, in the create-order response: for the sandbox channel it is passed straight back and the simulated channel completes the payment; for real channels it is consumed per the channel SDK's semantics (the contract does not interpret channel SDKs).
+- Render amount display with `amountCents`/`currency` as-is; **never** do any amount math on the client.
+- `PAYMENT_RISK_REJECTED` / `PAYMENT_INVALID_SIGNATURE` are not retried; back off on 429 per `Retry-After`.
 
 ---
 
-## 扩展预留(2026-10-11 补注)
+## Extension Reservations (Note Added 2026-10-11)
 
-| 可能的扩展 | 兼容处理方式 |
+| Possible Extension | Compatible Handling |
 | --- | --- |
-| 新支付渠道(Stripe / PayPal / 渠道 IAP) | Provider 适配层接入,**回调签名面不变**——渠道签名即认证,新渠道 = 新签名密钥配置,契约不动 |
-| 新订单形态 | `orderType` 加枚举值 = 兼容;状态机不因形态分支(四形态只是标注的既定红线) |
-| 订阅(F23) | v1.1+ 扩展位:订阅态跟随商店服务端通知,Provider 化;订单模型复用,`orderType=SUBSCRIPTION` 预留 |
-| 钱包余额 / 消费端点 | **不进 v1 玩家契约**(四形态只是订单标注);余额面属后续域提案 |
-| 退款 / 冲正 | 对账面(Reconcile)已内建;退款端点 = v1.1+ 提案,管理面先行 |
-| 渠道凭证演进 | 契约只保证 `payToken` 在下单响应出现一次;渠道 SDK 语义不进本契约 |
+| New payment channels (Stripe / PayPal / channel IAP) | Wired in via the Provider adapter layer, **the callback-signature surface does not change** — the channel signature is the authentication; a new channel = new signature-key configuration, contract untouched |
+| New order forms | Adding enum values to `orderType` = compatible; the state machine does not branch by form (the four forms being annotations only is an established red line) |
+| Subscriptions (F23) | v1.1+ extension slot: subscription state follows the store's server notifications, Provider-ized; the order model is reused, `orderType=SUBSCRIPTION` reserved |
+| Wallet balance / spending endpoints | **Not in the v1 player contract** (the four forms are only order annotations); the balance surface belongs to a later domain proposal |
+| Refunds / reversals | The reconciliation surface (Reconcile) is already built in; a refund endpoint = a v1.1+ proposal, management plane first |
+| Channel-credential evolution | The contract only guarantees that `payToken` appears once in the create-order response; channel SDK semantics stay out of this contract |

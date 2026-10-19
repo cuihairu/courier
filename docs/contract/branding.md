@@ -1,10 +1,10 @@
 
-# 品牌定制契约(Branding)
+# Brand Customization Contract
 
-> 状态:**Frozen v1** · 里程碑 M3(与 Remote Config 同管道)· 冻结日期 2026-10-09。
-> 目的:可选 UI 包展示**接入方**的品牌,而不是 Courier 的标。**Core 不含品牌逻辑**——契约只有字段,消费全在 UI 包。域前缀已注册([errors.md](./errors.md):本域无专属错误码);默认供应商 **scribe**(与 config/app 同管道)。
+> Status: **Frozen v1** · Milestone M3 (same pipeline as Remote Config) · Frozen 2026-10-09.
+> Purpose: the optional UI package displays the **integrator's** branding instead of Courier's own marks. **Core contains no branding logic** — the contract is fields only; consumption lives entirely in the UI package. The domain prefix is registered ([errors.md](./errors.md): this domain has no dedicated error codes); default Provider **scribe** (same pipeline as config/app).
 
-## 资源模型
+## Resource Model
 
 ```json
 {
@@ -22,55 +22,55 @@
 }
 ```
 
-- `version`:品牌物料版本,单调递增(热生效判据);与 config 的 `configVersion` 相互独立。
-- 颜色一律 `#RRGGBB`;URL 均为 CDN/对象存储直链(HTTPS)。
-- 业务字段全部可选,见「兜底规则」;除 `version` 外字段名不与任何契约语义冲突(管理面禁止占用 `version` 键)。
+- `version`: the brand asset version, monotonically increasing (basis for hot-update detection); independent from config's `configVersion`.
+- Colors are always `#RRGGBB`; URLs are always CDN/object-store direct links (HTTPS).
+- All business fields are optional; see "Fallback Rules"; apart from `version`, field names conflict with no contract semantics (the management plane is forbidden from occupying the `version` key).
 
-## 下发与缓存
+## Delivery and Caching
 
-- 端点:`GET /v1/app/branding`(**匿名可**——登录页就要显示品牌;带有效 Bearer 亦可),挂 App 域路由(`/v1/app/*`,维护门白名单内),scope header 要求同 [auth.md](./auth.md)。
-- 未设置过品牌 → `200 {"version": 0}`(空字段,UI 全默认兜底);空集不是错误。
-- 响应整体缓存(`version` 变化即失效重拉);缓存策略归平台 Adapter 的存储实现,Core 不定缓存。
-- 链路:`BrandingProvider`(默认 scribe;素材存对象存储)→ Gateway 透传投影 → SDK 透传 → UI 包消费。与 Remote Config 同管道。
-- 热生效:经 [messages.md](./messages.md) 通道 `branding.updated` 事件,data 只带 `{"version": n}`(广播;客户端收后重拉比对,相同即忽略)。
+- Endpoint: `GET /v1/app/branding` (**anonymous OK** — the login page has to show the brand; a valid Bearer token also works), mounted on the App domain route (`/v1/app/*`, within the maintenance-gate allowlist); scope header requirements are the same as [auth.md](./auth.md).
+- Branding never set → `200 {"version": 0}` (empty fields, the UI falls back to defaults across the board); an empty set is not an error.
+- The response is cached as a whole (invalidated and re-pulled when `version` changes); caching strategy belongs to the platform Adapter's storage implementation, Core does not dictate caching.
+- Pipeline: `BrandingProvider` (default scribe; assets live in object storage) → Gateway pass-through projection → SDK pass-through → UI package consumption. Same pipeline as Remote Config.
+- Hot update: via the [messages.md](./messages.md) channel `branding.updated` event; the data carries only `{"version": n}` (broadcast; after receiving it, the client re-pulls and compares, ignoring if identical).
 
-## 兜底规则
+## Fallback Rules
 
-- 任何字段缺失 → UI 包使用该字段的 Courier 内置默认。
-- 整能力未配置/未开启(`501 COMMON_CAPABILITY_DISABLED`)→ SDK 返回「未启用」态(null),UI 全默认,Courier 自己的标兜底。
-- Core 与 Service 对字段零解释、零渲染(透传原始 JSON);缓存归平台 Adapter 的存储实现。
+- Any missing field → the UI package uses that field's Courier built-in default.
+- The capability not configured / not enabled (`501 COMMON_CAPABILITY_DISABLED`) → the SDK returns a "not enabled" state (null), the UI uses all defaults, and Courier's own marks are the fallback.
+- Core and Service do zero interpretation and zero rendering of the fields (raw JSON is passed through); caching belongs to the platform Adapter's storage implementation.
 
-## 错误码(域表)
+## Error Codes (Domain Table)
 
-本域**无新增错误码**:参数/认证/限流/能力关闭一律通用码([errors.md](./errors.md))。
+This domain adds **no new error codes**: parameters / auth / rate limiting / capability disabled are all common error codes ([errors.md](./errors.md)).
 
-## 客户端要求(各端 SDK)
+## Client Requirements (per-platform SDKs)
 
-- SDK 透传原始 JSON(`version` 之外的字段原样交给 UI 包),不做字段校验与类型收窄。
-- `branding.updated` 事件到达后重拉比对 `version`,相同即忽略(不重渲染)。
-- UI 包持有 Courier 默认标常量,作为全部字段的兜底(消费示例:Unity UI 包 BrandingCatalog)。
+- The SDK passes the raw JSON through (fields other than `version` are handed to the UI package as-is), with no field validation or type narrowing.
+- After the `branding.updated` event arrives, re-pull and compare `version`, ignoring if identical (no re-render).
+- The UI package holds Courier's built-in default mark constants, serving as the fallback for all fields (consumption example: the Unity UI package's BrandingCatalog).
 
-## 构建期物料附录(指引,非契约)
+## Build-time Asset Appendix (Guidance, Not Contract)
 
-UI 包运行时消费上面下发的品牌;应用图标等构建期资产无法热下发,各引擎模板工程须提供替换指引:
+The UI package consumes the brand delivered above at runtime; build-time assets such as app icons cannot be delivered hot, so each engine's template project must provide replacement guidance:
 
-| 平台 | 清单 |
+| Platform | Checklist |
 | --- | --- |
-| Unity | Player Settings 图标(逐尺寸)、启动画面、包名相关品牌位 |
-| iOS | AppIcon 全尺寸(20/29/40/60/76/83.5 pt 的 @2x/@3x)、启动屏 |
-| Android | `mipmap-mdpi … xxxhdpi` launcher 图标 + 自适应图标(foreground/background)、应用名 |
-| 小程序/小游戏 | 平台后台配置项(图标、名称、简介)核对单 |
-| UE / Godot / Layabox | 各自打包设置中的图标与启动图清单 |
+| Unity | Player Settings icons (per size), splash screen, package-name related brand slots |
+| iOS | AppIcon at all sizes (@2x/@3x for 20/29/40/60/76/83.5 pt), launch screen |
+| Android | `mipmap-mdpi … xxxhdpi` launcher icons + adaptive icons (foreground/background), app name |
+| Mini-program / mini-game | Platform admin configuration items (icon, name, description) checklist |
+| UE / Godot / Layabox | The icon and splash-image checklists in each engine's packaging settings |
 
-模板工程放置占位资源 + `BRANDING.md` 勾选清单,保证「接入方 logo 替换」是流程而非考古(模板工程落地随各端模板批次,本附录即指引落档)。
+Template projects ship placeholder resources plus a `BRANDING.md` checklist, making "replacing the integrator logo" a process rather than an archaeology dig (template projects land with each per-platform template batch; this appendix is where the guidance is filed).
 
 ---
 
-## 扩展预留(2026-10-11 补注)
+## Extension Reservations (Note Added 2026-10-11)
 
-| 可能的扩展 | 兼容处理方式 |
+| Possible Extension | Compatible Handling |
 | --- | --- |
-| 新品牌字段 / 新素材位(启动页/图标角标等) | **加可选字段** = 兼容;键值经 scribe 管理面下发,UI 可选包按需消费;Core 无品牌逻辑红线不变 |
-| 字段缺省 | 客户端走兜底链(远端 → 宿主 → 内置默认),缺字段即兜底,不报错 |
-| 素材托管 / CDN / 签名 URL | 接入方职责,契约只存 URL 字符串(与 player 头像同口径) |
-| 主题切换 / 深浅色 | 热切换经 version 判据已内建;新增主题维度 = 加可选字段 |
+| New brand fields / new asset slots (splash page / icon badge, etc.) | **Adding optional fields** = compatible; key/value delivered through scribe's management plane; the UI package consumes what it needs; Core's "no branding logic" red line is unchanged |
+| Field absence | The client walks the fallback chain (remote → host → built-in default); a missing field simply falls back, no error |
+| Asset hosting / CDN / signed URLs | The integrator's responsibility; the contract stores only URL strings (same convention as player avatars) |
+| Theme switching / dark and light | Hot switching via the `version` basis is already built in; adding a theme dimension = adding an optional field |

@@ -1,39 +1,39 @@
 
-# 远程配置契约(Remote Config)
+# Remote Config Contract
 
-> 状态:**Frozen v1** · 里程碑 M3 · 冻结日期 2026-10-09。
-> 域前缀 `CONFIG` 已注册([errors.md](./errors.md));本文档是 M3 服务端(默认供应商 **scribe**,与 branding/app 同管道)与各端 SDK 的一致性依据,冻结后只加不改,破坏性变更升版本(见 [versioning.md](./versioning.md))。
-> 调研落点:必备链路 F47(远程配置/Feature Flag)、F48(分群与条件定向)、F50(版本历史与回滚),见 [features.md §14](../research/features.md)。
+> Status: **Frozen v1** · Milestone M3 · Frozen 2026-10-09.
+> Domain prefix `CONFIG` registered ([errors.md](./errors.md)); this document is the consistency contract between the M3 server-side (default Provider **scribe**, same pipeline as branding/app) and the per-platform SDKs. After freezing, additions only, no modifications; breaking changes raise the version (see [versioning.md](./versioning.md)).
+> Research anchors: must-have pipeline F47 (remote config / feature flags), F48 (segmentation and conditional targeting), F50 (version history and rollback); see [features.md §14](../research/features.md).
 
-## 能力与范围
+## Capabilities and Scope
 
-- 能力域 `app`(`providers.CapApp`),路由 `/v1/app/*`;本契约是**玩家侧只读投影**——键值编辑、条件规则、发布与回滚全部走 Provider 管理面(接入方后台或 croupier 发布),不经网关玩家侧,与公告同模式。
-- 键值模型:扁平 `key → value`,`value` 为任意 JSON 值(字符串/数字/布尔/对象;复杂结构客户端自行解析)。键名 1–128 字符,`[a-zA-Z0-9_.-]`;单份配置集 ≤200 键,单值 ≤32 KiB。
-- 版本语义(F50):每次发布产生新 `configVersion`(全局单调递增);**回滚 = 以历史内容发布新版本号**,玩家侧只见 version 递增,不存在 version 回退。
-- 条件与灰度(F48)是**管理面语义**:条件维度、受众分群、放量百分比的 DSL 不进玩家契约。玩家侧投影规则:
-  - 请求参数(可选):`platform` / `appVersion` / `region`;缺省维度不参与过滤。
-  - 同一请求参数与账号下,同一 `configVersion` 内容**稳定**(灰度期间同账号不抖动)。
-  - 未命中任何键的客户端拿到空 `items`,不是错误。
-- 实时热生效经 [messages.md](./messages.md) 通道 `config.updated` 事件(见下);通道关闭时以启动/进前台拉取兜底。
-- 本契约**不覆盖**:A/B 实验与指标显著性(F49,Provider 扩展位)、配置审计与改动人记录(F50,管理面职责,玩家侧不暴露)。
+- Capability domain `app` (`providers.CapApp`), routes `/v1/app/*`; this contract is a **player-side read-only projection** — key-value editing, condition rules, publish and rollback all go through the Provider management plane (the integrator's admin console or publishing via croupier), not through the gateway's player side; same pattern as announcements.
+- Key-value model: flat `key → value`, where `value` is any JSON value (string / number / boolean / object; the client parses complex structures itself). Key names 1–128 characters, `[a-zA-Z0-9_.-]`; per config set ≤200 keys, single value ≤32 KiB.
+- Version semantics (F50): every publish produces a new `configVersion` (globally monotonically increasing); **rollback = publishing historical content under a new version number** — the player side only ever sees the version increase, there is no version rollback.
+- Conditions and gradual rollout (F48) are **management-plane semantics**: the DSL for condition dimensions, audience segmentation, and release percentages never enters the player contract. Player-side projection rules:
+  - Request parameters (optional): `platform` / `appVersion` / `region`; absent dimensions do not participate in filtering.
+  - Under the same request parameters and the same account, the content of a given `configVersion` is **stable** (no flapping for the same account during gradual rollout).
+  - A client that matches none of the keys gets empty `items`, which is not an error.
+- Real-time hot updates go through the [messages.md](./messages.md) channel `config.updated` event (see below); when the channel is closed, startup / foreground-entry pulls are the fallback.
+- This contract does **not cover**: A/B experiments and metric significance (F49, a Provider extension point), or config audit and change-author records (F50, a management-plane responsibility, not exposed on the player side).
 
-## 端点总览(挂载 `/v1/app/*`)
+## Endpoint Overview (mounted at `/v1/app/*`)
 
-| 端点 | 认证 | 说明 |
+| Endpoint | Auth | Description |
 | --- | --- | --- |
-| `GET /v1/app/config` | Bearer | 命中当前条件的键值全量 + `configVersion` |
+| `GET /v1/app/config` | Bearer | Full set of key-values matching the current conditions + `configVersion` |
 
-- 认证与 scope header 要求同 [auth.md](./auth.md);缺失 → 对应通用码。
-- 空配置集返回 `200 {"configVersion": n, "items": {}}`,不是 404;`CONFIG_NOT_FOUND` 保留给 v1.1 单键查询,本版不使用。
+- Authentication and scope header requirements are the same as [auth.md](./auth.md); if missing → the corresponding common error code.
+- An empty config set returns `200 {"configVersion": n, "items": {}}`, not 404; `CONFIG_NOT_FOUND` is reserved for the v1.1 single-key query and is not used in this version.
 
-## 数据模型
+## Data Model
 
-| 字段 | 类型 | 说明 |
+| Field | Type | Description |
 | --- | --- | --- |
-| `configVersion` | int | 单调递增;热生效判据(与本地缓存比对,相同则无操作) |
-| `items` | object | `key → JSON value` 映射;键与值上限见「能力与范围」 |
+| `configVersion` | int | Monotonically increasing; basis for hot-update detection (compared against the local cache; if identical, no-op) |
+| `items` | object | `key → JSON value` map; key and value limits per "Capabilities and Scope" |
 
-响应示例:
+Response example:
 
 ```json
 {
@@ -46,32 +46,32 @@
 }
 ```
 
-## 推送事件(经 messages.md 通道)
+## Push Events (via the messages.md channel)
 
-| event type | data | 语义 |
+| event type | data | Semantics |
 | --- | --- | --- |
-| `config.updated` | `{"configVersion": 7}` | 管理面发布新版本;客户端据此重拉 |
+| `config.updated` | `{"configVersion": 7}` | The management plane published a new version; the client re-pulls accordingly |
 
-- 事件**广播给所有已连接客户端**,服务端不感知各端条件命中与否:客户端收到后重拉 `/v1/app/config`,比对本端缓存 `configVersion`——相同则无操作,不同则以新拉取结果热生效(命中集没变的客户端重拉后内容相同,无可见变化;`configVersion` 为全局单调,不看本端命中集)。
-- data 结构只带 version,不带键值;禁止另造字段(与 announcement.published 同模式)。
+- The event is **broadcast to all connected clients**; the server does not track each client's condition matches: on receiving it, the client re-pulls `/v1/app/config` and compares against its cached `configVersion` — identical means no-op, different means the freshly pulled result takes effect as a hot update (clients whose hit set has not changed re-pull the same content, no visible change; `configVersion` is globally monotonic and does not look at this client's hit set).
+- The data structure carries only the version, not the key-values; inventing additional fields is forbidden (same pattern as `announcement.published`).
 
-## 错误码(域表)
+## Error Codes (Domain Table)
 
-本域玩家侧端点**无新增错误码**:参数/认证/限流/能力关闭一律通用码([errors.md](./errors.md));`CONFIG_NOT_FOUND`(404)为 v1.1 单键查询预留。
+This domain's player-side endpoints add **no new error codes**: parameters / auth / rate limiting / capability disabled are all common error codes ([errors.md](./errors.md)); `CONFIG_NOT_FOUND` (404) is reserved for the v1.1 single-key query.
 
-## 客户端要求(各端 SDK)
+## Client Requirements (per-platform SDKs)
 
-- 启动与进前台时拉取;`config.updated` 事件到达后重拉比对 version,相同即忽略(不重渲染)。
-- `501 COMMON_CAPABILITY_DISABLED` = 配置能力未接:SDK 返回空结果/「未启用」态,接入方据此使用内建默认值,**不进报错路径**。
-- 值解析失败(接入方结构变更)是使用方错误:SDK 按原始 JSON 值返回,不做二次校验。
-- 客户端可缓存上次 `configVersion` 与内容;重拉失败时沿用缓存(配置是加速器,不是依赖)。
+- Pull at startup and on entering the foreground; after the `config.updated` event arrives, re-pull and compare the version, ignoring if identical (no re-render).
+- `501 COMMON_CAPABILITY_DISABLED` = the config capability is not wired up: the SDK returns an empty result / a "not enabled" state; the integrator then uses built-in defaults and **does not enter the error path**.
+- Value-parse failures (integrator structural changes) are the consumer's error: the SDK returns the raw JSON value and performs no secondary validation.
+- The client may cache the last `configVersion` and its content; on a failed re-pull it keeps using the cache (config is an accelerator, not a dependency).
 
-## 扩展预留(2026-10-11 补注)
+## Extension Reservations (Note Added 2026-10-11)
 
-| 可能的扩展 | 兼容处理方式 |
+| Possible Extension | Compatible Handling |
 | --- | --- |
-| 单键查询 | `CONFIG_NOT_FOUND` 已为 v1.1 单键查询预留(上文错误码节),本版不使用;加端点 = 兼容 |
-| 新定向维度 | 条件 DSL 维度是管理面开集;玩家侧新查询参数走「缺省维度不参与过滤」语义,wire 兼容不升版 |
-| 值类型化 | v1 值为任意 JSON(不透明);类型化值 = v1.2 加可选字段,旧客户端照读原文,不做二次校验(上文已冻结口径) |
-| 发布调度 / 定时生效 | 管理面语义(同灰度/回滚),玩家侧只见 version 单调递增的稳定投影 |
-| 键空间扩展 | 上限(200 键 / 32 KiB)为管理面配置;调整不改 wire |
+| Single-key query | `CONFIG_NOT_FOUND` is already reserved for the v1.1 single-key query (error codes section above) and is not used in this version; adding the endpoint = compatible |
+| New targeting dimensions | Condition DSL dimensions are a management-plane open set; a new player-side query parameter follows the "absent dimensions do not participate in filtering" semantics, wire-compatible without a version bump |
+| Typed values | v1 values are arbitrary JSON (opaque); typed values = v1.2 adds an optional field; older clients keep reading the raw value with no secondary validation (the convention already frozen above) |
+| Publish scheduling / timed effect | Management-plane semantics (same as gradual rollout / rollback); the player side only ever sees the stable projection of a monotonically increasing version |
+| Key-space expansion | The limits (200 keys / 32 KiB) are management-plane configuration; adjusting them does not change the wire |

@@ -1,118 +1,118 @@
 
-# 实现状态汇总(features.md 76 项对照)
+# Implementation Status Summary (cross-check against the 76 features in features.md)
 
-> **口径**(2026-10-11,批次 45):对 [features.md](./features.md) 全量 76 项逐条核对仓库证据;任务条目与状态注记在 [todo.md](../todo.md) 批次 45,本表是汇总视图。
-> **更新**(2026-10-12,批次 51):F03 / F35 / F43 由 ❌ → ✅(契约 Frozen v1.1 → 网关 → SDK 六端 → e2e 四批落地,证据 commit 见行内);F11 错误码表 v4→v5。
-> **更新**(2026-10-12,批次 52):F01 由 ◑ → ✅(oauth.md Frozen v1 → 网关 → SDK 六端 → e2e 四批落地,证据 commit 见行内);F11 错误码表 v5→v6(+OAUTH 3 码);手机号登录另提同构域,不在本项口径。
-> **更新**(2026-10-12,批次 53):F44 由 ❌ → ✅(support.md 附件节 Frozen v1.1 → 网关 → SDK 六端 → e2e 四批落地,证据 commit 见行内);F11 错误码表 v6→v7(+SUPPORT 附件 2 码)。
-> **更新**(2026-10-13,批次 54):F36 由 ◑ → ✅(跑马灯呈现落 UI 包 `8127ba9`,零新契约;◑ 清零,统计行顺修批次 53 起的差 1)。
-> **更新**(2026-10-13,批次 55):交付面,无 F 项变动——六端 `examples/` + quickstart 实测落地(`425fe55`;附带修网关 `/v1/<cap>` 无斜杠根 307 丢 Authorization → 内部重派 `c5c4814`),六端 README 增「快速开始」;选装清单 `docs/sdk-selection.md`(实测字节 + Provider 降级语义)。
-> **更新**(2026-10-13,批次 57):F76 由 ❌ → ✅(announcement.md Frozen v1.1 多语内容节 → 网关 herald Language/GroupKey → SDK 六端 CourierConfig.language 自动附带 → e2e,证据 commit 见行内);零新错误码(errors.md 仍 v8)。
-> **更新**(2026-10-13,批次 62):F33 维持 ❌ 但事件面半边已落(网关 `warden.AuditSink` 注入 + `LogSink` 日志半边 + 红线测试,零新错误码);剩余 = 落库 sink 随部署面。
-> **更新**(2026-10-13,批次 65):F33 直写半边已落(网关 `warden.HTTPSink`,SIEM 摄取端 / 自建落库代理按 `COURIER_REALNAME_AUDIT_WEBHOOK`(+ `_TOKEN`)注入;尽力交付不阻断实名请求;e2e 经完整装配面实证,零新错误码);剩余 = 保留策略与查询面,归接入方存储实现。
-> **更新**(2026-10-13,批次 66):F33 审计面扩到第二实现——接缝抽到共享包 `gateway/audit`(Provider 互不 import,不能挂任一 Provider 下),warden 与 warden-alt 同形状注入 `AuditSink`、同事件序列(verify/curfew/charge_check/playtime_report,status 纯读不留痕);main.go 同源接线,e2e 两实现同断言;零新错误码。
-> **更新**(2026-10-14,对账):过期阻塞销项——F13(player.md:5,11 红线「进度不经 Courier」)、F58/F59/F60/F61/F63(features.md §10 定性「玩法系统非服务递送」)决策已落,由「待议」移「不做」;F33 仓内面已全落(批次 62/65/66),余保留策略与查询面归接入方存储(audit.go:3 已注);F14/F15 注明当前契约面无适用面。待议 9→3、不做 7→13。
-> **更新**(2026-10-14,批次 67):player 域第二实现 archivist-alt(事件日志模型:变更追加事件、读=投影重放,与 archivist 状态表同契约异构)落地——单测含追加只读/投影重放/注销弃历史异构面,e2e 一致性(两实现同 wire 场景同断言),main 同源接线;零新错误码。
-> **更新**(2026-10-14,批次 68):messages 域第二实现 chirp-alt(共享环形日志 + 每连接游标拉取,与 chirp 每订阅者独立缓冲扇出同契约异构)落地——单测含环形淘汰/慢消费者跳窗(at-most-once 缺失段不补发)/订阅点语义,e2e 一致性(两实现同 wire 场景同断言),main 注册 + Notify 钩子随 messages primary 重指(同身份源先例);零新错误码。
-> **更新**(2026-10-14,批次 70):assistant 域第二实现 sage-alt(写时预计算规范化文本:AddEntry 时规范化一次,查询零重复计算,与 sage 读时对每个条目重复规范化同契约异构)落地——单测含预计算字段/大小写与首尾空白不敏感/空关键词语义/幂等性,e2e 一致性(两实现同 wire 场景同断言),main 注册;零新错误码。
-> **更新**(2026-10-14,批次 71):config 域第二实现 scribe-alt(写时维度索引:Publish 时条件切片转维度→允许值索引,投影按请求维度分阶段过滤,与 scribe 读时逐条目条件 AND 短路同契约异构)落地——单测含索引结构/分阶段过滤/两求值方向等价显式证明,e2e 一致性(两实现同 wire 场景同断言),main 注册 + 维护门回调跟随 app 域 primary 重指(同推送源先例);零新错误码。
-> **更新**(2026-10-14,批次 72):payments 域第二实现 teller-alt(追加式事件账本:状态转移追加不可变事件,status/时间戳=投影重放,与 teller 可变状态表同契约异构)落地——单测含账本追加只读/投影重放/两模型操作序列等价显式证明,e2e 一致性(两实现同 wire 场景同断言),main 注册;零新错误码。
-> **更新**(2026-10-14,批次 73):support 域第二实现 croupier-alt(写时属主有序索引:建单/追加/回复/关单/附件登记即时重排,游标=`<毫秒>|<工单ID>` 键集锚点,与 croupier 读时全表扫描+偏移游标同契约异构)落地——单测含索引重排/整轮翻页/游标校验/锚点失效空页 + 跨实现分页等价显式证明(同脚本两实现同页序),e2e 一致性(两实现同 wire 场景同断言),main 注册;九域全部两实现,阶段 C「每域至少两种实现」收口;零新错误码。
-> **更新**(2026-10-19,用户开工指令落地):F31 实现面全量落地(批次 102)——网关 warden/wardenalt 两实现同形状(六态状态机/防回拨/VPC TTL 幂等/S2S 判定面/main.go `COURIER_REALNAME_CONSENT*` env 装配,默认关 501)+ 一致性 e2e consent 场景(两实现同一 wire 断言)+ 六端 SDK 嵌套面 `RealName.Consent`(OnConsentChanged 与 REVOKED 诊断停发按契约仅预留);F31 从「未完成」销项,状态 ✅。
-> **更新**(2026-10-18,巡检 PATROL1018E 代决):F31 契约面立项——`consent` 组冻结为 realname **v1.1**([contract/realname.md](../contract/realname.md) 新增「同意管理(consent,v1.1)」节,只加不改、零新增错误码);实现面(网关两实现+六端 SDK+e2e,冻结清单 2–4 步)仍 ⏸ 等开工拍板(接入方确认接入或用户开工指令)。
-> **更新**(2026-10-16,巡检 FW1016D 代决):F31 设计面 / F62 评估面推进——F31 `consent` 组法域中立 v1.1 草案已落([consent-v1.1-draft.md](./consent-v1.1-draft.md);状态仍 ❌:冻结与实现待出海立项,realname.md:100 口径不变);F62 由 ⏸ 待议 → ✅ 已代决(评估完成,不立项,见 [mail-cdk-evaluation.md](./mail-cdk-evaluation.md))。待议 1→0。
-> **更新**(2026-10-14,巡检 R1 代决):F14/F15 由 ⏸ 待议 → ✅ 已代决——F14 分级读写权限:当前契约即本人/仅服务端两层(Bearer 自持),公开层与社交非目标冲突,不立项;F15 写锁与冲突合并:唯一写字段 displayName 服务端修剪,无并发写冲突面,版本号待第二写字段出现再评估。待议 3→1(F62 留待议)。
-> **更新**(2026-10-13,批次 56):F45 由 ❌ → ✅(support.md v1.1 举报与处罚申诉节 Frozen → 网关 → SDK 六端 → e2e 分批落地,证据 commit 见行内);F11 错误码表 v7→v8(+SUPPORT 举报/申诉 2 码,42 码)。
-> **核对方法**:「已有」声称引用批次号+commit(来自 todo 各批验收记录);「缺口」声称以 grep 机器核对为准(零命中/命中行注明;批次 45 时点 announcement.md `filter` 0 命中、support.md `context` 0 命中、全契约 `language/locale` 0 命中,已分别于批次 51/57 落地);auth.md:10 与 realname.md:100 为契约明示的边界预留。
-> **图例**:✅ 已落地(仓库内有契约+实现+测试/e2e 证据,部署面残留另行注明)· ✅ 已代决(设计取舍已决,不立项,台账标「已代决」+理由)· ◑ 部分(核心面已落,剩余明示)· ❌ 缺口(仓库内未立项/未实现)· 🔌 Provider(不进核心契约)· ⏸ 待议 · ⛔ 不做。
-> **统计**:核心 47 = ✅ 45 + ❌ 2 + ◑ 0(批次 57:F76 落地;批次 54 起◑清零);🔌 13;⏸ 0(批次 62 对账 9→3;巡检 R1 代决 3→1;FW1016D 代决 1→0);✅ 已代决 3;⛔ 13。
+> **Basis** (2026-10-11, batch 45): all 76 items of [features.md](./features.md) checked one by one against repo evidence; task entries and status annotations are in [todo.md](../todo.md) batch 45 — this table is the summary view.
+> **Update** (2026-10-12, batch 51): F03 / F35 / F43 moved from ❌ to ✅ (contract Frozen v1.1 → gateway → SDK six platforms → e2e, four batches landed; evidence commits inline); F11 error code table v4→v5.
+> **Update** (2026-10-12, batch 52): F01 moved from ◑ to ✅ (oauth.md Frozen v1 → gateway → SDK six platforms → e2e, four batches landed; evidence commits inline); F11 error code table v5→v6 (+OAUTH 3 codes); phone login is proposed as a separate isomorphic domain and is not in this item's scope.
+> **Update** (2026-10-12, batch 53): F44 moved from ❌ to ✅ (support.md attachment section Frozen v1.1 → gateway → SDK six platforms → e2e, four batches landed; evidence commits inline); F11 error code table v6→v7 (+SUPPORT attachment 2 codes).
+> **Update** (2026-10-13, batch 54): F36 moved from ◑ to ✅ (marquee presentation landed in UI package `8127ba9`, zero new contracts; ◑ cleared to zero; the statistic row's off-by-one since batch 53 fixed).
+> **Update** (2026-10-13, batch 55): delivery surface, no F-item changes — six-platform `examples/` + quickstart actually landed and verified (`425fe55`; incidentally fixed the gateway `/v1/<cap>` slash-less root 307 dropping Authorization → internal re-dispatch `c5c4814`); six-platform READMEs gained a "Quick Start"; the selection checklist is `docs/sdk-selection.md` (measured bytes + Provider degradation semantics).
+> **Update** (2026-10-13, batch 57): F76 moved from ❌ to ✅ (announcement.md Frozen v1.1 multilingual content section → gateway herald Language/GroupKey → SDK six platforms CourierConfig.language auto-attached → e2e; evidence commits inline); zero new error codes (errors.md still v8).
+> **Update** (2026-10-13, batch 62): F33 stays ❌ but half the event surface has landed (gateway `warden.AuditSink` injection + `LogSink` logging half + red line tests, zero new error codes); the remainder = persistence sink ships with the deployment surface.
+> **Update** (2026-10-13, batch 65): F33's direct-write half has landed (gateway `warden.HTTPSink`; SIEM ingestion endpoint / self-built persistence proxy injected per `COURIER_REALNAME_AUDIT_WEBHOOK` (+ `_TOKEN`); best-effort delivery without blocking real-name requests; verified e2e through the full assembly surface, zero new error codes); the remainder = retention policy and query surface, which belongs to the integrator's storage implementation.
+> **Update** (2026-10-13, batch 66): F33's audit surface extended to the second implementation — the seam extracted into a shared package `gateway/audit` (Providers do not import each other, so it cannot hang under either Provider); warden and warden-alt inject `AuditSink` with the same shape, with the same event sequence (verify/curfew/charge_check/playtime_report, status is read-only and leaves no trace); main.go wires from the same source, and both implementations assert identically in e2e; zero new error codes.
+> **Update** (2026-10-14, reconciliation): stale blockers cleared — F13 (player.md:5,11 red line "progress does not go through Courier") and F58/F59/F60/F61/F63 (features.md §10's qualitative "gameplay systems are not service delivery") decisions have landed and moved from "under discussion" to "not doing"; F33's in-repo surface has fully landed (batches 62/65/66), with the retention policy and query surface left to the integrator's storage (noted at audit.go:3); F14/F15 are annotated as having no applicable surface on the current contract. Under discussion 9→3, not doing 7→13.
+> **Update** (2026-10-14, batch 67): the player domain's second implementation archivist-alt (event-log model: mutations append events, reads = projection replay, same contract but heterogeneous to archivist's state table) has landed — unit tests cover append-only replay / projection replay / deregistration-with-history heterogeneity, e2e consistency (both implementations assert identically on the same wire scenarios), same-source wiring in main; zero new error codes.
+> **Update** (2026-10-14, batch 68): the messages domain's second implementation chirp-alt (shared ring log + per-connection cursor pull, same contract but heterogeneous to chirp's per-subscriber independent-buffer fan-out) has landed — unit tests cover ring eviction / slow-consumer window skip (at-most-once missing segments are not re-sent) / subscription-point semantics, e2e consistency (both implementations assert identically on the same wire scenarios), main registration + Notify hook re-points with the messages primary (same precedent as the identity source); zero new error codes.
+> **Update** (2026-10-14, batch 70): the assistant domain's second implementation sage-alt (write-time precomputed normalized text: normalize once at AddEntry time, zero repeated computation on queries, same contract but heterogeneous to sage's per-entry repeated normalization at read time) has landed — unit tests cover precomputed fields / case and leading-trailing-whitespace insensitivity / empty-keyword semantics / idempotency, e2e consistency (both implementations assert identically on the same wire scenarios), main registration; zero new error codes.
+> **Update** (2026-10-14, batch 71): the config domain's second implementation scribe-alt (write-time dimension indexing: at Publish time the condition slices are turned into a dimension→allowed-values index, projections filter in phases by the requested dimensions, same contract but heterogeneous to scribe's per-entry condition-AND short-circuit at read time) has landed — unit tests cover index structure / phased filtering / an explicit proof of equivalence of the two evaluation directions, e2e consistency (both implementations assert identically on the same wire scenarios), main registration + the maintenance-gate callback follows the app domain primary on re-point (same precedent as the push source); zero new error codes.
+> **Update** (2026-10-14, batch 72): the payments domain's second implementation teller-alt (append-only event ledger: state transitions append immutable events, status/timestamp = projection replay, same contract but heterogeneous to teller's mutable state table) has landed — unit tests cover ledger append-only replay / projection replay / an explicit proof of operation-sequence equivalence of the two models, e2e consistency (both implementations assert identically on the same wire scenarios), main registration; zero new error codes.
+> **Update** (2026-10-14, batch 73): the support domain's second implementation croupier-alt (write-time owner-ordered index: create-ticket/append/reply/close-ticket/attachment-registration re-sorts immediately, cursor = `<millisecond>|<ticket ID>` keyset anchor, same contract but heterogeneous to croupier's read-time full-table scan + offset cursor) has landed — unit tests cover index re-sorting / full-round pagination / cursor validation / anchor-invalidated empty page + an explicit proof of cross-implementation pagination equivalence (same script, both implementations produce the same page order), e2e consistency (both implementations assert identically on the same wire scenarios), main registration; all nine domains now have two implementations, closing phase C's "at least two implementations per domain"; zero new error codes.
+> **Update** (2026-10-19, landed under a direct user instruction): the F31 implementation surface has fully landed (batch 102) — gateway warden/wardenalt in the same shape (six-state machine / anti-rollback / VPC TTL idempotency / S2S verdict surface / main.go `COURIER_REALNAME_CONSENT*` env assembly, off by default with 501) + consent conformance e2e scenarios (one wire assertion set over both implementations) + the six-SDK nested `RealName.Consent` face (OnConsentChanged and the REVOKED diagnostics linkage stay reservations per the contract); F31 leaves the "not done" list, status ✅.
+> **Update** (2026-10-18, patrol PATROL1018E delegated decision): F31 chartered on the contract side — the `consent` group is frozen as realname **v1.1** (a new "Consent Management (consent, v1.1)" section in [contract/realname.md](../contract/realname.md); additive-only, zero new error codes); the implementation surface (gateway both implementations + six SDKs + e2e, freeze-checklist steps 2–4) still ⏸ awaiting a go-ahead call (integrator confirmation or a user instruction).
+> **Update** (2026-10-16, patrol FW1016D delegated decision): F31 design surface / F62 evaluation surface advanced — F31's `consent` group jurisdiction-neutral v1.1 draft has landed ([consent-v1.1-draft.md](./consent-v1.1-draft.md); status still ❌: freezing and implementation await the overseas-launch project, realname.md:100 posture unchanged); F62 moved from ⏸ under discussion to ✅ delegated decision (evaluation complete, not initiated, see [mail-cdk-evaluation.md](./mail-cdk-evaluation.md)). Under discussion 1→0.
+> **Update** (2026-10-14, patrol R1 delegated decision): F14/F15 moved from ⏸ under discussion to ✅ delegated decision — F14 tiered read/write permissions: the current contract already has only the owner/server two tiers (Bearer self-held), a public tier conflicts with the non-goal of social, not initiated; F15 write locks and conflict merging: the only writable field displayName is server-trimmed, so there is no concurrent-write conflict surface, and version numbers wait for a second writable field before being re-evaluated. Under discussion 3→1 (F62 stays under discussion).
+> **Update** (2026-10-13, batch 56): F45 moved from ❌ to ✅ (support.md v1.1 report and penalty appeal section Frozen → gateway → SDK six platforms → e2e landed in batches, evidence commits inline); F11 error code table v7→v8 (+SUPPORT report/appeal 2 codes, 42 codes total).
+> **Verification method**: "already exists" claims cite batch number + commit (from the acceptance records of each todo batch); "gap" claims are machine-checked by grep (zero hits / hits annotated with line; at the batch-45 checkpoint announcement.md `filter` had 0 hits, support.md `context` had 0 hits, all contracts `language/locale` had 0 hits — landed in batches 51/57 respectively); auth.md:10 and realname.md:100 are boundary reservations explicitly stated by the contracts.
+> **Legend**: ✅ landed (contract + implementation + test/e2e evidence in the repo, deployment-surface residue noted separately) · ✅ delegated decision (design trade-off decided, not initiated; the ledger marks "delegated decision" + reason) · ◑ partial (core surface landed, remainder stated explicitly) · ❌ gap (not initiated / not implemented in the repo) · 🔌 Provider (does not enter the core contract) · ⏸ under discussion · ⛔ not doing.
+> **Statistics**: core 47 = ✅ 45 + ❌ 2 + ◑ 0 (batch 57: F76 landed; ◑ cleared to zero since batch 54); 🔌 13; ⏸ 0 (batch 62 reconciliation 9→3; patrol R1 delegated decision 3→1; FW1016D delegated decision 1→0); ✅ delegated decision 3; ⛔ 13.
 
-## 核心面(47 项)
+## Core Surface (47 items)
 
-| ID | 功能 | 状态 | 证据 |
+| ID | Feature | Status | Evidence |
 | --- | --- | --- | --- |
-| F01 | 登录方式聚合 | ✅ | 游客+邮箱密码 auth.md Frozen v1(批次 3,`3c24cfc`/`39b5007`)+ OAuth oauth.md Frozen v1(exchange/bind/unbind/bindings;网关双实现同口径 `689ece9` + SDK 六端 `e22e3d2` + 一致性 e2e ×2 实现;批次 52 契约 `6d2ff22`);手机号另提同构域(不在本项) |
-| F02 | 绑定/解绑 | ✅ | auth.md bind/解绑;批次 3/18(`d0936eb`);多正式账号合并不在 v1 |
-| F03 | 注销与数据删除 | ✅ | auth.md Frozen v1.1(delete/cancel + 宽限期 + 受理即吊销 + OnAccountDeleted 钩子);网关双实现同口径(`f20e9ab`)+ SDK 六端(`53eaa7c`)+ 一致性 e2e ×2 实现;批次 51(`5317802`) |
-| F04 | 跨平台身份贯通 | ✅ | 多设备会话+设备列表 auth.md;批次 3/18 |
-| F05 | SDK 不带 UI | ✅ | UPM 四包+TS 三端可选包;批次 5/17/41 |
-| F06 | 匿名/静默登录 | ✅ | 游客设备登录 e2e 全链路;批次 3/4(`8b9ed8a`) |
-| F08 | 令牌轮换 | ✅ | 单飞刷新+重放一次;批次 3/4/12/14/32;primitives v1.1 并发纪律 |
-| F09 | 服务端验签 | ✅ | auth Bearer(批次 3)+回调 HMAC fail-closed(批次 10 `ddcbd03`) |
-| F10 | scope 隔离 | ✅ | scope.md Frozen+网关 scope 中间件;批次 2(`cdd391d`) |
-| F11 | 统一错误码 | ✅ | errors.md v8 42 码六端生成对差零漂移(v8 举报/申诉 2 码);批次 1/29/51/56(`5317802`/`d02ddcc`) |
-| F12 | 凭据管理 | ✅ | 客户端零 Provider 凭证(architecture.md 安全边界) |
-| F16 | 玩家档案 | ✅ | player.md Frozen+archivist;批次 8(`72bf15c`);第二实现 archivist-alt(事件日志,同契约可换 + 一致性 e2e)批次 67 |
-| F18 | 服务端权威写入 | ✅ | Gateway 唯一入口(批次 2)+支付服务端定价(批次 10) |
-| F19 | 商品列表/渠道拉起 | ✅ | payment.md SKUs+payToken 归渠道 SDK;批次 10;真实渠道随部署面 |
-| F20 | 收据验真 | ✅ | 回调签名先于 body 解析 fail-closed;批次 10;商店 API 真核验随部署面 |
-| F21 | 幂等防重放 | ✅ | 回调幂等不二次发货;批次 10 单测+e2e |
-| F22 | 商品一致性 | ✅ | 服务端定价防伪造金额;批次 10 e2e |
-| F24 | 恢复购买 | ✅ | `GET /payments/orders`(payment.md:64);批次 10 |
-| F25 | 流水对账 | ✅ | Reconcile(payment.md:91);批次 10/11(`79c5bce`);持久化随部署面;第二实现 teller-alt(事件账本投影,同契约可换 + 一致性 e2e)批次 72 |
-| F26 | 掉单补发 | ✅ | 断单停 PAID+对账重发 e2e;批次 10/11 |
-| F27 | 实名认证 | ✅ | realname.md Frozen+warden;批次 7(`e926626`) |
-| F28 | 时段限制 | ✅ | curfew F28 窗口;批次 7 |
-| F29 | 充值限额 | ✅ | charge-check F29 分龄限额;批次 7 |
-| F30 | 防沉迷上报 | ✅ | playtime-report S2S 幂等月累计;批次 7 |
-| F31 | 年龄门/同意(海外) | ✅(契约面 v1.1 冻结 + 实现面批次 102 落地) | consent 组已冻结进 [contract/realname.md](../contract/realname.md)「同意管理」节(2026-10-18 PATROL1018E 代决;设计:[consent-v1.1-draft.md](./consent-v1.1-draft.md));实现面 2026-10-19 用户开工指令落地批次 102(网关两实现+六端 SDK+e2e;商业出海决策仍归用户) |
-| F33 | 审计留痕 | ❌(仓内面 ✅) | trace 贯穿已有(layers.md L5);事件面已落(共享接缝 `gateway/audit.AuditSink` 注入,nil = 不产出;事件只含账号维度元数据,身份输入红线不进事件,批次 62);内置两个接收面:`LogSink`(`COURIER_REALNAME_AUDIT=log`)+ `HTTPSink`(`COURIER_REALNAME_AUDIT_WEBHOOK`(+ `_TOKEN`),SIEM/自建落库代理,尽力交付不阻断请求,批次 65);两实现(warden / warden-alt)同形状注入、同事件序列(批次 66);保留策略与查询面归接入方存储实现(audit.go:3 已注)——仓内面已全落,余归接入方 |
-| F34 | 公告系统 | ✅ | announcement.md Frozen+herald;批次 6(`38fe759`);第二实现 herald-alt(写时索引,同契约可换 + 一致性 e2e)批次 69 |
-| F35 | 公告定向过滤 | ✅ | announcement.md Frozen v1.1 `filters` 开集 map + 四查询维度;herald 匹配 + SDK list 参数(`53eaa7c`)+ e2e 命中/未命中/详情 404;批次 51(`5317802`/`f20e9ab`);herald-alt 匹配同源 + 两实现一致性 e2e 批次 69 |
-| F36 | 跑马灯 | ✅ | 数据面零新契约(severity 字段 announcement.md:32);跑马灯呈现随批次 54 落 UI 包(TS 三端 `onMarqueeRendered`/`formatMarquee` + Unity `MarqueeRendered`/`AnnouncementText`,packcheck 结构守卫,`8127ba9`) |
-| F41 | 工单 | ✅ | support.md Frozen+croupier;批次 6;第二实现 croupier-alt(写时属主有序索引 + 键集游标,同契约可换 + 一致性 e2e)批次 73 |
-| F42 | FAQ 自助 | ✅ | FAQ+sage 检索;批次 6/9(`2481383`);第二实现 sage-alt(写时预计算规范化,同契约可换 + 一致性 e2e)批次 70 |
-| F43 | 上下文附带 | ✅ | support.md Frozen v1.1 `context` 开集 map 服务端零解释透传;croupier 校验 + SDK 六端(`53eaa7c`)+ e2e 回显与 400;批次 51(`5317802`/`f20e9ab`) |
-| F44 | 反馈+日志上传 | ✅ | support.md 附件节 Frozen v1.1(批次 53 `9954281`:单端点申请直传 + 预签名 URL + 限额/allowlist/归属/状态 + fail-closed 存储);croupier `Signer` 接口 + 详情 `attachments[]` 加法(`035125d`)+ SDK 六端(`6dbfca0`)+ e2e(`804e93d`);diagnostics 自有面不变;第二实现 croupier-alt(附件面逐字同源,登记即重排属主索引)批次 73 |
-| F45 | 举报/申诉 | ✅ | support.md v1.1 举报与处罚申诉节 Frozen(批次 56 `d02ddcc`:reports/penalties/appeal 四端点;**判定与执行全在管理面**,玩家侧只读投影 + 申诉入口;进展不向举报人反馈);croupier `PenaltyStore` 投影源 + fail-closed 501 缺省 + e2e(`96d8295`)+ SDK 六端(`de4dc3d`);errors v8 +2 码;第二实现 croupier-alt(写时属主索引 + 键集游标,同契约可换 + 一致性 e2e)批次 73 |
-| F46 | 客服补单 | ✅ | Reconcile 补发通道;批次 10/11;工具面归 croupier |
-| F47 | 远程配置 | ✅ | config.md Frozen+scribe 条件投影热生效;批次 8(`33c5c18`);第二实现 scribe-alt(写时维度索引,同契约可换 + 一致性 e2e)批次 71 |
-| F48 | 条件定向 | ✅ | 五维匹配;批次 8 |
-| F50 | 版本/回滚 | ✅ | 版本单调+回滚=历史内容再发布(config.md:11);批次 8 |
-| F56 | SDK 遥测 | ✅ | diagnostics.md Frozen+可选包默认全关;批次 8/20/41 |
-| F69 | 多引擎一等公民 | ✅ | contractgen 六端生成+CI 门禁;批次 1/19 |
-| F70 | 模块化选装 | ✅ | UPM 四包+三端可选包对齐;批次 5/17/41;选装呈现=批次 44 |
-| F71 | UI 可选 | ✅ | 同 F05;批次 5/17/41 |
-| F72 | 初始化/生命周期 | ✅ | 状态机九态十触发六端同构;批次 4/13/14/32 |
-| F73 | 弱网/离线降级 | ✅ | 退避重试+config 缓存+拉取兜底;批次 4/6/12 |
-| F74 | 日志诊断开关 | ✅ | diagnostics 开关+traceId;批次 8/20 |
-| F75 | 沙箱环境 | ✅ | scope 三环境+fixtures;批次 1/2 |
-| F76 | 多语言本地化 | ✅ | announcement.md Frozen v1.1 多语内容节(批次 57 `65d9971`:单语分条模型契约化,行内 `language`(RFC 5646)/`groupKey` 可选元数据,零新错误码;可见性仍由 filters 决定)+ herald 两字段回显 + e2e(`65d9971`)+ SDK 六端 `CourierConfig.language` 自动附带(显式覆写,缺省不附带)(`478c194`) |
+| F01 | Login method aggregation | ✅ | Guest + email/password auth.md Frozen v1 (batch 3, `3c24cfc`/`39b5007`) + OAuth oauth.md Frozen v1 (exchange/bind/unbind/bindings; gateway double implementation same scope `689ece9` + SDK six platforms `e22e3d2` + consistency e2e ×2 implementations; batch 52 contract `6d2ff22`); phone login proposed as a separate isomorphic domain (not in this item) |
+| F02 | Binding / unbinding | ✅ | auth.md bind/unbind; batches 3/18 (`d0936eb`); multi-formal-account merge is not in v1 |
+| F03 | Account deletion and data erasure | ✅ | auth.md Frozen v1.1 (delete/cancel + grace period + revoke-on-receipt + OnAccountDeleted hook); gateway double implementation same scope (`f20e9ab`) + SDK six platforms (`53eaa7c`) + consistency e2e ×2 implementations; batch 51 (`5317802`) |
+| F04 | Cross-platform identity continuity | ✅ | multi-device sessions + device list in auth.md; batches 3/18 |
+| F05 | SDK ships without UI | ✅ | four UPM packages + three-platform optional packages; batches 5/17/41 |
+| F06 | Anonymous / silent login | ✅ | guest device login e2e full chain; batches 3/4 (`8b9ed8a`) |
+| F08 | Token rotation | ✅ | single-flight refresh + replay once; batches 3/4/12/14/32; primitives v1.1 concurrency discipline |
+| F09 | Server-side signature verification | ✅ | auth Bearer (batch 3) + callback HMAC fail-closed (batch 10 `ddcbd03`) |
+| F10 | scope isolation | ✅ | scope.md Frozen + gateway scope middleware; batch 2 (`cdd391d`) |
+| F11 | Unified error codes | ✅ | errors.md v8 42 codes, six-platform generation diff zero drift (v8 report/appeal 2 codes); batches 1/29/51/56 (`5317802`/`d02ddcc`) |
+| F12 | Credential management | ✅ | zero client-side Provider credentials (architecture.md security boundary) |
+| F16 | Player profile | ✅ | player.md Frozen + archivist; batch 8 (`72bf15c`); second implementation archivist-alt (event log, same contract swappable + consistency e2e) batch 67 |
+| F18 | Server-authoritative writes | ✅ | Gateway as the single entry (batch 2) + server-side payment pricing (batch 10) |
+| F19 | Product list / channel invocation | ✅ | payment.md SKUs + payToken belong to the channel SDK; batch 10; real channels ship with the deployment surface |
+| F20 | Receipt validation | ✅ | callback signature before body parsing, fail-closed; batch 10; real store-API validation ships with the deployment surface |
+| F21 | Idempotent replay protection | ✅ | callback idempotency delivers once; batch 10 unit tests + e2e |
+| F22 | Product consistency | ✅ | server-side pricing prevents forged amounts; batch 10 e2e |
+| F24 | Restore purchases | ✅ | `GET /payments/orders` (payment.md:64); batch 10 |
+| F25 | Transaction reconciliation | ✅ | Reconcile (payment.md:91); batches 10/11 (`79c5bce`); persistence ships with the deployment surface; second implementation teller-alt (event ledger projection, same contract swappable + consistency e2e) batch 72 |
+| F26 | Dropped-order re-delivery | ✅ | order-loss pause PAID + reconcile re-delivery e2e; batches 10/11 |
+| F27 | Real name verification | ✅ | realname.md Frozen + warden; batch 7 (`e926626`) |
+| F28 | Curfew restrictions | ✅ | curfew F28 window; batch 7 |
+| F29 | Top-up limits | ✅ | charge-check F29 age-tier limits; batch 7 |
+| F30 | Anti-addiction reporting | ✅ | playtime-report S2S idempotent monthly accumulation; batch 7 |
+| F31 | Age gate / consent (overseas) | ✅ (contract side frozen v1.1 + implementation landed batch 102) | The consent group is frozen into the "Consent Management" section of [contract/realname.md](../contract/realname.md) (2026-10-18 patrol PATROL1018E; design: [consent-v1.1-draft.md](./consent-v1.1-draft.md)); the implementation surface landed on 2026-10-19 under a direct user instruction, batch 102 (gateway both implementations + six SDKs + e2e; the go-overseas decision remains the user's) |
+| F33 | Audit trail | ❌ (in-repo surface ✅) | trace already runs through (layers.md L5); event surface landed (shared seam `gateway/audit.AuditSink` injection, nil = no output; events contain account-dimension metadata only, the identity-input red line never enters events, batch 62); two built-in sinks: `LogSink` (`COURIER_REALNAME_AUDIT=log`) + `HTTPSink` (`COURIER_REALNAME_AUDIT_WEBHOOK` (+ `_TOKEN`), SIEM/self-built persistence proxy, best-effort delivery without blocking requests, batch 65); both implementations (warden / warden-alt) inject with the same shape, same event sequence (batch 66); retention policy and query surface belong to the integrator's storage implementation (noted at audit.go:3) — the in-repo surface has fully landed, the rest belongs to the integrator |
+| F34 | Announcement system | ✅ | announcement.md Frozen + herald; batch 6 (`38fe759`); second implementation herald-alt (write-time indexing, same contract swappable + consistency e2e) batch 69 |
+| F35 | Announcement targeting filters | ✅ | announcement.md Frozen v1.1 `filters` open-set map + four query dimensions; herald matching + SDK list parameters (`53eaa7c`) + e2e hit/miss/detail 404; batch 51 (`5317802`/`f20e9ab`); herald-alt matching from the same source + both-implementation consistency e2e batch 69 |
+| F36 | Marquee | ✅ | zero new contract on the data surface (severity field announcement.md:32); marquee presentation landed with batch 54 in the UI package (three TS platforms `onMarqueeRendered`/`formatMarquee` + Unity `MarqueeRendered`/`AnnouncementText`, packcheck structure guard, `8127ba9`) |
+| F41 | Tickets | ✅ | support.md Frozen + croupier; batch 6; second implementation croupier-alt (write-time owner-ordered index + keyset cursor, same contract swappable + consistency e2e) batch 73 |
+| F42 | FAQ self-service | ✅ | FAQ + sage retrieval; batches 6/9 (`2481383`); second implementation sage-alt (write-time precomputed normalization, same contract swappable + consistency e2e) batch 70 |
+| F43 | Context pass-through | ✅ | support.md Frozen v1.1 `context` open-set map with zero server-side interpretation, pass-through; croupier validation + SDK six platforms (`53eaa7c`) + e2e echo and 400; batch 51 (`5317802`/`f20e9ab`) |
+| F44 | Feedback + log upload | ✅ | support.md attachment section Frozen v1.1 (batch 53 `9954281`: single-endpoint upload request + pre-signed URL + limits/allowlist/ownership/status + fail-closed storage); croupier `Signer` interface + detail `attachments[]` additive (`035125d`) + SDK six platforms (`6dbfca0`) + e2e (`804e93d`); the diagnostics-owned surface is unchanged; second implementation croupier-alt (attachment surface literally same-source, registration immediately re-sorts the owner index) batch 73 |
+| F45 | Reports / appeals | ✅ | support.md v1.1 report and penalty appeal section Frozen (batch 56 `d02ddcc`: reports/penalties/appeal four endpoints; **verdict and execution live entirely in the admin surface**, the player side is a read-only projection + appeal entry; progress is never fed back to the reporter); croupier `PenaltyStore` projection source + fail-closed 501 default + e2e (`96d8295`) + SDK six platforms (`de4dc3d`); errors v8 +2 codes; second implementation croupier-alt (write-time owner index + keyset cursor, same contract swappable + consistency e2e) batch 73 |
+| F46 | Support re-issuance | ✅ | Reconcile re-delivery channel; batches 10/11; the tooling surface belongs to croupier |
+| F47 | Remote config | ✅ | config.md Frozen + scribe conditional projection with hot reload; batch 8 (`33c5c18`); second implementation scribe-alt (write-time dimension indexing, same contract swappable + consistency e2e) batch 71 |
+| F48 | Conditional targeting | ✅ | five-dimension matching; batch 8 |
+| F50 | Versioning / rollback | ✅ | monotonically increasing versions + rollback = re-publish of historical content (config.md:11); batch 8 |
+| F56 | SDK telemetry | ✅ | diagnostics.md Frozen + optional package off by default; batches 8/20/41 |
+| F69 | Multi-engine first-class citizen | ✅ | contractgen six-platform generation + CI gate; batches 1/19 |
+| F70 | Modular on-demand selection | ✅ | four UPM packages + three-platform optional packages aligned; batches 5/17/41; the selection presentation is batch 44 |
+| F71 | UI optional | ✅ | same as F05; batches 5/17/41 |
+| F72 | Initialization / lifecycle | ✅ | state machine: nine states, ten triggers, isomorphic across six platforms; batches 4/13/14/32 |
+| F73 | Weak network / offline degradation | ✅ | backoff retry + config cache + pull fallback; batches 4/6/12 |
+| F74 | Log diagnostics switch | ✅ | diagnostics switch + traceId; batches 8/20 |
+| F75 | Sandbox environments | ✅ | scope three environments + fixtures; batches 1/2 |
+| F76 | Multilingual localization | ✅ | announcement.md Frozen v1.1 multilingual content section (batch 57 `65d9971`: per-language entry model contractualized, inline `language` (RFC 5646)/`groupKey` optional metadata, zero new error codes; visibility is still decided by filters) + herald two-field echo + e2e (`65d9971`) + SDK six platforms `CourierConfig.language` auto-attached (explicit override, not attached by default) (`478c194`) |
 
-## Provider 面(13 项,不进核心契约)
+## Provider Surface (13 items, not entering the core contract)
 
-| ID | 功能 | 落点口径 |
+| ID | Feature | Landing scope |
 | --- | --- | --- |
-| F07 | 账号风控与防刷 | 登录限流内建(批次 3);分级风控归 Provider;支付风控为预留钩子 |
-| F17 | 二进制文件存储 | Provider 化;support 附件同口径 |
-| F23 | 订阅状态管理 | 随真实渠道接入(部署面) |
-| F32 | 数据最小化/共享清单 | 红线内建契约(默认关闭/字段最小化);清单输出归 Provider |
-| F37 | 远程推送 | 应用内 SSE 已落(批次 6/35-40 六端流读);第二实现 chirp-alt(环形日志+游标,同契约可换 + 一致性 e2e)批次 68;APNs/FCM 随部署面 |
-| F38 | 按账号/标签定向推送 | Provider |
-| F39 | 本地通知/定时提醒 | Provider |
-| F40 | 触达效果统计 | Provider |
-| F49 | A/B 实验 | Provider;契约不建(features.md §14) |
-| F52 | 埋点与行为分析 | Provider;不自建分析产品 |
-| F53 | 付费与广告收入统计 | Provider |
-| F55 | 崩溃与性能监控 | diagnostics 可选包直发自托管端点(Sentry/GlitchTip/OTLP) |
-| F57 | 数据导出 | Provider |
+| F07 | Account risk control and anti-abuse | Login rate limiting built in (batch 3); tiered risk control belongs to Provider; payment risk control is a reserved hook |
+| F17 | Binary file storage | Provider-ized; support attachments share the same scope |
+| F23 | Subscription state management | Follows real channel integration (deployment surface) |
+| F32 | Data minimization / sharing inventory | Red line built into the contract (off by default / field minimization); the inventory output belongs to Provider |
+| F37 | Remote push | In-app SSE landed (batches 6/35-40 six-platform stream reads); second implementation chirp-alt (ring log + cursor, same contract swappable + consistency e2e) batch 68; APNs/FCM ship with the deployment surface |
+| F38 | Account/tag-targeted push | Provider |
+| F39 | Local notifications / scheduled reminders | Provider |
+| F40 | Reach-effect statistics | Provider |
+| F49 | A/B experiments | Provider; no contract is built (features.md §14) |
+| F52 | Analytics and behavior analysis | Provider; no self-built analytics product |
+| F53 | Payments and ad revenue statistics | Provider |
+| F55 | Crash and performance monitoring | The diagnostics optional package reports directly to self-hosted endpoints (Sentry/GlitchTip/OTLP) |
+| F57 | Data export | Provider |
 
-## 已代决(3 项)与不做(13 项)
+## Delegated Decision (3 items) and Not Doing (13 items)
 
-| ID | 功能 | 处置 |
+| ID | Feature | Disposition |
 | --- | --- | --- |
-| F14 | 分级读写权限 | ✅ 已代决(巡检 R1)——当前契约即本人/仅服务端两层(Bearer 自持),公开层与社交非目标冲突,不立项 |
-| F15 | 写锁与冲突合并 | ✅ 已代决(巡检 R1)——唯一写字段 displayName 服务端修剪,无并发写冲突面,版本号待第二写字段出现再评估 |
-| F13 | 云存档/进度同步 | ⛔ 不做——player.md:5,11 红线「进度不经 Courier,角色数据归各游戏服」,边界已定 |
-| F58/F59/F60/F61/F63 | 排行榜/成就/Stats/赛季/活动 | ⛔ 不做——features.md §10 定性「玩法系统非服务递送」,防范围失控(§10 结论⑤),边界已定 |
-| F62 | 邮件/礼包码 | ✅ 已代决(FW1016D)——评估完成([mail-cdk-evaluation.md](./mail-cdk-evaluation.md)):契约面同构度高、按草图低成本可立;运营需求未触发不立项,触发即按草图冻结 |
-| F51 | GM/运营工具界面 | ⛔ 不做界面——croupier API 面保留,界面归 Provider 管理面 |
-| F54 | 买量归因 | ⛔ 不做——垂直领域 |
-| F64–F68 | 社交与实时(好友/聊天/匹配/语音/公会) | ⛔ 不做——roadmap 非目标,与 Nakama/Agones 划界 |
+| F14 | Tiered read/write permissions | ✅ delegated decision (patrol R1) — the current contract already has only the owner/server two tiers (Bearer self-held); a public tier conflicts with the non-goal of social, not initiated |
+| F15 | Write locks and conflict merging | ✅ delegated decision (patrol R1) — the only writable field displayName is server-trimmed, so there is no concurrent-write conflict surface; version numbers wait for a second writable field before being re-evaluated |
+| F13 | Cloud saves / progress sync | ⛔ not doing — player.md:5,11 red line "progress does not go through Courier; character data belongs to each game server", boundary set |
+| F58/F59/F60/F61/F63 | Leaderboards / achievements / Stats / seasons / events | ⛔ not doing — features.md §10's qualitative "gameplay systems are not service delivery", to prevent scope creep (§10 conclusion ⑤), boundary set |
+| F62 | Mail / redeem codes | ✅ delegated decision (FW1016D) — evaluation complete ([mail-cdk-evaluation.md](./mail-cdk-evaluation.md)): the contract surface has high isomorphism and can be initiated cheaply per the sketch; since no ops need has triggered, not initiated — once triggered, freeze per the sketch |
+| F51 | GM / live-ops tooling UI | ⛔ no UI — the croupier API surface is retained; the UI belongs to the Provider admin surface |
+| F54 | User-acquisition attribution | ⛔ not doing — vertical domain |
+| F64–F68 | Social and realtime (friends/chat/matching/voice/guilds) | ⛔ not doing — roadmap non-goal; draws the line against Nakama/Agones |
 
-## 缺口汇总(❌ 2 项;截至批次 57,F03/F35/F43/F01/F44/F36/F45/F76 已落地移出)
+## Gap Summary (❌ 2 items; as of batch 57, F03/F35/F43/F01/F44/F36/F45/F76 have landed and moved out)
 
-| ID | 缺口 | 建议落点 |
+| ID | Gap | Suggested landing point |
 | --- | --- | --- |
-| F31 | 年龄门/家长同意(海外) | 已完成:契约面 realname v1.1 consent 组(2026-10-18 PATROL1018E 代决)+ 实现面批次 102(2026-10-19 用户开工指令,网关两实现+六端 SDK+e2e;OnConsentChanged/诊断停发联动按契约预留) |
-| F33 | 审计落库 | 仓内面已全落(批次 62/65/66:`gateway/audit.AuditSink` + `LogSink` + `HTTPSink`,两实现同形状);剩保留策略与查询面,归接入方存储实现(audit.go:3 已注)——卡接入方存储形态拍板 |
+| F31 | Age gate / parental consent (overseas) | Done: contract side realname v1.1 consent group (2026-10-18 patrol PATROL1018E) + implementation surface batch 102 (2026-10-19 user instruction, gateway both implementations + six SDKs + e2e; OnConsentChanged / diagnostics linkage stay reservations per the contract) |
+| F33 | Audit persistence | In-repo surface fully landed (batches 62/65/66: `gateway/audit.AuditSink` + `LogSink` + `HTTPSink`, both implementations same shape); remaining: retention policy and query surface, which belong to the integrator's storage implementation (noted at audit.go:3) — blocked on the integrator's storage form being settled |

@@ -1,11 +1,11 @@
 
-# Courier 架构
+# Courier Architecture
 
-> **状态**:Current — 随实现维护(2026-10-08 M0 立宪冻结,M1–M5 已全部落地)。分层细化(SDK Contract / Core / Platform Adapter / Service Provider / Gateway)见 [layers.md](./layers.md),分批落地见 [todo.md](./todo.md),契约宪法见 [contract/](./contract/index.md),竞品定位见 [research/competitive.md](./research/competitive.md)。
+> **Status**: Current — maintained alongside the implementation (2026-10-08 M0 constitutional freeze; M1–M5 have all landed). Layer-by-layer detail (SDK Contract / Core / Platform Adapter / Service Provider / Gateway) is in [layers.md](./layers.md), batch-by-batch delivery is in [todo.md](./todo.md), the contract constitution is in [contract/](./contract/index.md), and competitive positioning is in [research/competitive.md](./research/competitive.md).
 
-## 设计原则:SDK Contract > Everything
+## Design Principle: SDK Contract > Everything
 
-Courier 的核心是契约,不是某个后端:
+Courier's core is the contract, not any particular backend:
 
 ```text
                  Courier
@@ -23,62 +23,62 @@ Courier 的核心是契约,不是某个后端:
          Unity      UE      Cocos …
 ```
 
-Gateway、Provider、生态后端全部是**契约的实现者 / 后端提供者**。新增引擎 = 新增 Adapter;新增服务 = 新增 Provider;契约本身稳定。
+Gateway, Providers, and ecosystem backends are all **implementers of the contract / backend providers**. A new engine = a new Adapter; a new service = a new Provider; the contract itself stays stable.
 
-**快递隐喻**:Courier(快递员)之名即产品形态——能力拆成一个个小块「包裹」,每块独立运作、可替换、可拒收;契约是统一的包装规格,块粒度以「大小能运作」为准——够小才可换,能跑才交付;分拣系统(Gateway)不关心包裹里是什么业务,只认面单(接口边界)。
+**The delivery metaphor**: the name Courier (the delivery person) is itself the product shape — capabilities are split into small standalone "packages", each running independently, replaceable, refusable; the contract is the unified packaging spec, and the granularity rule for a package is "a size that works" — small enough to swap, runnable before delivery; the sorting system (Gateway) doesn't care what business is inside a package, it only reads the waybill (the interface boundary).
 
-## Provider 原则:默认提供,可换可关
+## Provider Principle: Provided by Default, Swappable and Disableable
 
-生态项目只能以「供应商(Provider)」角色存在:
+Ecosystem projects can only exist in the role of providers (Provider):
 
-1. **每个能力的后端 = 可插拔 Provider**,统一接口、配置驱动。
-2. **Courier 默认提供一套开箱即用的实现**:公告默认 herald、客服默认 croupier、推送默认 chirp、实名默认 warden(自建核验)、账号默认自建 courier-account(第二实现 courier-account-alt 同契约可换)——默认供应商可以打包,但**接不接、用哪家、换不换由接入方配置决定,SDK 不替用户做选择**。
-3. **不硬绑定、不强制依赖**:任何 Provider 都可替换为自建实现、第三方服务,或直接关掉;关掉 = 能力降级(`COMMON_CAPABILITY_DISABLED`),不是报错。
-4. **示例**:公告能力默认走 herald Provider;接入方可配置成自己的 HTTP 端点,或禁用公告(客户端安全地隐藏对应 UI)。
-5. **接口统一 ≠ 数据迁移**:Provider 机制承诺「接口统一」与「实现可替换」;数据可迁移(账号/订单/档案历史数据搬后台)**不是默认承诺**,需按域单独评估——切 Provider 前先回答用户 ID、会话有效性、在途订单是否兼容。
-6. **接入方式两种**:服务端 Provider 是默认方式(客户端只见网关,凭证与路由全在服务端;账号/支付/实名等敏感能力必须走此方式);客户端直连外部服务仅限明确允许直连的公开服务,不得成为默认切换机制,服务端密钥永不下客户端。
-7. **每个模块至少两种实现**:默认实现 + 可替换实现(真实第二实现或测试替身),接入方按配置选择。**只有一种实现的能力,「可换」名存实亡**——现状账号域已兑现(courier-account + courier-account-alt,同冻结契约异构实现 + 同场景 e2e 行为证明,批次 18),实名域已兑现(warden 自建核验 + warden-alt 托管核验,判定来源/落库内容异构 + 同场景 e2e 行为证明,批次 64),玩家档案域已兑现(archivist 状态表 + archivist-alt 事件日志,存储模型异构 + 同场景 e2e 行为证明,批次 67),推送域已兑现(chirp 扇出推送 + chirp-alt 共享环形日志/游标拉取,枢纽模型异构 + 同场景 e2e 行为证明,批次 68),公告域已兑现(herald 读时扫描排序 + herald-alt 写时索引,索引模型异构 + 同场景 e2e 行为证明,批次 69),助手域已兑现(sage 读时规范化 + sage-alt 写时预计算规范化,预处理模型异构 + 同场景 e2e 行为证明,批次 70),配置域已兑现(scribe 读时逐条目条件 AND + scribe-alt 写时维度索引/分阶段过滤,求值模型异构 + 同场景 e2e 行为证明,批次 71),支付域已兑现(teller 可变状态表 + teller-alt 追加式事件账本/投影重放,状态表示模型异构 + 同场景 e2e 行为证明,批次 72),客服域已兑现(croupier 读时扫描排序/偏移游标 + croupier-alt 写时属主有序索引/键集游标,列表组织模型异构 + 同场景 e2e 行为证明,批次 73)——九个能力域全部两实现,阶段 C「每域至少两种实现」已收口。
+1. **Every capability's backend = a pluggable Provider**, uniform interface, configuration-driven.
+2. **Courier ships a set of out-of-the-box implementations by default**: announcements default to herald, support to croupier, push to chirp, real name to warden (self-hosted verification), account to the self-built courier-account (second implementation courier-account-alt, swappable under the same contract) — the default providers can be bundled, but **whether to connect them, which one to use, and whether to swap is decided by the integrator's configuration; the SDK does not choose on the user's behalf**.
+3. **No hard binding, no forced dependencies**: any Provider can be replaced with a self-built implementation or a third-party service, or simply turned off; turned off = capability degradation (`COMMON_CAPABILITY_DISABLED`), not an error.
+4. **Example**: the announcements capability defaults to the herald Provider; the integrator can configure it to point at their own HTTP endpoint, or disable announcements (the client safely hides the corresponding UI).
+5. **Uniform interfaces ≠ data migration**: the Provider mechanism promises "uniform interfaces" and "replaceable implementations"; data migratability (moving account/order/profile history data to a new backend) **is not a default promise** and needs per-domain evaluation — before switching Providers, first answer whether user IDs, session validity, and in-flight orders are compatible.
+6. **Two integration modes**: server-side Providers are the default (the client only ever sees the gateway; credentials and routing stay entirely server-side; sensitive capabilities such as account/payments/real name must go this way); direct client connections to external services are limited to public services explicitly allowed to be direct-connected, must not become the default switching mechanism, and server-side secrets never reach the client.
+7. **At least two implementations per module**: a default implementation + a replaceable implementation (a real second implementation or a test double), selected by the integrator via configuration. **For a capability with only one implementation, "swappable" exists in name only** — as of today the account domain has delivered (courier-account + courier-account-alt, heterogeneous implementations of the same frozen contract + same-scenario e2e behavioral proof, batch 18), the real name domain has delivered (warden self-hosted verification + warden-alt hosted verification, heterogeneous verdict sources/persisted content + same-scenario e2e behavioral proof, batch 64), the player profile domain has delivered (archivist state table + archivist-alt event log, heterogeneous storage models + same-scenario e2e behavioral proof, batch 67), the push domain has delivered (chirp fan-out push + chirp-alt shared ring log/cursor pull, heterogeneous hub models + same-scenario e2e behavioral proof, batch 68), the announcements domain has delivered (herald read-time scan-and-sort + herald-alt write-time indexing, heterogeneous index models + same-scenario e2e behavioral proof, batch 69), the assistant domain has delivered (sage read-time normalization + sage-alt write-time precomputed normalization, heterogeneous preprocessing models + same-scenario e2e behavioral proof, batch 70), the config domain has delivered (scribe read-time per-entry condition AND + scribe-alt write-time dimension index/staged filtering, heterogeneous evaluation models + same-scenario e2e behavioral proof, batch 71), the payments domain has delivered (teller mutable state table + teller-alt additive-only event ledger/projection replay, heterogeneous state-representation models + same-scenario e2e behavioral proof, batch 72), and the support domain has delivered (croupier read-time scan-and-sort/offset cursor + croupier-alt write-time owner-ordered index/keyset cursor, heterogeneous list-organization models + same-scenario e2e behavioral proof, batch 73) — all nine capability domains have two implementations; stage C's "at least two implementations per domain" is closed out.
 
-## 总体形态
+## Overall Shape
 
 ```text
 ┌───────────────────────────────────────────────┐
 │ Game Client                                   │
-│   Courier SDK:Core / Service / UI(可选包)     │
+│   Courier SDK: Core / Service / UI (optional) │
 └──────────────┬────────────────────────────────┘
-               │ HTTPS JSON (+ SSE 推送通道, M2)
+               │ HTTPS JSON (+ SSE push channel, M2)
 ┌──────────────▼────────────────────────────────┐
 │ Courier Gateway(Go):auth · session · scope    │
 │   · routing · aggregation · middleware        │
-│   · providers(Provider 注册与治理)             │
+│   · providers(Provider registry & governance) │
 └──────┬─────────┬─────────┬─────────┬──────────┘
        ▼         ▼         ▼         ▼
-  AccountProvider(自建 accounts)…均经 Provider 接口
+  AccountProvider (self-hosted accounts) … all via the Provider interface
        ▼
-  默认供应商:herald(公告)· croupier(客服)· chirp(推送)· warden(实名)· scribe(app)· archivist(档案)· sage(助手)· teller(支付)
-  —— 以上全部可被接入方替换或关闭
+  Default providers: herald (announcements) · croupier (support) · chirp (push) · warden (real name) · scribe (app) · archivist (player profile) · sage (assistant) · teller (payments)
+  — all of the above can be replaced or disabled by the integrator
 ```
 
-## 能力树
+## Capability Tree
 
 ```text
 Courier
-├── Core          Lifecycle / Network / Error / Retry / Cache / Telemetry 挂钩
-├── Identity      Login / Logout / Bind / Device / OAuth(可选,第三方)/ RealName(可选,合规)
+├── Core          Lifecycle / Network / Error / Retry / Cache / Telemetry hooks
+├── Identity      Login / Logout / Bind / Device / OAuth (optional, third-party) / RealName (optional, compliance)
 ├── Session       AccessToken / RefreshToken / Session
 ├── Player        Profile / Game Player
 ├── App           Version / Maintenance / Remote Config / Branding
 ├── Communication Announcement / Message / Push
-├── Support       FAQ / Ticket(核心);Panel(可选 UI 包)
-├── Assistant     FAQ 检索问答(可选,LLM 供应商可替换)
-├── Payment       Order / Purchase / Receipt(契约+内置沙箱渠道,四形态可选)
-├── Diagnostics   Crash / OTel Trace / Perf / Analytics(可选包)
+├── Support       FAQ / Ticket (core); Panel (optional UI package)
+├── Assistant     FAQ retrieval Q&A (optional, LLM provider swappable)
+├── Payment       Order / Purchase / Receipt (contract + built-in sandbox channel, four shapes optional)
+├── Diagnostics   Crash / OTel Trace / Perf / Analytics (optional package)
 └── Platform      Unity / Unreal / Cocos / Godot / Layabox / MiniProgram
 ```
 
-## SDK 生命周期状态机
+## SDK Lifecycle State Machine
 
-游戏 SDK 与普通 REST SDK 的最大区别:生命周期是一等公民。状态机定义进 L1 契约(事件面见 [contract/events.md](./contract/events.md)),实现进 L2 Core:
+The biggest difference between a game SDK and an ordinary REST SDK: lifecycle is a first-class citizen. The state machine is defined in the L1 contract (event surface in [contract/events.md](./contract/events.md)) and implemented in L2 Core:
 
 ```text
 Uninitialized → Initializing → Ready → Authenticating → Authenticated → PlayerReady
@@ -86,182 +86,182 @@ Uninitialized → Initializing → Ready → Authenticating → Authenticated �
                                    │        ┌───────────────┘              │
                                    │        ▼                              ▼
                                    └── SignedOut                Suspended ⇄ Resuming
-                                                              (切后台/断网 → 恢复)
+                                                              (backgrounded / offline → resume)
 ```
 
-统一处理:游戏启动、切后台、恢复、token 过期(自动 refresh)、网络断开与恢复、切账号、退出登录。平台差异(前台/后台信号、进程存活)由 Adapter 注入,状态机本身平台无关。
+Handled uniformly: game launch, backgrounding, resumption, token expiry (automatic refresh), network disconnection and recovery, account switching, and sign-out. Platform differences (foreground/background signals, process liveness) are injected by Adapters; the state machine itself is platform-agnostic.
 
-## SDK 分包:Core / Service / UI
+## SDK Packaging: Core / Service / UI
 
-| 包 | 内容 | 必选? |
+| Package | Contents | Required? |
 | --- | --- | --- |
-| Core 包 | 内核 + Identity / Session(初始化、生命周期、token) | 必选 |
-| Service 包 | 各能力服务面:`Support.CreateTicket()`、`Communication.Announcements.list()` 等——**接口在核心/服务包** | 按需 |
-| UI 包 | `AnnouncementPanel` / `CustomerServicePanel` / `AssistantPanel` / `RealNamePanel` 等组件,**消费 Branding 配置** | 可选 |
+| Core package | Kernel + Identity / Session (initialization, lifecycle, tokens) | Required |
+| Service package | The service surface of each capability: `Support.CreateTicket()`, `Communication.Announcements.list()`, etc. — **the interfaces live in the core/service packages** | As needed |
+| UI package | Components such as `AnnouncementPanel` / `CustomerServicePanel` / `AssistantPanel` / `RealNamePanel`, **consuming Branding config** | Optional |
 
-- `Support.CreateTicket()` 属核心/服务包;`CustomerServicePanel` 属可选 UI 包——SDK 不强制任何 UI。
-- 各引擎各取所需:Unity 有 UPM UI 包,UE 走 UMG(UI 面属引擎集成面,未落仓),Cocos 自绘;UI 包缺席不影响功能面。
-- Diagnostics 同为可选包,与 UI 包同级。
+- `Support.CreateTicket()` belongs to the core/service packages; `CustomerServicePanel` belongs to the optional UI package — the SDK forces no UI on anyone.
+- Each engine takes what it needs: Unity has a UPM UI package, UE goes through UMG (the UI layer belongs to the engine-integration surface, not in this repo), Cocos draws its own; a missing UI package does not affect the functional surface.
+- Diagnostics is likewise an optional package, on the same level as the UI package.
 
-## Gateway:入口治理,不含业务
+## Gateway: Entry Governance, No Business Logic
 
-Gateway 只做入口治理,业务一律经 Provider 接口接入,**不留业务目录**:
+The Gateway only does entry governance; business always arrives via Provider interfaces, and **no business directories are kept**:
 
 ```text
 gateway/
-├── cmd/gateway/   入口
-├── auth/          鉴权中间件(token 校验)
-├── session/       会话管理
-├── scope/         game_id + env 注入与校验
-├── routing/       路由与 Provider 注册表
-├── aggregation/   跨 Provider 聚合
-├── audit/         实名审计事件接缝(AuditSink / LogSink / HTTPSink)
-├── middleware/    限流 / trace / 恢复 / scope / 维护门 / 1MiB 请求体上限(最外层)
-└── providers/     Provider 接口 + 默认实现(能力域 → 注册名)
-    ├── account/        AccountProvider(identity)   默认:courier-account(自建
+├── cmd/gateway/   entry point
+├── auth/          auth middleware (token verification)
+├── session/       session management
+├── scope/         game_id + env injection and validation
+├── routing/       routing and the Provider registry
+├── aggregation/   cross-Provider aggregation
+├── audit/         realname audit event seam (AuditSink / LogSink / HTTPSink)
+├── middleware/    rate limiting / trace / recovery / scope / maintenance gate / 1MiB body cap (outermost)
+└── providers/     Provider interface + default implementations (capability domain → registered name)
+    ├── account/        AccountProvider(identity)   default: courier-account (self-hosted
     │                   accounts/sessions)
-    ├── accountalt/    AccountProvider(identity 第二实现,同契约异构,可换)
+    ├── accountalt/    AccountProvider(identity second implementation, same contract heterogeneous, swappable)
     ├── herald/         AnnouncementProvider(announcements)
-    ├── heraldalt/      AnnouncementProvider(announcements 第二实现,写时索引,同契约可换)
+    ├── heraldalt/      AnnouncementProvider(announcements second implementation, write-time indexing, same contract swappable)
     ├── croupier/       SupportProvider(support)
-    ├── croupieralt/    SupportProvider(support 第二实现,写时属主索引 + 键集游标,同契约可换)
-    ├── chirp/          MessageProvider(messages,SSE)
-    ├── chirpalt/       MessageProvider(messages 第二实现,环形日志+游标,同契约可换)
-    ├── warden/         RealNameProvider(realname)  默认:自建核验;阿里云/腾讯云
-    │                   慧眼/易盾/Webhook 按需适配同一形状
-    ├── wardenalt/      RealNameProvider(realname 第二实现,托管核验,同契约可换)
-    ├── scribe/         AppProvider(app:config/branding/版本/维护,自建管道,
-    │                   可由 croupier 发布)
-    ├── scribealt/      AppProvider(app 第二实现,写时维度索引,同契约可换)
+    ├── croupieralt/    SupportProvider(support second implementation, write-time owner index + keyset cursor, same contract swappable)
+    ├── chirp/          MessageProvider(messages, SSE)
+    ├── chirpalt/       MessageProvider(messages second implementation, ring log + cursor, same contract swappable)
+    ├── warden/         RealNameProvider(realname)  default: self-hosted verification; Alibaba Cloud/Tencent Cloud
+    │                   Huiyan/Yidun/Webhook adapted to the same shape as needed
+    ├── wardenalt/      RealNameProvider(realname second implementation, hosted verification, same contract swappable)
+    ├── scribe/         AppProvider(app: config/branding/version/maintenance, self-hosted pipeline,
+    │                   publishable via croupier)
+    ├── scribealt/      AppProvider(app second implementation, write-time dimension index, same contract swappable)
     ├── archivist/      PlayerProvider(player)
-    ├── archivistalt/   PlayerProvider(player 第二实现,事件日志模型,同契约可换)
-    ├── sage/           AssistantProvider(assistant,FAQ 检索问答)
-    ├── sagealt/       AssistantProvider(assistant 第二实现,写时预计算规范化,同契约可换)
-    ├── teller/         PaymentsProvider(payments:订单-回调-发货;渠道沙箱随部署面)
-    └── telleralt/      PaymentsProvider(payments 第二实现,事件账本投影,同契约可换)
+    ├── archivistalt/   PlayerProvider(player second implementation, event-log model, same contract swappable)
+    ├── sage/           AssistantProvider(assistant, FAQ retrieval Q&A)
+    ├── sagealt/       AssistantProvider(assistant second implementation, write-time precomputed normalization, same contract swappable)
+    ├── teller/         PaymentsProvider(payments: order-callback-delivery; channel sandbox follows the deployment surface)
+    └── telleralt/      PaymentsProvider(payments second implementation, event-ledger projection, same contract swappable)
 ```
 
-> 诊断不经网关:契约红线(diagnostics.md)规定诊断数据直发接入方自有端点,网关无 DiagnosticsProvider。
+> Diagnostics bypasses the gateway: the contract red line (diagnostics.md) requires diagnostics data to be sent directly to the integrator's own endpoints; the gateway has no DiagnosticsProvider.
 
-- 未配置的 Provider:路由照常注册(`/v1/<能力域>/` 前缀全挂载),请求时网关以 501 降级信封返回 `COMMON_CAPABILITY_DISABLED`(见 [contract/errors.md](./contract/errors.md))——客户端以此探测能力开关,而非得到 404。
-- `accounts` / `announcements` 这类名字不得作为 gateway 一级业务目录出现——它们是 Provider 的默认实现,住在 `providers/` 下。
+- Unconfigured Providers: routes are still registered (all `/v1/<capability>/` prefixes mount); a request returns a 501 degradation envelope with `COMMON_CAPABILITY_DISABLED` (see [contract/errors.md](./contract/errors.md)) — clients probe capability switches this way instead of getting a 404.
+- Names like `accounts` / `announcements` must never appear as first-class business directories in the gateway — they are the default implementations of Providers and live under `providers/`.
 
-## Provider 治理:热插拔 / 降级链 / 熔断
+## Provider Governance: Hot-Swap / Degradation Chain / Circuit Breaker
 
-- **配置驱动**:每个 Provider 由配置声明 `primary` + `fallbacks[]`;运行时配置重载即生效,不重启(路由表原子替换,在途请求按旧表完成)。现状:全域路由表热重载经 `routing.Hot` 落地(批次 99,F78 一期)——`SIGHUP` 重读 `COURIER_GATEWAY_CONFIG`,失败保留旧表(fail-safe);跟随 primary 的接缝(身份验证器/推送源/维护门)随重载双向重指;实名域另有域内细粒度治理 `providers/router.Reload`(降级链/熔断,批次 7)。管理面重载端点未实现(二期,前置=管理面鉴权契约)。
-- **降级链**:主 Provider 失败/超时 → 依序 fallback;全部失败按域定义安全态(如 RealName → `PENDING_REVIEW`)。
-- **熔断**(实名域已落地):按调用次数驱动——连续 N 次失败开路,开路后 30 次调用半开探测恢复(无定时器);熔断期直接走 fallback。
-- **HealthCheck**:逐请求探活,失败落 fallback、全链不健康 503;注册表不做实例剔除(接缝预留)。
-- RealName([contract/realname.md](./contract/realname.md))是第一个完整适用方;规则对所有 Provider 通用。
+- **Configuration-driven**: each Provider is declared by configuration as `primary` + `fallbacks[]`; a runtime config reload takes effect without a restart (the routing table is swapped atomically; in-flight requests complete against the old table). Current state: whole-table hot reload across all domains landed via `routing.Hot` (batch 99, F78 phase 1) — `SIGHUP` re-reads `COURIER_GATEWAY_CONFIG`, and a failure keeps the old table (fail-safe); the primary-following seams (identity verifier / push source / maintenance gate) re-point in both directions on reload; the realname domain additionally has fine-grained in-domain governance at `providers/router.Reload` (degradation chain / circuit breaker, batch 7). The admin-plane reload endpoint is not implemented (phase 2, prerequisite = a management-plane auth contract).
+- **Degradation chain**: primary Provider failure/timeout → fallbacks in order; if all fail, the domain-defined safe state applies (e.g. RealName → `PENDING_REVIEW`).
+- **Circuit breaker** (already landed in the real name domain): driven by call counts — N consecutive failures open the circuit; once open, 30 calls act as half-open probes to recover (no timers); during the open period traffic goes straight to fallback.
+- **HealthCheck**: per-request probe; on failure the chain falls through, and a fully unhealthy chain returns 503 — the registry does no instance eviction (reserved seam).
+- RealName ([contract/realname.md](./contract/realname.md)) is the first domain to apply all of this in full; the rules are universal for all Providers.
 
-### 敏感域独立切换策略(账号 / 实名 / 支付)
+### Independent Switching Strategy per Sensitive Domain (Account / Real Name / Payments)
 
-接口可替换 ≠ 数据可迁移;三个敏感域各自定义切换面与不迁什么:
+Replaceable interfaces ≠ migratable data; each of the three sensitive domains defines its own switching surface and what does not migrate:
 
-| 域 | 切换面(配置即换) | 不迁 / 保守面 | 实证 |
+| Domain | Switching surface (switch by config alone) | Not migrated / conservative surface | Evidence |
 | --- | --- | --- | --- |
-| 账号 | 验证器与主存同源:路由表 identity primary 换到第二实现即经 `auth.Switchable` 原子重指(fallbacks 不参与,验证器不逐请求切) | 令牌语义不跨实现:account(不透明随机令牌 + 会话表)与 accountalt(HMAC 自验证令牌)互不认,切换后旧令牌验不过 → 重新登录 | 两实现同 wire 由一致性 e2e 证明(`e2e/identity_conformance_test.go`,批次 18);并发换源下在途验证只返回旧/新目标身份、无中间态(`auth` 包 `-race` 单测) |
-| 实名 | 默认关闭,路由表显式开启;`router.Router` 路由表原子替换 + 熔断 + 全链失败安全态(PENDING_REVIEW / 不可玩 / 不放行) | 身份输入只活调用栈(禁日志/trace/诊断,只允许存指纹)——切换不得借机把明文落库 | `router` 包单测(降级序 / 熔断半开 / 安全态 / 在途按旧表)+ `e2e/realname_test.go`(默认 501 / fallback 链 / 热重载续服) |
-| 支付 | 渠道切换 = 换回调签名密钥配置(按渠道 HMAC-SHA256)+ `Deliver` 发货钩子;密钥空 = 回调一律 403 | 订单状态与台账不随渠道走(台账归部署面 / 接入方存储);回调幂等与断单对账语义契约不变 | `payment.md` 订单-发货核心流 + 回调幂等红线;`teller.Options.ChannelSecret` / `Deliver` |
+| Account | Verifier and primary store share one source: switching the identity primary in the routing table to the second implementation re-points atomically via `auth.Switchable` (fallbacks do not participate; the verifier does not switch per-request) | Token semantics do not cross implementations: account (opaque random tokens + session table) and accountalt (HMAC self-verifying tokens) do not recognize each other; after a switch old tokens fail verification → re-login | Both implementations speaking the same wire is proven by the conformance e2e (`e2e/identity_conformance_test.go`, batch 18); under concurrent source switching, in-flight verifications only ever return the old/new target identity, no intermediate state (`auth` package `-race` unit tests) |
+| Real name | Off by default, enabled explicitly in the routing table; `router.Router` atomic routing-table swap + circuit breaker + all-chain-failure safe state (PENDING_REVIEW / not playable / not admitted) | Identity inputs live only on the call stack (no logs/traces/diagnostics; only fingerprints may be stored) — a switch must not be an occasion to persist plaintext | `router` package unit tests (degradation order / breaker half-open / safe state / in-flight requests on the old table) + `e2e/realname_test.go` (default 501 / fallback chain / hot reload with service continuity) |
+| Payments | Channel switch = swap the callback signing-secret config (per-channel HMAC-SHA256) + the `Deliver` fulfillment hook; empty secret = callbacks always 403 | Order state and the ledger do not follow the channel (the ledger belongs to the deployment surface / integrator storage); callback idempotency and broken-order reconciliation semantics in the contract are unchanged | `payment.md` order-delivery core flow + callback idempotency red line; `teller.Options.ChannelSecret` / `Deliver` |
 
-## 新能力设计
+## New Capability Design
 
-### Remote Config(M3)
+### Remote Config (M3)
 
-- SDK:`Courier.Config.Get("login.enable_guest")`。
-- 匹配维度:`game_id / environment / platform / version / region`——配置按条件命中。
-- 链路:接入方或默认供应商(如 croupier)发布 → ConfigProvider → Gateway 缓存 → SDK(本地缓存 + `config.updated` 推送热生效)。
+- SDK: `Courier.Config.Get("login.enable_guest")`.
+- Matching dimensions: `game_id / environment / platform / version / region` — configs match by condition.
+- Chain: published by the integrator or a default provider (e.g. croupier) → ConfigProvider → Gateway cache → SDK (local cache + `config.updated` push for hot effect).
 
-### Courier.App(M3)
+### Courier.App (M3)
 
-- `CheckUpdate / CheckMaintenance / GetEnvironment`(Unity 门面 `CheckUpdateAsync` / `CheckMaintenanceAsync` / `GetEnvironmentAsync`,对应 `GET /v1/app/version|maintenance|environment` 三个端点;无独立 GetVersion 门面)。
-- 典型启动序列:Game Start → Initialize → CheckMaintenance → CheckVersion → Auth → Player → Game。
+- `CheckUpdate / CheckMaintenance / GetEnvironment` (Unity facade `CheckUpdateAsync` / `CheckMaintenanceAsync` / `GetEnvironmentAsync`, mapped to the `GET /v1/app/version|maintenance|environment` endpoints; no separate GetVersion facade).
+- Typical startup sequence: Game Start → Initialize → CheckMaintenance → CheckVersion → Auth → Player → Game.
 
-### Branding(M3)
+### Branding (M3)
 
-品牌定制:公司名/logo/icon/主题色/关于页/客服入口,按 `game_id+env` 下发,UI 可选包消费,Core 不含品牌逻辑。见 [contract/branding.md](./contract/branding.md)。
+Brand customization: company name/logo/icon/theme color/about page/support entry, delivered per `game_id+env`, consumed by the optional UI package; Core contains no branding logic. See [contract/branding.md](./contract/branding.md).
 
-### RealName(M2 后段,合规)
+### RealName (late M2, compliance)
 
-实名认证与防沉迷钩子接口位;Provider 热插拔(自建/阿里云/腾讯云慧眼/易盾/Webhook),默认关闭。见 [contract/realname.md](./contract/realname.md)。
+Interface slots for real name verification and anti-addiction hooks; hot-swappable Providers (self-hosted / Alibaba Cloud / Tencent Cloud Huiyan / Yidun / Webhook), off by default. See [contract/realname.md](./contract/realname.md).
 
-### Diagnostics(M3 同期或后,可选)
+### Diagnostics (alongside M3 or later, optional)
 
-崩溃/错误追踪(Sentry/GlitchTip 可自托管)、OTel Trace(官方 OTel SDK → 任意 OTLP collector)、性能指标、事件分析;默认全关,未配置即 no-op 零开销。见 [contract/diagnostics.md](./contract/diagnostics.md)。
+Crash/error tracking (Sentry/GlitchTip, self-hostable), OTel Trace (official OTel SDK → any OTLP collector), performance metrics, event analytics; everything off by default, and an unconfigured setup is a no-op with zero overhead. See [contract/diagnostics.md](./contract/diagnostics.md).
 
-### Payment:只定 Contract(M5)
+### Payment: Contract Only (M5)
 
-支付形态因游戏而异,Contract 不设「统一钱包」假设,允许:
+Payment shapes differ from game to game; the Contract sets no "unified wallet" assumption and allows:
 
 ```text
 Payment
-├── Account Wallet     账号维度钱包(余额跨游戏共享)
-├── Game Wallet        游戏维度钱包
-├── Direct Purchase    直购
-└── External Payment   外部支付(渠道 IAP 等)
+├── Account Wallet     account-scoped wallet (balance shared across games)
+├── Game Wallet        game-scoped wallet
+├── Direct Purchase    direct purchase
+└── External Payment   external payment (channel IAP, etc.)
 ```
 
-契约只冻结 `Order / Purchase / Receipt` 与安全边界(回调只认渠道签名);选哪种形态由各游戏配置决定。接口形状(`Order / Channel / Callback / Reconcile`)仍提前冻结避免返工。
+The contract freezes only `Order / Purchase / Receipt` and the security boundary (callbacks trust only channel signatures); which shape to pick is decided by each game's configuration. The interface shape (`Order / Channel / Callback / Reconcile`) is still frozen up front to avoid rework.
 
-## 关键决策
+## Key Decisions
 
-1. **契约是宪法。** M0 立宪并冻结([contract/](./contract/index.md));M1 Auth 开工的前提。SDK Contract > Everything。
-2. **网关是唯一入口。** 客户端只和 Courier Gateway 通信;Provider 与后端拓扑对客户端不可见。
-3. **协议 HTTPS JSON 优先。** 推送 M2 起走 SSE(messages.md 冻结选型:标准库可全实现、HTTP 语义复用、Unity UnityWebRequest 可流式读;WebSocket 留后续扩展,需写时升版本),复用默认推送 Provider(chirp)的会话通道,且通道本身可替换。
-4. **scope 唯一。** `game_id + env` 初始化指定一次,header 注入,见 [contract/scope.md](./contract/scope.md)。
-5. **Gateway 不含业务目录。** 业务一律 Provider 接口接入;`providers/` 下放接口与默认实现。
-6. **默认提供,可换可关。** 生态项目只是默认供应商;未接入 = 能力降级而非报错。
-7. **采集/合规默认关闭。** Diagnostics 与 RealName 的红线内建于契约。
-8. **Payment 只定契约。** 四形态开放,钱包假设不进契约。
-9. **UI 永远可选。** Core/Service/UI 三包分离;Core 无 UI、无品牌逻辑。
-10. **账号 ≠ 玩家。** account 公司级,player 游戏级,永不混用。
+1. **The contract is the constitution.** Constituted and frozen at M0 ([contract/](./contract/index.md)); the precondition for M1 Auth work. SDK Contract > Everything.
+2. **The gateway is the only entry point.** Clients talk only to the Courier Gateway; Providers and backend topology are invisible to the client.
+3. **Protocol: HTTPS JSON first.** Push goes over SSE from M2 on (the frozen selection in messages.md: fully implementable with the standard library, HTTP semantics reused, Unity UnityWebRequest can stream reads; WebSocket is left as a later extension and needs a version bump to write), reusing the session channel of the default push Provider (chirp), and the channel itself is replaceable.
+4. **One scope only.** `game_id + env` is specified once at initialization and injected as a header; see [contract/scope.md](./contract/scope.md).
+5. **The Gateway has no business directories.** Business always arrives via Provider interfaces; `providers/` holds the interfaces and the default implementations.
+6. **Provided by default, swappable and disableable.** Ecosystem projects are just default providers; not connected = capability degradation, not an error.
+7. **Collection/compliance off by default.** The red lines of Diagnostics and RealName are built into the contract.
+8. **Payment defines the contract only.** All four shapes stay open; wallet assumptions do not enter the contract.
+9. **UI is always optional.** Core/Service/UI are three separate packages; Core has no UI and no branding logic.
+10. **Account ≠ player.** account is company-level, player is game-level, never mixed.
 
-## SDK 结构(多端同构)
+## SDK Structure (Isomorphic Across Platforms)
 
 ```text
-CourierClient(门面)
-  .Identity        login / logout / bind / device / oauth(可选,第三方)
-  .Session         token 状态与轮换
-  .Assistant       faq 检索问答(可选,LLM 供应商可替换)
+CourierClient (facade)
+  .Identity        login / logout / bind / device / oauth (optional, third-party)
+  .Session         token state and rotation
+  .Assistant       faq retrieval Q&A (optional, LLM provider swappable)
   .Player          profile / gamePlayer
   .App             version / checkUpdate / checkMaintenance / config / branding
   .Communication   announcements / messages / push
-  .Support         createTicket / listTickets / getFaq        ← 核心/服务包
-  .Payment         createOrder / queryOrder(M5,契约+内置沙箱渠道)
-  .RealName        submit / status(可选,合规)
-  .Diagnostics     可选包接入点(默认 no-op)
-  UI 包            AnnouncementPanel / CustomerServicePanel / AssistantPanel(可选,消费 Branding)
+  .Support         createTicket / listTickets / getFaq        ← core/service packages
+  .Payment         createOrder / queryOrder (M5, contract + built-in sandbox channel)
+  .RealName        submit / status (optional, compliance)
+  .Diagnostics     optional package access point (no-op by default)
+  UI package       AnnouncementPanel / CustomerServicePanel / AssistantPanel (optional, consumes Branding)
 ```
 
-- 每端 = 平台无关 Core(DTO、生命周期状态机、token 存储、重试)+ 平台 binding(Unity UPM / UE 插件 / Cocos TS / 微信小程序 / Layabox / Godot——项目形态已落位,插件化打包随引擎集成面)。
-- **Adapter 禁带业务**:Adapter 只做「网络、存储、生命周期、线程」的平台翻译;任何业务语义出现即架构违规(上移 Core 或 Service)。
-- 公共 DTO 以 [contract/](./contract/index.md) 为唯一事实源,多端生成或手写对齐,禁止各自发明字段。
-- token 存储接口统一(`ITokenStore` / `TokenStore`),按端落地:Unity 加密存储、微信 storage(miniprogram `platform/wechat`)、Layabox LocalStorage、Godot `user://` 持久文件已实现;UE 平台凭证与 Cocos localStorage 未落仓——仓内默认 `MemoryTokenStore`(进程结束即失效),持久适配随引擎/接入面提供(详见 [layers.md](./layers.md))。
+- Each platform = a platform-agnostic Core (DTOs, lifecycle state machine, token storage, retry) + a platform binding (Unity UPM / UE plugin / Cocos TS / WeChat Mini Program / Layabox / Godot — project shapes are in place; plugin-packaged builds follow the engine-integration surface).
+- **Adapters must carry no business logic**: an Adapter only translates "network, storage, lifecycle, threading" for the platform; any business semantics appearing there is an architecture violation (move it up into Core or Service).
+- Public DTOs take [contract/](./contract/index.md) as the single source of truth, generated or hand-aligned per platform; inventing fields per platform is forbidden.
+- Token storage keeps a unified interface (`ITokenStore` / `TokenStore`) landed per platform: Unity encrypted storage, WeChat storage (miniprogram `platform/wechat`), Layabox LocalStorage, and Godot `user://` persistent files are implemented; UE platform credentials and Cocos localStorage are not in-repo yet — the in-repo default is `MemoryTokenStore` (lost on process exit), with persistent adapters following the engine/integration surface (see [layers.md](./layers.md)).
 
-## 安全边界
+## Security Boundaries
 
-- 客户端不持有任何 Provider 凭证、内部 URL、管理接口。
-- 敏感端点限流内建 account Provider(register/login/guest/bind/refresh 等敏感端点更严口径);网关 middleware 仅全局基础限流;实名域无限流。支付沙箱期前置风控随部署面(roadmap M5)。
-- 支付回调只认渠道签名,不认客户端上报金额/状态。
-- 实名:字段最小化、传输加密、SDK 不落盘、日志/trace 禁明文([contract/realname.md](./contract/realname.md))。
-- 诊断:默认关闭、显式开启、开启明示数据范围([contract/diagnostics.md](./contract/diagnostics.md))。
-- 写操作可审计:trace 贯穿 gateway → Provider;实名域关键动作(verify/curfew/charge_check/playtime_report)已落结构化审计事件面(`gateway/audit` 共享接缝,两个 realname 实现同注入 `AuditSink`,nil = 不产出;`COURIER_REALNAME_AUDIT=log` 开日志半边),事件只含账号维度元数据(身份输入不进事件,realname.md 红线),落库随部署面。
+- The client holds no Provider credentials, internal URLs, or admin interfaces.
+- Rate limiting for sensitive endpoints is built into the account Provider (stricter thresholds for sensitive endpoints such as register/login/guest/bind/refresh); the gateway middleware provides only basic global rate limiting; the real name domain has no rate limiting. During the payments sandbox period, pre-transaction risk controls follow the deployment surface (roadmap M5).
+- Payment callbacks trust only channel signatures, never client-reported amounts/status.
+- Real name: field minimization, encrypted transport, no SDK disk writes, plaintext banned from logs/traces ([contract/realname.md](./contract/realname.md)).
+- Diagnostics: off by default, enabled explicitly, with the data scope stated explicitly when enabled ([contract/diagnostics.md](./contract/diagnostics.md)).
+- Write operations are auditable: traces span gateway → Provider; the real name domain's critical actions (verify/curfew/charge_check/playtime_report) already land on a structured audit event surface (the `gateway/audit` shared seam, both realname implementations inject the same `AuditSink`, nil = no output; `COURIER_REALNAME_AUDIT=log` turns on the logging half), events contain only account-level metadata (identity inputs never enter events, the realname.md red line), and persistence follows the deployment surface.
 
-## 与后端 Provider 的边界
+## Boundary with Backend Providers
 
-| 能力 | Courier 负责 | Provider 侧负责 | 默认供应商(可换/可关) |
+| Capability | Courier owns | Provider side owns | Default provider (swappable/disableable) |
 | --- | --- | --- | --- |
-| 账号/会话 | 客户端面与网关治理 | 账号存储与核验 | courier-account(自建;第二实现 courier-account-alt 同契约可换) |
-| 公告 | 玩家侧拉取/订阅 API、SDK 组件 | 投递编排、运营发布 | herald + croupier message;第二实现 herald-alt(写时索引,同契约可换) |
-| 客服 | 玩家侧提单/查询 API | 工单流转、坐席 | croupier support/ticket/faq;第二实现 croupier-alt(写时属主索引 + 键集游标,同契约可换) |
-| 推送 | 事件契约与拉取兜底 | 长连接通道 | chirp(扇出;第二实现 chirp-alt 环形日志+游标,同契约可换) |
-| 实名 | 契约与 Provider 治理 | 核验执行 | warden(自建核验;阿里云/腾讯云慧眼/易盾/Webhook 同形状可接) |
-| 配置/品牌/版本 | 契约、条件投影、热生效 | 内容发布管道 | scribe(自建;第二实现 scribe-alt 写时维度索引,同契约可换) |
-| 玩家档案 | 契约与治理 | 档案存储、角色绑定 | archivist(自建;第二实现 archivist-alt 事件日志,同契约可换) |
-| 助手 | 契约与检索面 | FAQ 知识库、坐席 | sage(自建 FAQ;第二实现 sage-alt 写时预计算规范化,同契约可换) |
-| 支付 | 契约与订单面 | 渠道回调、发货、对账 | teller(自建;第二实现 teller-alt 事件账本投影,同契约可换) |
-| 诊断 | 契约与红线 | 上报存储与分析 | 不经网关,直发接入方端点;Sentry/GlitchTip/OTLP |
+| Account/session | Client surface and gateway governance | Account storage and verification | courier-account (self-built; second implementation courier-account-alt, swappable under the same contract) |
+| Announcements | Player-side fetch/subscribe APIs, SDK components | Delivery orchestration, ops publishing | herald + croupier message; second implementation herald-alt (write-time indexing, swappable under the same contract) |
+| Support | Player-side ticket submission/query APIs | Ticket workflow, agents | croupier support/ticket/faq; second implementation croupier-alt (write-time owner index + keyset cursor, swappable under the same contract) |
+| Push | Event contract and pull fallback | Long-lived connection channel | chirp (fan-out; second implementation chirp-alt ring log + cursor, swappable under the same contract) |
+| Real name | Contract and Provider governance | Verification execution | warden (self-hosted verification; Alibaba Cloud/Tencent Cloud Huiyan/Yidun/Webhook attachable in the same shape) |
+| Config/branding/version | Contract, conditional projection, hot effect | Content publishing pipeline | scribe (self-built; second implementation scribe-alt write-time dimension index, swappable under the same contract) |
+| Player profile | Contract and governance | Profile storage, character binding | archivist (self-built; second implementation archivist-alt event log, swappable under the same contract) |
+| Assistant | Contract and retrieval surface | FAQ knowledge base, agents | sage (self-built FAQ; second implementation sage-alt write-time precomputed normalization, swappable under the same contract) |
+| Payments | Contract and order surface | Channel callbacks, fulfillment, reconciliation | teller (self-built; second implementation teller-alt event-ledger projection, swappable under the same contract) |
+| Diagnostics | Contract and red lines | Reporting storage and analysis | Bypasses the gateway, sent directly to the integrator's endpoints; Sentry/GlitchTip/OTLP |
 
-## 竞品定位
+## Competitive Positioning
 
-开源没有「服务型聚合 SDK」这个品类(Nakama 是服务器、XtraLife 停滞、AWS 是云模板),商业聚合(MSDK/QuickSDK/XDSDK)证明需求存在但闭源绑渠道。Courier 取位与边界(实时多人/匹配不做、渠道聚合不做)的完整盘点见 [research/competitive.md](./research/competitive.md)。
+Open source has no "service-oriented aggregate SDK" category (Nakama is a server, XtraLife is stalled, AWS is cloud templates); commercial aggregators (MSDK/QuickSDK/XDSDK) prove the demand exists but are closed-source and channel-locked. For a full inventory of Courier's positioning and boundaries (no realtime multiplayer/matching, no channel aggregation), see [research/competitive.md](./research/competitive.md).
