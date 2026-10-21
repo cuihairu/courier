@@ -1,3 +1,5 @@
+[![Status](https://img.shields.io/badge/status-in%20development-orange)](https://github.com/cuihairu/courier/releases)
+
 <p align="center"><img src="docs/public/logo.svg" width="64" height="64" alt="logo" /></p>
 
 <h1 align="center">Courier — Universal Game SDK</h1>
