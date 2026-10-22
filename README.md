@@ -2,7 +2,7 @@
 <p align="center"><img src="docs/public/logo.svg" width="64" height="64" alt="logo" /></p>
 
 <h1 align="center">Courier — Universal Game SDK</h1>
-[![Status](https://img.shields.io/badge/status-in%20development-orange)](https://github.com/cuihairu/courier/releases)
+<a href="https://github.com/cuihairu/courier/releases"><img alt="Status" src="https://img.shields.io/badge/status-in%20development-orange"></a>
 
 <p align="center">
   <img src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white" alt="TypeScript" />
