@@ -46,7 +46,7 @@ concurrency:
 jobs:
   go:
     name: go (gateway + contractgen)
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: actions/setup-go@v7.0.0
@@ -69,7 +69,7 @@ jobs:
 
   node-sdks:
     name: node ${{ matrix.sdk }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
       matrix:
@@ -85,7 +85,7 @@ jobs:
 
   unity-dotnet:
     name: unity (dotnet pure-logic)
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: actions/setup-dotnet@v6.0.0
@@ -99,7 +99,7 @@ jobs:
 
   ue:
     name: ue (c++17 headless)
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v7.0.1
       - name: run_tests.sh
@@ -107,7 +107,7 @@ jobs:
 
   examples:
     name: examples (six-end e2e vs local gateway)
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: actions/setup-go@v7.0.0
