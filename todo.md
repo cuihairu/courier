@@ -35,3 +35,8 @@
          unity/ue/godot 全部跑出预期输出；examples/README.md godot 节补
          `COURIER_ENDPOINT`（默认 :8080 本机与 nginx 冲突，正是初次误判的根因）
       构建：docs:build 绿；未动版本号、未打 tag。
+## 审核发现
+
+- [x] 审核发现：F62 复核声称全仓 grep 仅命中评估/契约文档，但 `ops`/`live-ops` 实际还命中 `docs/roadmap.md:42`、`docs/sdk-selection.md:18` 等，检索证据不成立（docs/todo.md:18）。**已修正**：英文 F62 复核改为 `mail/gift-pack/redeem/promo` 仅命中评估/契约文档，`ops`/`live-ops` 另命中既有公告文案（roadmap.md:42、sdk-selection.md:18、architecture.md:255）但均非 F62 新需求；中文镜像同步。
+- [x] 审核发现：本次只给英文 TODO 的 F62/F80 追加复核，中文镜像仍停留在旧文本，双语台账出现漂移（docs/todo.md:18, docs/todo.md:22；docs/zh/todo.md:18, docs/zh/todo.md:22）。**已修正**：中文 F62/F80 各补 2026-10-28 复核，与英文口径逐句对译。
+- [x] 审核发现：F80 复核把 Laya 适配器并作 Cocos 持久化证据，且“Cocos ships only MemoryTokenStore”与实际的微信持久化适配器矛盾，Cocos 范围表述不准确（docs/todo.md:22；sdks/cocos/src/core/tokenStore.ts:12；sdks/cocos/src/platform/wechat/tokenStore.ts:9；sdks/laybox/src/platform/laya/tokenStore.ts:9）。**已修正**：英文 F80 复核改为 Cocos 含 MemoryTokenStore + 微信持久化适配器，Laya 适配器归属 laybox 端；中文镜像同步。
