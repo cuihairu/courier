@@ -15,7 +15,7 @@
   3. Cost of chartering now: implementation surface (contract + gateway + six SDKs) would be built against an unconfirmed requirement — risk of rework if the operating side wants a different shape.
   4. Benefit of waiting: zero wasted work; the sketch makes chartering fast once a real requirement lands.
   5. Risk: low — no gate depends on F62.
-- **Immediate action**: none (record decision).
+- **Immediate action**: none (record decision). ✅ done (record decision, commit 831b269). **Awaiting user**: an operating-side requirement trigger — a user/operating-side decision, not producible in-repo.
 - **Not doing / deferred**: no charter, no contract draft, no SDK surface; freeze-and-charter per the sketch once the operating-side requirement triggers.
 - **Teaching note**: "charter" here means formally starting the feature (freeze its design, then build it). The homework is already done — we know roughly what it would cost. What we do not have is anyone actually asking for the feature. Building a feature nobody asked for is the classic way to waste engineering time, so it stays parked until a real request arrives.
 
@@ -28,7 +28,7 @@
   3. Cost of landing early: a persistent token-store adapter for UE would be written against an engine integration surface that does not exist yet — unverifiable and likely to be reshaped by the real integration.
   4. Benefit of waiting: integrators can already fill the gap via their own TokenStore implementation (noted in layers.md); Cocos ships MemoryTokenStore plus its WeChat persistent adapter (platform/wechat/tokenStore.ts), and the Laya adapter belongs to the laybox SDK (sdks/laybox/src/platform/laya/tokenStore.ts).
   5. Risk: low — documented extension point exists; no gate depends on F80.
-- **Immediate action**: none (record decision).
+- **Immediate action**: none (record decision). ✅ done (record decision, commit 831b269). **Awaiting user/engine side**: the UE engine integration surface (real UE engine environment access — external environment, not available in-repo).
 - **Not doing / deferred**: no .uplugin/.uproject scaffolding, no HttpModule adapter, no UObject wrapper; re-evaluate once engine-side integration starts or an integrator self-adapts.
 - **Teaching note**: a "persistent token store" is where a game engine keeps login tokens so players stay signed in after a restart. Writing one for Unreal before any Unreal integration exists is like building a garage before owning the car — the shape of the car determines the shape of the garage. The engine integration is the car; it has not arrived, so the adapter waits.
 
@@ -40,3 +40,5 @@
 | F80 | awaiting UE engine integration surface | uphold "not earlier than engine surface" | none |
 
 > This batch is a decisions record with no new implementation; unlock conditions and acceptance criteria are unchanged.
+>
+> Execution status (2026-10-30 exec-actions pass): 2/2 immediate actions done (both record decision; see ✅ and commit 831b269); awaiting user 2 — F62 (operating-side requirement trigger), F80 (UE engine integration surface).
