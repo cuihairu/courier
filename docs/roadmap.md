@@ -1,7 +1,7 @@
 
 # Courier Roadmap
 
-> Principle: every milestone is end-to-end usable (gateway + at least one SDK client + acceptance), no "half-finished features". **Contract first: the previous milestone's contract is frozen before the current milestone starts.** Batch cadence see [todo](./todo.md); the five-layer definitions see [layers](./layers.md).
+> Principle: every milestone is end-to-end usable (gateway + at least one SDK client + acceptance), no "half-finished features". **Contract first: the previous milestone's contract is frozen before the current milestone starts.** Batch cadence see [todo](/todo); the five-layer definitions see [layers](./layers.md).
 
 ## M0 — SDK Contract Foundation (completed, 2026-10)
 

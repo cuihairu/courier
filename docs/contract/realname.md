@@ -102,7 +102,7 @@ Collected field list (complete): `name`, `idNumber`, verification result, adult/
 
 ## Consent Management (consent, v1.1)
 
-> Added in v1.1, additive-only: the existing `verify` / `status` / `curfew` / `charge-check` / `playtime-report` endpoints and fields are untouched. Frozen 2026-10-18 by patrol PATROL1018E delegated decision (design draft: [research/consent-v1.1-draft.md](../research/consent-v1.1-draft.md)). **Frozen ≠ implemented**: the gateway and the six-SDK implementation surface awaits a go-ahead call (F31, registered in [todo.md](../todo.md)).
+> Added in v1.1, additive-only: the existing `verify` / `status` / `curfew` / `charge-check` / `playtime-report` endpoints and fields are untouched. Frozen 2026-10-18 by patrol PATROL1018E delegated decision (design draft: [research/consent-v1.1-draft.md](../research/consent-v1.1-draft.md)). **Frozen ≠ implemented**: the gateway and the six-SDK implementation surface awaits a go-ahead call (F31, registered in [todo.md](/todo)).
 
 - **Off by default**: with no consent channel configured, the capability-disabled semantics apply (`501 COMMON_CAPABILITY_DISABLED`) — queries return "not enabled", the integrator hides the age-gate UI, and **no error path is entered** (same as v1).
 - **Verdicts ride the 200 payload**: consent state goes in `data`, not in error codes; **zero new error codes**.

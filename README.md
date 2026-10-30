@@ -63,7 +63,7 @@ Gateway          Player-facing API gateway (Go: auth, session, scope, routing,
                   aggregation, middleware, providers)
 ```
 
-Layer-by-layer design: [docs/layers.md](docs/layers.md). Overall architecture, capability tree, SDK lifecycle, and provider governance: [docs/architecture.md](docs/architecture.md). **The contract constitution: [docs/contract/](docs/contract/index.md).** Batch-by-batch progress: [docs/todo.md](docs/todo.md).
+Layer-by-layer design: [docs/layers.md](docs/layers.md). Overall architecture, capability tree, SDK lifecycle, and provider governance: [docs/architecture.md](docs/architecture.md). **The contract constitution: [docs/contract/](docs/contract/index.md).** Batch-by-batch progress: [todo.md](todo.md).
 
 ## Positioning
 
@@ -187,7 +187,7 @@ tools/      Repo gates: contractgen (contract test skeleton), packcheck (UPM str
 - Contract constitution (M0): [docs/contract/](docs/contract/index.md) — primitives/errors/scope/versioning/events base contracts + all domain contracts frozen: auth (M1), oauth (third-party login, optional), announcement/support/messages (M2), realname (M2), config/app/branding/player/diagnostics (M3), assistant (M4), payment (M5); diagnostics is a client-only optional package, direct-to-endpoint, not via gateway
 - Architecture: [docs/architecture.md](docs/architecture.md) · Five layers: [docs/layers.md](docs/layers.md)
 - Competitive research: [docs/research/competitive.md](docs/research/competitive.md)
-- Roadmap: [docs/roadmap.md](docs/roadmap.md) · Batch TODO: [docs/todo.md](docs/todo.md)
+- Roadmap: [docs/roadmap.md](docs/roadmap.md) · Batch TODO: [todo.md](todo.md)
 
 ## Development
 

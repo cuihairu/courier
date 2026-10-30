@@ -1,7 +1,7 @@
 
 # Courier Architecture
 
-> **Status**: Current — maintained alongside the implementation (2026-10-08 M0 constitutional freeze; M1–M5 have all landed). Layer-by-layer detail (SDK Contract / Core / Platform Adapter / Service Provider / Gateway) is in [layers.md](./layers.md), batch-by-batch delivery is in [todo.md](./todo.md), the contract constitution is in [contract/](./contract/index.md), and competitive positioning is in [research/competitive.md](./research/competitive.md).
+> **Status**: Current — maintained alongside the implementation (2026-10-08 M0 constitutional freeze; M1–M5 have all landed). Layer-by-layer detail (SDK Contract / Core / Platform Adapter / Service Provider / Gateway) is in [layers.md](./layers.md), batch-by-batch delivery is in [todo.md](/todo), the contract constitution is in [contract/](./contract/index.md), and competitive positioning is in [research/competitive.md](./research/competitive.md).
 
 ## Design Principle: SDK Contract > Everything
 

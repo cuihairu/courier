@@ -1,7 +1,7 @@
 
 # Five-Layer Architecture: L1–L5
 
-> **Status**: Current — maintained alongside the implementation (2026-10-08 M0 constitution frozen; M1–M5 all landed). Principle: **no business stacking — skeleton first**. The master outline lives in [architecture.md](./architecture.md) (design principles / Provider principles / capability tree / lifecycle); the contract constitution lives in [contract/index.md](./contract/index.md); batch cadence lives in [todo.md](./todo.md).
+> **Status**: Current — maintained alongside the implementation (2026-10-08 M0 constitution frozen; M1–M5 all landed). Principle: **no business stacking — skeleton first**. The master outline lives in [architecture.md](./architecture.md) (design principles / Provider principles / capability tree / lifecycle); the contract constitution lives in [contract/index.md](./contract/index.md); batch cadence lives in [todo.md](/todo).
 
 ## Layer Overview
 
@@ -165,4 +165,4 @@ Go `http.ServeMux` + middleware chain (trace → structured errors → rate limi
 ## Evolution Principles
 
 - Each layer first stands up "interface shape + one minimal implementation" before spreading horizontally; no half-features.
-- For batch cadence and acceptance see [todo](./todo.md); for business milestones see [roadmap](./roadmap.md).
+- For batch cadence and acceptance see [todo](/todo); for business milestones see [roadmap](./roadmap.md).

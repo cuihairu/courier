@@ -1,7 +1,7 @@
 
 # Implementation Status Summary (cross-check against the 76 features in features.md)
 
-> **Basis** (2026-10-11, batch 45): all 76 items of [features.md](./features.md) checked one by one against repo evidence; task entries and status annotations are in [todo.md](../todo.md) batch 45 — this table is the summary view.
+> **Basis** (2026-10-11, batch 45): all 76 items of [features.md](./features.md) checked one by one against repo evidence; task entries and status annotations are in [todo.md](/todo) batch 45 — this table is the summary view.
 > **Update** (2026-10-12, batch 51): F03 / F35 / F43 moved from ❌ to ✅ (contract Frozen v1.1 → gateway → SDK six platforms → e2e, four batches landed; evidence commits inline); F11 error code table v4→v5.
 > **Update** (2026-10-12, batch 52): F01 moved from ◑ to ✅ (oauth.md Frozen v1 → gateway → SDK six platforms → e2e, four batches landed; evidence commits inline); F11 error code table v5→v6 (+OAUTH 3 codes); phone login is proposed as a separate isomorphic domain and is not in this item's scope.
 > **Update** (2026-10-12, batch 53): F44 moved from ❌ to ✅ (support.md attachment section Frozen v1.1 → gateway → SDK six platforms → e2e, four batches landed; evidence commits inline); F11 error code table v6→v7 (+SUPPORT attachment 2 codes).
