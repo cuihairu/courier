@@ -10,7 +10,7 @@
 
 - **Recommended decision**: stay unchartered — awaiting user input (an actual operating-side requirement trigger); evaluation remains complete, no charter this round.
 - **Rationale**:
-  1. Blocker fact (2026-10-28/29 recheck): repo-wide grep for mail/gift-pack/redeem/promo hits only the existing evaluation and contract docs (research/mail-cdk-evaluation.md, features.md §10) — no operating requirement has been raised; there is no verifiable external evidence of one.
+  1. Blocker fact (2026-10-28/29 recheck): repo-wide grep for mail/gift-pack/redeem/promo hits the existing evaluation and contract docs (research/mail-cdk-evaluation.md, features.md §10); the same broad terms also hit ledger/status prose in todo.md:18 and docs/research/implementation-status.md:110, none of which is a new operating requirement — no operating requirement has been raised and there is no verifiable external evidence of one.
   2. Evaluation is already done and favorable (contract surface highly isomorphic, low cost to charter per the sketch) — nothing further to analyze in-repo; the only missing input is the requirement trigger itself, which is a user/operating-side decision.
   3. Cost of chartering now: implementation surface (contract + gateway + six SDKs) would be built against an unconfirmed requirement — risk of rework if the operating side wants a different shape.
   4. Benefit of waiting: zero wasted work; the sketch makes chartering fast once a real requirement lands.
