@@ -50,6 +50,8 @@ The state machine is defined in [architecture.md](../architecture.md) "SDK Lifec
 | `payment.paid` | payment (M5, v1.1) | Order paid (a hint; the payload contains only orderId; [payment.md](./payment.md)) |
 | `payment.delivered` | payment (M5, v1.1) | Order delivered (including reconciliation recovery; a hint; the payload contains only orderId) |
 | `realname.consent.updated` | realname (v1.1) | Consent status changed (same shape as `config.updated`; frozen but not implemented, [realname.md](./realname.md), implementation surface F31) |
+| `mail.updated` | mail (F62) | New mail or a claim (hint; the list endpoint is authoritative, [mail.md](./mail.md)) |
+| `cdk.redeemed` | cdk (F62) | A code was redeemed (hint; redemption results are pulled, [cdk.md](./cdk.md)) |
 
 Correction (2026-10-19): removed the two rows provisionally listed in M3, `app.maintenance_changed` / `app.force_update` — never registered in app.md / messages.md and no emitter exists; registration is governed by [messages.md](./messages.md).
 

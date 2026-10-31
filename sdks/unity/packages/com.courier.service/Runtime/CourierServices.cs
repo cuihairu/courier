@@ -17,6 +17,8 @@ namespace Courier.Service
         public PlayerService Player { get; }
         public AssistantService Assistant { get; }
         public PaymentService Payments { get; }
+        public MailService Mail { get; }
+        public CdkService Cdk { get; }
 
         public CourierServices(CourierClient client)
         {
@@ -30,6 +32,8 @@ namespace Courier.Service
             Player = new PlayerService(api);
             Assistant = new AssistantService(api);
             Payments = new PaymentService(api);
+            Mail = new MailService(api);
+            Cdk = new CdkService(api);
         }
     }
 }

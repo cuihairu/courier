@@ -1,7 +1,7 @@
 
 # Error Contract
 
-> Status: Frozen v1 (2026-10-08, frozen at the M0 cross-platform review; the error code table is **v8** — v2 added M2 domain codes, v3 added REALNAME time-window/quota codes, v4 added M5 PAYMENT domain codes, v5 added AUTH deregistration codes, v6 added OAUTH domain codes, v7 added SUPPORT attachment codes (2026-10-12), v8 added SUPPORT report/appeal codes (2026-10-13)). Error consistency across Unity / UE / Cocos / Godot is the core value of the Universal SDK: the same `code` maps to the same enum and the same retry semantics on every platform.
+> Status: Frozen v1 (2026-10-08, frozen at the M0 cross-platform review; the error code table is **v9** — v2 added M2 domain codes, v3 added REALNAME time-window/quota codes, v4 added M5 PAYMENT domain codes, v5 added AUTH deregistration codes, v6 added OAUTH domain codes, v7 added SUPPORT attachment codes (2026-10-12), v8 added SUPPORT report/appeal codes (2026-10-13), v9 added F62 MAIL/CDK domain codes (2026-11-01)). Error consistency across Unity / UE / Cocos / Godot is the core value of the Universal SDK: the same `code` maps to the same enum and the same retry semantics on every platform.
 
 ## Error Body
 
@@ -22,7 +22,7 @@
 
 ## Domain Prefix Registry
 
-`COMMON` / `AUTH` / `SESSION` / `SCOPE` / `RATE` / `ANNOUNCEMENT` / `SUPPORT` / `ASSISTANT` / `PAYMENT` / `REALNAME` / `CONFIG` / `APP` / `DIAG` / `OAUTH`
+`COMMON` / `AUTH` / `SESSION` / `SCOPE` / `RATE` / `ANNOUNCEMENT` / `SUPPORT` / `ASSISTANT` / `PAYMENT` / `REALNAME` / `CONFIG` / `APP` / `DIAG` / `OAUTH` / `MAIL` / `CDK`
 
 A new domain must register its prefix here before defining concrete codes.
 
@@ -87,6 +87,9 @@ A new domain must register its prefix here before defining concrete codes.
 | SUPPORT_ATTACHMENT_LIMIT | 409 | false | Ticket attachment count at the limit (default 3; added when support.md v1.1 froze) |
 | SUPPORT_PENALTY_NOT_FOUND | 404 | false | Penalty not found or not owned by the current player; existence not leaked (added when support.md v1.1 F45 froze) |
 | SUPPORT_APPEAL_EXISTS | 409 | false | This penalty already has an appeal in progress; at most one per penalty (added when support.md v1.1 F45 froze) |
+| MAIL_NOT_FOUND | 404 | false | Mail not found or not owned by the current player (added when mail.md F62 froze) |
+| CDK_NOT_FOUND | 404 | false | Redeem code not found or not registered (added when cdk.md F62 froze) |
+| CDK_EXHAUSTED | 409 | false | Redeem code redemption limit reached (added when cdk.md F62 froze) |
 
 Business error codes for each domain freeze along with that domain's contract; once a code in this table is frozen, its semantics must not change.
 

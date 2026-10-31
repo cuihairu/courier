@@ -48,6 +48,9 @@ namespace Courier.Contract
         SupportAttachmentLimit = 39,
         SupportPenaltyNotFound = 40,
         SupportAppealExists = 41,
+        MailNotFound = 42,
+        CdkNotFound = 43,
+        CdkExhausted = 44,
     }
 
     /// <summary>错误码 → wire / HTTP / retryable 冻结映射(下标与枚举值对齐)。</summary>
@@ -105,10 +108,13 @@ namespace Courier.Contract
             new Spec("SUPPORT_ATTACHMENT_LIMIT", 409, false),
             new Spec("SUPPORT_PENALTY_NOT_FOUND", 404, false),
             new Spec("SUPPORT_APPEAL_EXISTS", 409, false),
+            new Spec("MAIL_NOT_FOUND", 404, false),
+            new Spec("CDK_NOT_FOUND", 404, false),
+            new Spec("CDK_EXHAUSTED", 409, false),
         };
 
         /// <summary>域前缀注册表(新域先注册前缀再定义码)。</summary>
-        public static readonly string[] Prefixes = { "COMMON", "AUTH", "SESSION", "SCOPE", "RATE", "ANNOUNCEMENT", "SUPPORT", "ASSISTANT", "PAYMENT", "REALNAME", "CONFIG", "APP", "DIAG", "OAUTH" };
+        public static readonly string[] Prefixes = { "COMMON", "AUTH", "SESSION", "SCOPE", "RATE", "ANNOUNCEMENT", "SUPPORT", "ASSISTANT", "PAYMENT", "REALNAME", "CONFIG", "APP", "DIAG", "OAUTH", "MAIL", "CDK" };
 
         /// <summary>全部冻结码(供契约测试对账)。</summary>
         public static System.Collections.Generic.IReadOnlyList<Spec> All

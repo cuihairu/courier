@@ -24,8 +24,8 @@ static int gFailed = 0;
 int main() {
     using namespace courier;
 
-    // 冻结码数量(docs/contract/fixtures/errors.json v8 = 42)。
-    CHECK(static_cast<int>(ErrorCode::kCount) == 42, "kCount == 42");
+    // 冻结码数量(docs/contract/fixtures/errors.json v9 = 45)。
+    CHECK(static_cast<int>(ErrorCode::kCount) == 45, "kCount == 45");
 
     // 抽查冻结映射(wire / HTTP / retryable)。
     CHECK(std::strcmp(error_spec(ErrorCode::CommonInternal).wire, "COMMON_INTERNAL") == 0,
@@ -68,6 +68,15 @@ int main() {
     CHECK(error_spec(ErrorCode::SupportAppealExists).http == 409 &&
               !error_spec(ErrorCode::SupportAppealExists).retryable,
           "SUPPORT_APPEAL_EXISTS 409");
+    CHECK(error_spec(ErrorCode::MailNotFound).http == 404 &&
+              !error_spec(ErrorCode::MailNotFound).retryable,
+          "MAIL_NOT_FOUND 404");
+    CHECK(error_spec(ErrorCode::CdkNotFound).http == 404 &&
+              !error_spec(ErrorCode::CdkNotFound).retryable,
+          "CDK_NOT_FOUND 404");
+    CHECK(error_spec(ErrorCode::CdkExhausted).http == 409 &&
+              !error_spec(ErrorCode::CdkExhausted).retryable,
+          "CDK_EXHAUSTED 409");
     CHECK(error_spec(ErrorCode::AppVersionUnsupported).http == 426,
           "APP_VERSION_UNSUPPORTED 426");
     CHECK(error_spec(ErrorCode::RealnameCurfewBlocked).http == 403 &&
@@ -95,7 +104,7 @@ int main() {
     // 域前缀注册表。
     std::size_t prefixCount = 0;
     const char* const* prefixes = error_prefixes(prefixCount);
-    CHECK(prefixCount == 14, "域前缀 14 个");
+    CHECK(prefixCount == 16, "域前缀 16 个");
     bool hasRate = false;
     for (std::size_t i = 0; i < prefixCount; i++) {
         if (std::strcmp(prefixes[i], "RATE") == 0) hasRate = true;

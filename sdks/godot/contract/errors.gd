@@ -4,7 +4,7 @@ class_name CourierErrorCode
 ## 契约错误码(v1 冻结集);未知 wire code 必须容忍,落到兜底分支(契约 versioning.md)。
 
 ## 域前缀注册表(新域先注册前缀再定义码)。
-const PREFIXES: PackedStringArray = ["COMMON", "AUTH", "SESSION", "SCOPE", "RATE", "ANNOUNCEMENT", "SUPPORT", "ASSISTANT", "PAYMENT", "REALNAME", "CONFIG", "APP", "DIAG", "OAUTH"]
+const PREFIXES: PackedStringArray = ["COMMON", "AUTH", "SESSION", "SCOPE", "RATE", "ANNOUNCEMENT", "SUPPORT", "ASSISTANT", "PAYMENT", "REALNAME", "CONFIG", "APP", "DIAG", "OAUTH", "MAIL", "CDK"]
 
 ## 冻结映射:wire code → { http, retryable }。
 const SPECS: Dictionary = {
@@ -50,6 +50,9 @@ const SPECS: Dictionary = {
 	"SUPPORT_ATTACHMENT_LIMIT": {"http": 409, "retryable": false},
 	"SUPPORT_PENALTY_NOT_FOUND": {"http": 404, "retryable": false},
 	"SUPPORT_APPEAL_EXISTS": {"http": 409, "retryable": false},
+	"MAIL_NOT_FOUND": {"http": 404, "retryable": false},
+	"CDK_NOT_FOUND": {"http": 404, "retryable": false},
+	"CDK_EXHAUSTED": {"http": 409, "retryable": false},
 }
 
 const NAME_TO_WIRE: Dictionary = {
@@ -95,6 +98,9 @@ const NAME_TO_WIRE: Dictionary = {
 	"SupportAttachmentLimit": "SUPPORT_ATTACHMENT_LIMIT",
 	"SupportPenaltyNotFound": "SUPPORT_PENALTY_NOT_FOUND",
 	"SupportAppealExists": "SUPPORT_APPEAL_EXISTS",
+	"MailNotFound": "MAIL_NOT_FOUND",
+	"CdkNotFound": "CDK_NOT_FOUND",
+	"CdkExhausted": "CDK_EXHAUSTED",
 }
 
 ## wire code → 枚举名;未知返回 ""(调用方落兜底分支)。

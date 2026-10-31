@@ -107,7 +107,7 @@
 | F15 | Write locks and conflict merging | ✅ delegated decision (patrol R1) — the only writable field displayName is server-trimmed, so there is no concurrent-write conflict surface; version numbers wait for a second writable field before being re-evaluated |
 | F13 | Cloud saves / progress sync | ⛔ not doing — player.md:5,11 red line "progress does not go through Courier; character data belongs to each game server", boundary set |
 | F58/F59/F60/F61/F63 | Leaderboards / achievements / Stats / seasons / events | ⛔ not doing — features.md §10's qualitative "gameplay systems are not service delivery", to prevent scope creep (§10 conclusion ⑤), boundary set |
-| F62 | Mail / redeem codes | ✅ delegated decision (FW1016D) — evaluation complete ([mail-cdk-evaluation.md](./mail-cdk-evaluation.md)): the contract surface has high isomorphism and can be initiated cheaply per the sketch; since no ops need has triggered, not initiated — once triggered, freeze per the sketch |
+| F62 | Mail / redeem codes | ✅ implemented (2026-11-01): mail domain (carrier/carrier-alt, mail.md Frozen v1) + cdk domain (voucher/voucher-alt, cdk.md Frozen v1), two implementations each, e2e conformance green, six-platform SDK services (mailService/cdkService), errors.md v9 (MAIL/CDK codes) |
 | F51 | GM / live-ops tooling UI | ⛔ no UI — the croupier API surface is retained; the UI belongs to the Provider admin surface |
 | F54 | User-acquisition attribution | ⛔ not doing — vertical domain |
 | F64–F68 | Social and realtime (friends/chat/matching/voice/guilds) | ⛔ not doing — roadmap non-goal; draws the line against Nakama/Agones |

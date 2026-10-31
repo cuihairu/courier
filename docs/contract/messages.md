@@ -70,6 +70,13 @@ realname v1.1 additions (frozen 2026-10-18, **not implemented**, implementation 
 | --- | --- | --- |
 | `realname.consent.updated` | same pattern as `config.updated` (minimal field, client re-pulls; [realname.md](./realname.md) consent section) | Consent status changed |
 
+F62 additions (mail / redeem codes; reuses this channel — the payload is a hint, the pull endpoint is authoritative):
+
+| event | data | Trigger |
+| --- | --- | --- |
+| `mail.updated` | `{ "mailId": "mail_..." }` ([mail.md](./mail.md)) | New mail or a claim |
+| `cdk.redeemed` | `{ "code": "..." }` ([cdk.md](./cdk.md)) | A code was redeemed |
+
 New events are registered here as their domain contracts freeze; a `type` does not change once frozen, and a deprecated event is stopped by the server while its type is retained.
 
 ## Semantic Rules

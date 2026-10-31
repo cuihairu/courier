@@ -14,6 +14,8 @@ var player: CourierPlayerService
 var assistant: CourierAssistantService
 var payments: CourierPaymentService
 var realname: CourierRealNameService
+var mail: CourierMailService
+var cdk: CourierCdkService
 
 
 func _init(client: CourierClient) -> void:
@@ -27,3 +29,5 @@ func _init(client: CourierClient) -> void:
 	assistant = CourierAssistantService.new(client.api)
 	payments = CourierPaymentService.new(client.api)
 	realname = CourierRealNameService.new(client.api)
+	mail = CourierMailService.new(client.api)
+	cdk = CourierCdkService.new(client.api)

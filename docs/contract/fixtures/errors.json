@@ -1,5 +1,5 @@
 {
-  "version": 8,
+  "version": 9,
   "source": "docs/contract/errors.md 错误码表 v1(基元冻结集)",
   "prefixes": [
     "COMMON",
@@ -15,7 +15,9 @@
     "CONFIG",
     "APP",
     "DIAG",
-    "OAUTH"
+    "OAUTH",
+    "MAIL",
+    "CDK"
   ],
   "codes": [
     {
@@ -225,6 +227,21 @@
     },
     {
       "code": "SUPPORT_APPEAL_EXISTS",
+      "http": 409,
+      "retryable": false
+    },
+    {
+      "code": "MAIL_NOT_FOUND",
+      "http": 404,
+      "retryable": false
+    },
+    {
+      "code": "CDK_NOT_FOUND",
+      "http": 404,
+      "retryable": false
+    },
+    {
+      "code": "CDK_EXHAUSTED",
       "http": 409,
       "retryable": false
     }

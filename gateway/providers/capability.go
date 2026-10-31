@@ -16,6 +16,8 @@ const (
 	CapPlayer        Capability = "player"        // /v1/player/*        玩家档案   M3
 	CapAssistant     Capability = "assistant"     // /v1/assistant/*     小助手     M4
 	CapPayments      Capability = "payments"      // /v1/payments/*      支付       M5
+	CapMail          Capability = "mail"          // /v1/mail/*          邮件       F62
+	CapCdk           Capability = "cdk"           // /v1/cdk/*           兑换码     F62
 )
 
 // AllCapabilities 挂载全集:网关为每个已知能力域装配路由(未配置者返回降级信号)。
@@ -30,5 +32,7 @@ func AllCapabilities() []Capability {
 		CapPlayer,
 		CapAssistant,
 		CapPayments,
+		CapMail,
+		CapCdk,
 	}
 }

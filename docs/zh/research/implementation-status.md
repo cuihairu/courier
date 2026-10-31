@@ -107,7 +107,7 @@
 | F15 | 写锁与冲突合并 | ✅ 已代决(巡检 R1)——唯一写字段 displayName 服务端修剪,无并发写冲突面,版本号待第二写字段出现再评估 |
 | F13 | 云存档/进度同步 | ⛔ 不做——player.md:5,11 红线「进度不经 Courier,角色数据归各游戏服」,边界已定 |
 | F58/F59/F60/F61/F63 | 排行榜/成就/Stats/赛季/活动 | ⛔ 不做——features.md §10 定性「玩法系统非服务递送」,防范围失控(§10 结论⑤),边界已定 |
-| F62 | 邮件/礼包码 | ✅ 已代决(FW1016D)——评估完成([mail-cdk-evaluation.md](./mail-cdk-evaluation.md)):契约面同构度高、按草图低成本可立;运营需求未触发不立项,触发即按草图冻结 |
+| F62 | 邮件/礼包码 | ✅ 已实现(2026-11-01):邮件域(carrier/carrier-alt,mail.md Frozen v1)+ 兑换码域(voucher/voucher-alt,cdk.md Frozen v1),各双实现,一致性 e2e 全绿,六平台 SDK 服务(mailService/cdkService),errors.md v9(MAIL/CDK 码) |
 | F51 | GM/运营工具界面 | ⛔ 不做界面——croupier API 面保留,界面归 Provider 管理面 |
 | F54 | 买量归因 | ⛔ 不做——垂直领域 |
 | F64–F68 | 社交与实时(好友/聊天/匹配/语音/公会) | ⛔ 不做——roadmap 非目标,与 Nakama/Agones 划界 |

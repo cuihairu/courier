@@ -37,6 +37,8 @@ const (
 	AuditActionConsentGranted         = "realname.consent.granted"
 	AuditActionConsentDenied          = "realname.consent.denied"
 	AuditActionConsentRevoked         = "realname.consent.revoked"
+	AuditActionMailClaimed            = "mail.claimed"
+	AuditActionCdkRedeemed            = "cdk.redeemed"
 )
 
 // 留痕结果(verify 直接回传实名状态,其余按动作域取值)。
@@ -45,6 +47,7 @@ const (
 	AuditOutcomeDenied   = "denied"
 	AuditOutcomeAllowed  = "allowed"
 	AuditOutcomeOK       = "ok"
+	AuditOutcomeRepeated = "repeated"
 )
 
 // defaultHTTPTimeout HTTPSink 缺省超时:审计在请求路径上必须有界,不拖垮

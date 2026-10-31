@@ -52,6 +52,9 @@ enum class ErrorCode {
     SupportAttachmentLimit = 39,
     SupportPenaltyNotFound = 40,
     SupportAppealExists = 41,
+    MailNotFound = 42,
+    CdkNotFound = 43,
+    CdkExhausted = 44,
     kCount  // 哨兵,非契约码
 };
 
@@ -106,6 +109,9 @@ inline const ErrorSpec& error_spec(ErrorCode code) {
         {"SUPPORT_ATTACHMENT_LIMIT", 409, false},
         {"SUPPORT_PENALTY_NOT_FOUND", 404, false},
         {"SUPPORT_APPEAL_EXISTS", 409, false},
+        {"MAIL_NOT_FOUND", 404, false},
+        {"CDK_NOT_FOUND", 404, false},
+        {"CDK_EXHAUSTED", 409, false},
     };
     return kSpecs[static_cast<std::size_t>(code)];
 }
@@ -121,7 +127,7 @@ inline bool parse_error_code(const char* wire, ErrorCode& out) {
 
 /// 域前缀注册表(新域先注册前缀再定义码)。
 inline const char* const* error_prefixes(std::size_t& count) {
-    static const char* const kPrefixes[] = { "COMMON", "AUTH", "SESSION", "SCOPE", "RATE", "ANNOUNCEMENT", "SUPPORT", "ASSISTANT", "PAYMENT", "REALNAME", "CONFIG", "APP", "DIAG", "OAUTH" };
+    static const char* const kPrefixes[] = { "COMMON", "AUTH", "SESSION", "SCOPE", "RATE", "ANNOUNCEMENT", "SUPPORT", "ASSISTANT", "PAYMENT", "REALNAME", "CONFIG", "APP", "DIAG", "OAUTH", "MAIL", "CDK" };
     count = sizeof(kPrefixes) / sizeof(kPrefixes[0]);
     return kPrefixes;
 }

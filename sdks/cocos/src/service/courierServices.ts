@@ -10,6 +10,8 @@ import { PlayerService } from "./playerService.ts";
 import { AssistantService } from "./assistantService.ts";
 import { PaymentService } from "./paymentService.ts";
 import { RealNameService } from "./realnameService.ts";
+import { MailService } from "./mailService.ts";
+import { CdkService } from "./cdkService.ts";
 
 export class CourierServices {
   readonly announcements: AnnouncementService;
@@ -21,6 +23,8 @@ export class CourierServices {
   readonly assistant: AssistantService;
   readonly payments: PaymentService;
   readonly realname: RealNameService;
+  readonly mail: MailService;
+  readonly cdk: CdkService;
 
   constructor(client: CourierClient) {
     this.announcements = new AnnouncementService(client.api, client.config.language);
@@ -32,5 +36,7 @@ export class CourierServices {
     this.assistant = new AssistantService(client.api);
     this.payments = new PaymentService(client.api);
     this.realname = new RealNameService(client.api);
+    this.mail = new MailService(client.api);
+    this.cdk = new CdkService(client.api);
   }
 }

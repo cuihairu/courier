@@ -62,6 +62,10 @@ const (
 	CodePaymentRiskRejected  = "PAYMENT_RISK_REJECTED"
 	CodePaymentInvalidSign   = "PAYMENT_INVALID_SIGNATURE"
 	CodePaymentOrderState    = "PAYMENT_ORDER_STATE"
+
+	CodeMailNotFound = "MAIL_NOT_FOUND" // v9,mail.md
+	CodeCdkNotFound  = "CDK_NOT_FOUND"  // v9,cdk.md
+	CodeCdkExhausted = "CDK_EXHAUSTED"  // v9,cdk.md
 )
 
 // codeSpec 冻结映射:code → HTTP 状态 + retryable。
@@ -122,6 +126,10 @@ var codeTable = map[string]codeSpec{
 	CodePaymentRiskRejected:  {http.StatusForbidden, false},
 	CodePaymentInvalidSign:   {http.StatusForbidden, false},
 	CodePaymentOrderState:    {http.StatusConflict, false},
+
+	CodeMailNotFound: {http.StatusNotFound, false},
+	CodeCdkNotFound:  {http.StatusNotFound, false},
+	CodeCdkExhausted: {http.StatusConflict, false},
 }
 
 // Error 契约错误体(errors.md「错误体」)。
@@ -170,3 +178,8 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.WriteHeader(status)
 	_, _ = w.Write(body)
 }
+
+// CodeError 契约错误(携带冻结错误码);调用方在写响应信封前可判定其 Code。
+type CodeError struct{ Code string }
+
+func (e *CodeError) Error() string { return e.Code }

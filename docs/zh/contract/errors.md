@@ -1,7 +1,7 @@
 
 # 错误契约
 
-> 状态:Frozen v1(2026-10-08,M0 跨端评审冻结;错误码表 **v8**——v2 追加 M2 域码,v3 追加 REALNAME 时段/额度码,v4 追加 M5 PAYMENT 域码,v5 追加 AUTH 注销码,v6 追加 OAUTH 域码,v7 追加 SUPPORT 附件码(2026-10-12),v8 追加 SUPPORT 举报/申诉码(2026-10-13))。跨 Unity / UE / Cocos / Godot 的错误一致性是 Universal SDK 的核心价值:同一 `code` 在各端映射为同一枚举、同一重试语义。
+> 状态:Frozen v1(2026-10-08,M0 跨端评审冻结;错误码表 **v9**——v2 追加 M2 域码,v3 追加 REALNAME 时段/额度码,v4 追加 M5 PAYMENT 域码,v5 追加 AUTH 注销码,v6 追加 OAUTH 域码,v7 追加 SUPPORT 附件码(2026-10-12),v8 追加 SUPPORT 举报/申诉码(2026-10-13),v9 追加 F62 MAIL/CDK 域码(2026-11-01))。跨 Unity / UE / Cocos / Godot 的错误一致性是 Universal SDK 的核心价值:同一 `code` 在各端映射为同一枚举、同一重试语义。
 
 ## 错误体
 
@@ -22,7 +22,7 @@
 
 ## 域前缀注册表
 
-`COMMON` / `AUTH` / `SESSION` / `SCOPE` / `RATE` / `ANNOUNCEMENT` / `SUPPORT` / `ASSISTANT` / `PAYMENT` / `REALNAME` / `CONFIG` / `APP` / `DIAG` / `OAUTH`
+`COMMON` / `AUTH` / `SESSION` / `SCOPE` / `RATE` / `ANNOUNCEMENT` / `SUPPORT` / `ASSISTANT` / `PAYMENT` / `REALNAME` / `CONFIG` / `APP` / `DIAG` / `OAUTH` / `MAIL` / `CDK`
 
 新域必须先在此注册前缀,再定义具体码。
 
@@ -87,6 +87,9 @@
 | SUPPORT_ATTACHMENT_LIMIT | 409 | false | 工单附件数达上限(缺省 3;support.md v1.1 冻结新增) |
 | SUPPORT_PENALTY_NOT_FOUND | 404 | false | 处罚不存在或不属于当前玩家;不泄露存在性(support.md v1.1 F45 冻结新增) |
 | SUPPORT_APPEAL_EXISTS | 409 | false | 该处罚已有进行中申诉,每处罚至多一个(support.md v1.1 F45 冻结新增) |
+| MAIL_NOT_FOUND | 404 | false | 邮件不存在或非当前玩家(mail.md F62 冻结新增) |
+| CDK_NOT_FOUND | 404 | false | 兑换码不存在或未注册(cdk.md F62 冻结新增) |
+| CDK_EXHAUSTED | 409 | false | 兑换码限次已达(cdk.md F62 冻结新增) |
 
 各域业务错误码随该域契约冻结;本表 code 一经冻结不得改语义。
 

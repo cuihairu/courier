@@ -22,6 +22,8 @@ import (
 	"github.com/cuihairu/courier/gateway/providers/accountalt"
 	"github.com/cuihairu/courier/gateway/providers/archivist"
 	"github.com/cuihairu/courier/gateway/providers/archivistalt"
+	"github.com/cuihairu/courier/gateway/providers/carrier"
+	"github.com/cuihairu/courier/gateway/providers/carrieralt"
 	"github.com/cuihairu/courier/gateway/providers/chirp"
 	"github.com/cuihairu/courier/gateway/providers/chirpalt"
 	"github.com/cuihairu/courier/gateway/providers/croupier"
@@ -35,6 +37,8 @@ import (
 	"github.com/cuihairu/courier/gateway/providers/scribealt"
 	"github.com/cuihairu/courier/gateway/providers/teller"
 	"github.com/cuihairu/courier/gateway/providers/telleralt"
+	"github.com/cuihairu/courier/gateway/providers/voucher"
+	"github.com/cuihairu/courier/gateway/providers/voucheralt"
 	"github.com/cuihairu/courier/gateway/providers/warden"
 	"github.com/cuihairu/courier/gateway/providers/wardenalt"
 	"github.com/cuihairu/courier/gateway/routing"
@@ -216,6 +220,15 @@ func main() {
 			log.Fatalf("courier gateway: 注册 %s 失败: %v", h.Name(), err)
 		}
 	}
+	carrierP := carrier.New(carrier.Options{RequireAuth: reqAuth, Notify: publish, AuditSink: auditSink})
+	carrierAltP := carrieralt.New(carrieralt.Options{RequireAuth: reqAuth, Notify: publish, AuditSink: auditSink})
+	voucherP := voucher.New(voucher.Options{RequireAuth: reqAuth, Notify: publish, AuditSink: auditSink})
+	voucherAltP := voucheralt.New(voucheralt.Options{RequireAuth: reqAuth, Notify: publish, AuditSink: auditSink})
+	for _, h := range []providers.Handler{carrierP, carrierAltP, voucherP, voucherAltP} {
+		if err := reg.Register(h); err != nil {
+			log.Fatalf("courier gateway: 注册 %s 失败: %v", h.Name(), err)
+		}
+	}
 
 	// 配置驱动路由表(primary + fallbacks[]):内置默认(identity → 自建账号,
 	// announcements/support/messages → 各默认供应商)+
@@ -230,6 +243,8 @@ func main() {
 		providers.CapPlayer:        {Primary: archivist.DefaultName},
 		providers.CapAssistant:     {Primary: sage.DefaultName},
 		providers.CapPayments:      {Primary: teller.DefaultName},
+		providers.CapMail:          {Primary: carrier.DefaultName},
+		providers.CapCdk:           {Primary: voucher.DefaultName},
 	}
 	userCfg, err := loadConfig()
 	if err != nil {

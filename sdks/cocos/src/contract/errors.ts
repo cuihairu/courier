@@ -44,6 +44,9 @@ export const ErrorCode = {
   SupportAttachmentLimit: "SUPPORT_ATTACHMENT_LIMIT",
   SupportPenaltyNotFound: "SUPPORT_PENALTY_NOT_FOUND",
   SupportAppealExists: "SUPPORT_APPEAL_EXISTS",
+  MailNotFound: "MAIL_NOT_FOUND",
+  CdkNotFound: "CDK_NOT_FOUND",
+  CdkExhausted: "CDK_EXHAUSTED",
 } as const;
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
 
@@ -97,6 +100,9 @@ export const ErrorSpecs: Readonly<Record<ErrorCode, ErrorSpec>> = {
   SupportAttachmentLimit: { wire: "SUPPORT_ATTACHMENT_LIMIT", http: 409, retryable: false },
   SupportPenaltyNotFound: { wire: "SUPPORT_PENALTY_NOT_FOUND", http: 404, retryable: false },
   SupportAppealExists: { wire: "SUPPORT_APPEAL_EXISTS", http: 409, retryable: false },
+  MailNotFound: { wire: "MAIL_NOT_FOUND", http: 404, retryable: false },
+  CdkNotFound: { wire: "CDK_NOT_FOUND", http: 404, retryable: false },
+  CdkExhausted: { wire: "CDK_EXHAUSTED", http: 409, retryable: false },
 };
 
 /** wire code → 枚举;未知返回 undefined(调用方落兜底分支)。 */
@@ -108,5 +114,5 @@ export function errorCodeOf(wire: string): ErrorCode | undefined {
 }
 
 /** 域前缀注册表(新域先注册前缀再定义码)。 */
-export const ERROR_PREFIXES = ["COMMON", "AUTH", "SESSION", "SCOPE", "RATE", "ANNOUNCEMENT", "SUPPORT", "ASSISTANT", "PAYMENT", "REALNAME", "CONFIG", "APP", "DIAG", "OAUTH"] as const;
+export const ERROR_PREFIXES = ["COMMON", "AUTH", "SESSION", "SCOPE", "RATE", "ANNOUNCEMENT", "SUPPORT", "ASSISTANT", "PAYMENT", "REALNAME", "CONFIG", "APP", "DIAG", "OAUTH", "MAIL", "CDK"] as const;
 export type ErrorPrefix = (typeof ERROR_PREFIXES)[number];
