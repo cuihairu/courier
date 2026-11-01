@@ -197,7 +197,7 @@ func (p *Provider) route(w http.ResponseWriter, r *http.Request) {
 
 func (p *Provider) handleList(w http.ResponseWriter, r *http.Request) {
 	account, _ := auth.FromContext(r.Context())
-	limit, _, err := pageParams(r)
+	limit, anchor, err := pageParams(r)
 	if err != nil {
 		p.writeInvalid(w, r, err.Error())
 		return
@@ -215,16 +215,37 @@ func (p *Provider) handleList(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	p.mu.RUnlock()
-	// 契约 mail.md: createdAt 为列表排序键(最新在前)。
-	sort.Slice(mails, func(i, j int) bool { return mails[i].CreatedAt.After(mails[j].CreatedAt) })
-	if len(mails) > limit {
-		mails = mails[:limit]
+	// 契约 mail.md: createdAt 为列表排序键(最新在前);同毫秒内按 ID 升序作全序,
+	// 使键集游标(primitives.md 不透明)下翻页稳定。
+	sort.Slice(mails, func(i, j int) bool {
+		if !mails[i].CreatedAt.Equal(mails[j].CreatedAt) {
+			return mails[i].CreatedAt.After(mails[j].CreatedAt)
+		}
+		return mails[i].ID < mails[j].ID
+	})
+	start := 0
+	if anchor.id != "" {
+		start = len(mails) // 锚点失效 → 空页(与既有 croupieralt 越界同形)。
+		for i, m := range mails {
+			if m.ID == anchor.id && m.CreatedAt.UnixMilli() == anchor.ms {
+				start = i + 1
+				break
+			}
+		}
 	}
-	items := make([]mailDTO, 0, len(mails))
-	for _, m := range mails {
+	end := start + limit
+	if end > len(mails) {
+		end = len(mails)
+	}
+	items := make([]mailDTO, 0, end-start)
+	for _, m := range mails[start:end] {
 		items = append(items, dto(m))
 	}
-	aggregation.WriteData(w, pageDTO{Items: items, NextCursor: ""})
+	var next string
+	if end < len(mails) && end > start {
+		next = encodeCursor(mails[end-1])
+	}
+	aggregation.WriteData(w, pageDTO{Items: items, NextCursor: next})
 }
 
 func (p *Provider) handleDetail(w http.ResponseWriter, r *http.Request, id string) {
@@ -307,24 +328,47 @@ func dto(m Mail) mailDTO {
 	return out
 }
 
-func pageParams(r *http.Request) (int, int, error) {
+type cursorAnchor struct {
+	ms int64
+	id string
+}
+
+// encodeCursor 锚点编码:`<毫秒>|<ID>`(wire 不透明,契约 primitives.md)。
+func encodeCursor(m Mail) string {
+	return strconv.FormatInt(m.CreatedAt.UnixMilli(), 10) + "|" + m.ID
+}
+
+// decodeCursor 锚点解码:格式非法 → COMMON_INVALID_ARGUMENT。
+func decodeCursor(v string) (cursorAnchor, error) {
+	i := strings.Index(v, "|")
+	if i <= 0 || i == len(v)-1 {
+		return cursorAnchor{}, errInvalid("cursor 非法")
+	}
+	ms, err := strconv.ParseInt(v[:i], 10, 64)
+	if err != nil {
+		return cursorAnchor{}, errInvalid("cursor 非法")
+	}
+	return cursorAnchor{ms: ms, id: v[i+1:]}, nil
+}
+
+func pageParams(r *http.Request) (int, cursorAnchor, error) {
 	limit := 20
 	if s := r.URL.Query().Get("limit"); s != "" {
 		n, err := strconv.Atoi(s)
 		if err != nil || n < 1 || n > 100 {
-			return 0, 0, errInvalid("limit 1-100")
+			return 0, cursorAnchor{}, errInvalid("limit 1-100")
 		}
 		limit = n
 	}
-	cursor := 0
+	var anchor cursorAnchor
 	if s := r.URL.Query().Get("cursor"); s != "" {
-		n, err := strconv.Atoi(s)
-		if err != nil || n < 0 {
-			return 0, 0, errInvalid("cursor 非负整数")
+		var err error
+		anchor, err = decodeCursor(s)
+		if err != nil {
+			return 0, cursorAnchor{}, err
 		}
-		cursor = n
 	}
-	return limit, cursor, nil
+	return limit, anchor, nil
 }
 
 func (p *Provider) writeInvalid(w http.ResponseWriter, r *http.Request, msg string) {

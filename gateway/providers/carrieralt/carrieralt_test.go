@@ -97,3 +97,67 @@ func TestMailIDUUIDv7(t *testing.T) {
 		t.Fatalf("ID variant nibble = %q, 期望 8/9/a/b", id[19])
 	}
 }
+
+func TestListCursorPagination(t *testing.T) {
+	base := time.Now()
+	n := 0
+	clock := func() time.Time {
+		n++
+		return base.Add(time.Duration(n) * time.Second)
+	}
+	p := New(Options{RequireAuth: authStub, Clock: clock})
+	for _, title := range []string{"a", "b", "c", "d", "e"} {
+		if _, err := p.Publish("acct1", title, "body", nil, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var all []string
+	cursor := ""
+	pages := 0
+	for {
+		path := "/v1/mail/?limit=2"
+		if cursor != "" {
+			path += "&cursor=" + cursor
+		}
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rec := httptest.NewRecorder()
+		p.ServeHTTP(rec, req)
+		if rec.Code != 200 {
+			t.Fatalf("page=%d %s", rec.Code, rec.Body.String())
+		}
+		var resp struct {
+			Data struct {
+				Items []struct {
+					Title string `json:"title"`
+				} `json:"items"`
+				NextCursor string `json:"nextCursor"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal([]byte(rec.Body.String()), &resp); err != nil {
+			t.Fatal(err)
+		}
+		for _, it := range resp.Data.Items {
+			all = append(all, it.Title)
+		}
+		cursor = resp.Data.NextCursor
+		pages++
+		if cursor == "" {
+			break
+		}
+		if pages > 10 {
+			t.Fatal("翻页未终止")
+		}
+	}
+	if got, want := strings.Join(all, ","), "e,d,c,b,a"; got != want {
+		t.Fatalf("全序=%q, want %q", got, want)
+	}
+	if pages != 3 {
+		t.Fatalf("页数=%d, want 3", pages)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/v1/mail/?cursor=not-a-cursor", nil)
+	rec := httptest.NewRecorder()
+	p.ServeHTTP(rec, req)
+	if rec.Code != 400 {
+		t.Fatalf("非法 cursor 应 400, got %d", rec.Code)
+	}
+}

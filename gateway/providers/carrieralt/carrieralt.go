@@ -191,8 +191,14 @@ func (p *Provider) snapshot(accountID string, now time.Time) ([]mailDTO, map[str
 			seen[m.ID] = true
 		}
 	}
-	// 契约 mail.md: createdAt 为列表排序键(最新在前)。
-	sort.Slice(mails, func(i, j int) bool { return mails[i].CreatedAt.After(mails[j].CreatedAt) })
+	// 契约 mail.md: createdAt 为列表排序键(最新在前);同毫秒内按 ID 升序作全序,
+	// 使键集游标(primitives.md 不透明)下翻页稳定。
+	sort.Slice(mails, func(i, j int) bool {
+		if !mails[i].CreatedAt.Equal(mails[j].CreatedAt) {
+			return mails[i].CreatedAt.After(mails[j].CreatedAt)
+		}
+		return mails[i].ID < mails[j].ID
+	})
 	items := make([]mailDTO, 0, len(mails))
 	for _, m := range mails {
 		items = append(items, dto(m))
@@ -202,7 +208,7 @@ func (p *Provider) snapshot(accountID string, now time.Time) ([]mailDTO, map[str
 
 func (p *Provider) handleList(w http.ResponseWriter, r *http.Request) {
 	account, _ := auth.FromContext(r.Context())
-	limit, _, err := pageParams(r)
+	limit, anchor, err := pageParams(r)
 	if err != nil {
 		p.writeInvalid(w, r, err.Error())
 		return
@@ -210,10 +216,28 @@ func (p *Provider) handleList(w http.ResponseWriter, r *http.Request) {
 	p.mu.RLock()
 	items, _ := p.snapshot(account.AccountID, p.clock())
 	p.mu.RUnlock()
-	if len(items) > limit {
-		items = items[:limit]
+	start := 0
+	if anchor.id != "" {
+		start = len(items) // 锚点失效 → 空页(与既有 croupieralt 越界同形)。
+		for i, it := range items {
+			if it.ID == anchor.id {
+				// 快照仅含 DTO;按创建毫秒比较需还原。锚点以 ID+毫秒匹配。
+				if anchor.ms != -1 && createdAtMs(it.CreatedAt) == anchor.ms {
+					start = i + 1
+					break
+				}
+			}
+		}
 	}
-	aggregation.WriteData(w, pageDTO{Items: items, NextCursor: ""})
+	end := start + limit
+	if end > len(items) {
+		end = len(items)
+	}
+	var next string
+	if end < len(items) && end > start {
+		next = encodeCursor(items[end-1])
+	}
+	aggregation.WriteData(w, pageDTO{Items: items[start:end], NextCursor: next})
 }
 
 func (p *Provider) handleDetail(w http.ResponseWriter, r *http.Request, id string) {
@@ -297,16 +321,55 @@ func dto(m Mail) mailDTO {
 	return out
 }
 
-func pageParams(r *http.Request) (int, int, error) {
+type cursorAnchor struct {
+	ms int64
+	id string
+}
+
+func createdAtMs(s string) int64 {
+	t, err := time.Parse(time.RFC3339Nano, s)
+	if err != nil {
+		return -1
+	}
+	return t.UnixMilli()
+}
+
+// encodeCursor 锚点编码:`<毫秒>|<ID>`(wire 不透明,契约 primitives.md)。
+func encodeCursor(it mailDTO) string {
+	return strconv.FormatInt(createdAtMs(it.CreatedAt), 10) + "|" + it.ID
+}
+
+// decodeCursor 锚点解码:格式非法 → COMMON_INVALID_ARGUMENT。
+func decodeCursor(v string) (cursorAnchor, error) {
+	i := strings.Index(v, "|")
+	if i <= 0 || i == len(v)-1 {
+		return cursorAnchor{}, errInvalid("cursor 非法")
+	}
+	ms, err := strconv.ParseInt(v[:i], 10, 64)
+	if err != nil {
+		return cursorAnchor{}, errInvalid("cursor 非法")
+	}
+	return cursorAnchor{ms: ms, id: v[i+1:]}, nil
+}
+
+func pageParams(r *http.Request) (int, cursorAnchor, error) {
 	limit := 20
 	if s := r.URL.Query().Get("limit"); s != "" {
 		n, err := strconv.Atoi(s)
 		if err != nil || n < 1 || n > 100 {
-			return 0, 0, errInvalid("limit 1-100")
+			return 0, cursorAnchor{}, errInvalid("limit 1-100")
 		}
 		limit = n
 	}
-	return limit, 0, nil
+	var anchor cursorAnchor
+	if s := r.URL.Query().Get("cursor"); s != "" {
+		var err error
+		anchor, err = decodeCursor(s)
+		if err != nil {
+			return 0, cursorAnchor{}, err
+		}
+	}
+	return limit, anchor, nil
 }
 
 func (p *Provider) writeInvalid(w http.ResponseWriter, r *http.Request, msg string) {
