@@ -1,5 +1,5 @@
 
-<p align="center"><img src="docs/public/logo.svg" width="64" height="64" alt="logo" /> <a href="https://cuihairu.github.io/courier/"><img src="https://img.shields.io/badge/docs-docs-blue" alt="docs"></a></p>
+<p align="center"><a href="https://cuihairu.github.io/courier//"><img src="https://img.shields.io/badge/docs-docs-blue" alt="docs"></a> <a href="https://cuihairu.github.io/courier/"><img src="https://img.shields.io/badge/docs-docs-blue" alt="docs"></a></p>
 
 <h1 align="center">Courier — Universal Game SDK</h1>
 <a href="https://github.com/cuihairu/courier/releases"><img alt="Status" src="https://img.shields.io/badge/status-in%20development-orange"></a>
