@@ -9,6 +9,7 @@ package carrier
 import (
 	"context"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -204,17 +205,23 @@ func (p *Provider) handleList(w http.ResponseWriter, r *http.Request) {
 	ids := make([]string, 0, len(p.byOwner[account.AccountID])+len(p.byOwner[""]))
 	ids = append(ids, p.byOwner[account.AccountID]...)
 	ids = append(ids, p.byOwner[""]...)
-	items := make([]mailDTO, 0, limit)
+	mails := make([]Mail, 0, len(ids))
 	for _, mid := range ids {
-		if len(items) >= limit {
-			break
-		}
 		m := p.byID[mid]
 		if m.visible(now) {
-			items = append(items, dto(m))
+			mails = append(mails, m)
 		}
 	}
 	p.mu.RUnlock()
+	// 契约 mail.md: createdAt 为列表排序键(最新在前)。
+	sort.Slice(mails, func(i, j int) bool { return mails[i].CreatedAt.After(mails[j].CreatedAt) })
+	if len(mails) > limit {
+		mails = mails[:limit]
+	}
+	items := make([]mailDTO, 0, len(mails))
+	for _, m := range mails {
+		items = append(items, dto(m))
+	}
 	aggregation.WriteData(w, pageDTO{Items: items, NextCursor: ""})
 }
 

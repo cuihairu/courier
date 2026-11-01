@@ -7,6 +7,7 @@ package carrieralt
 import (
 	"context"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -171,7 +172,7 @@ func (p *Provider) route(w http.ResponseWriter, r *http.Request) {
 // snapshot 重放账本 → 投影(所有者索引 + 已领集合)。
 func (p *Provider) snapshot(accountID string, now time.Time) ([]mailDTO, map[string]bool) {
 	seen := map[string]bool{}
-	var items []mailDTO
+	var mails []Mail
 	for _, e := range p.journal {
 		if e.Kind != "publish" {
 			continue
@@ -183,10 +184,16 @@ func (p *Provider) snapshot(accountID string, now time.Time) ([]mailDTO, map[str
 		if m.ExpiresAt != nil && !now.Before(*m.ExpiresAt) {
 			continue
 		}
-		items = append(items, dto(m))
+		mails = append(mails, m)
 		if !seen[m.ID] {
 			seen[m.ID] = true
 		}
+	}
+	// 契约 mail.md: createdAt 为列表排序键(最新在前)。
+	sort.Slice(mails, func(i, j int) bool { return mails[i].CreatedAt.After(mails[j].CreatedAt) })
+	items := make([]mailDTO, 0, len(mails))
+	for _, m := range mails {
+		items = append(items, dto(m))
 	}
 	return items, seen
 }
