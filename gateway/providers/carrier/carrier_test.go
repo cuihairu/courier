@@ -105,3 +105,21 @@ func TestListCreatedAtDescending(t *testing.T) {
 		}
 	}
 }
+
+func TestMailIDUUIDv7(t *testing.T) {
+	p := newProvider()
+	m, err := p.Publish("", "hi", "body", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := strings.TrimPrefix(m.ID, "mail_")
+	if len(id) != 36 || strings.Count(id, "-") != 4 {
+		t.Fatalf("ID 非 UUIDv7 形状: %q", m.ID)
+	}
+	if id[14] != '7' {
+		t.Fatalf("ID version nibble = %q, 期望 7", id[14])
+	}
+	if id[19] != '8' && id[19] != '9' && id[19] != 'a' && id[19] != 'b' {
+		t.Fatalf("ID variant nibble = %q, 期望 8/9/a/b", id[19])
+	}
+}
