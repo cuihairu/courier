@@ -1,7 +1,7 @@
 
 # Courier SDK Contract(M0 立宪)
 
-> **状态**:基元五件 **Frozen v1**(2026-10-08,M0 跨端评审冻结;错误码表现已 **v8**——v2 追加 M2 域码,v3 追加 REALNAME 时段/额度码,v4 追加 M5 PAYMENT 域码,v5 追加 AUTH 注销码,v6 追加 OAUTH 域码,v7 追加 SUPPORT 附件码(2026-10-12),v8 追加 SUPPORT 举报/申诉码(2026-10-13,42 码);**v1.1** 2026-10-10 追加取消与并发纪律两节);auth 域契约 **Frozen v1.1**(M1;v1.1 2026-10-12 追加账号注销与数据删除 F03、登录方式 OAUTH);oauth 域契约 **Frozen v1**(批次 52,2026-10-12,F01);announcement / support 域契约 **Frozen v1.1**(M2;v1.1 追加公告定向过滤 F35 与多语内容 F76、工单上下文 F43、工单附件 F44、举报与处罚申诉 F45);messages 域契约 **Frozen v1.1**(M2,v1.1 追加传输分框硬要求);realname 域契约 **Frozen v1.1**(M2 后段;v1.1 2026-10-18 追加 consent 组);config / app / branding / player 域契约 **Frozen v1**(M3,2026-10-09);diagnostics 域契约 **Frozen v1**(M3,可选包默认全关);assistant 域契约 **Frozen v1**(M4,2026-10-09);payment 域契约 **Frozen v1.1**(M5;v1 冻结 2026-10-09,同日 v1.1 追加 payment.paid/delivered 推送事件)。冻结后进入变更流程管理。
+> **状态**:基元五件 **Frozen v1**(2026-10-08,M0 跨端评审冻结;错误码表现已 **v9**——v2 追加 M2 域码,v3 追加 REALNAME 时段/额度码,v4 追加 M5 PAYMENT 域码,v5 追加 AUTH 注销码,v6 追加 OAUTH 域码,v7 追加 SUPPORT 附件码(2026-10-12),v8 追加 SUPPORT 举报/申诉码(2026-10-13,42 码),v9 追加 F62 MAIL/CDK 域码(2026-11-01);**v1.1** 2026-10-10 追加取消与并发纪律两节);auth 域契约 **Frozen v1.1**(M1;v1.1 2026-10-12 追加账号注销与数据删除 F03、登录方式 OAUTH);oauth 域契约 **Frozen v1**(批次 52,2026-10-12,F01);announcement / support 域契约 **Frozen v1.1**(M2;v1.1 追加公告定向过滤 F35 与多语内容 F76、工单上下文 F43、工单附件 F44、举报与处罚申诉 F45);messages 域契约 **Frozen v1.1**(M2,v1.1 追加传输分框硬要求);realname 域契约 **Frozen v1.1**(M2 后段;v1.1 2026-10-18 追加 consent 组);config / app / branding / player 域契约 **Frozen v1**(M3,2026-10-09);diagnostics 域契约 **Frozen v1**(M3,可选包默认全关);assistant 域契约 **Frozen v1**(M4,2026-10-09);payment 域契约 **Frozen v1.1**(M5;v1 冻结 2026-10-09,同日 v1.1 追加 payment.paid/delivered 推送事件);mail / cdk 域契约 **Frozen v1**(F62,2026-11-01)。冻结后进入变更流程管理。
 > **原则**:**SDK Contract > Everything**——契约是 Courier 的宪法。Gateway、Provider、Core、Adapter、生态后端(herald / croupier / chirp / warden / 自建 accounts)都只是契约的**实现者**;新增引擎 = 新增 Adapter,而不是重新设计 SDK。
 
 ## 为什么立宪
@@ -86,4 +86,6 @@ Gateway、Provider、herald、Chirp、Croupier、Oddsmaker 全部只是「契约
 - [diagnostics.md](./diagnostics.md) — 诊断(默认关,四类能力上报 Schema;Frozen v1 · M3)
 - [assistant.md](./assistant.md) — 小助手(FAQ 检索问答 + 转人工;Frozen v1 · M4)
 - [payment.md](./payment.md) — 支付(订单-发货核心流,四形态开放;Frozen v1.1 · M5,v1.1 追加推送事件)
+- [mail.md](./mail.md) — 邮件(运营→玩家邮件;Frozen v1 · F62)
+- [cdk.md](./cdk.md) — 兑换码(一码一换/限次兑换;Frozen v1 · F62)
 - [oauth.md](./oauth.md) — 第三方身份提供方(凭证换会话+绑定;Frozen v1 · 批次 52)

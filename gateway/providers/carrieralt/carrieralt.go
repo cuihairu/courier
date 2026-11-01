@@ -96,7 +96,6 @@ type Provider struct {
 
 	mu      sync.RWMutex
 	journal []journalEvent
-	next    int
 }
 
 func New(opts Options) *Provider {
@@ -117,7 +116,7 @@ func New(opts Options) *Provider {
 	}
 	return &Provider{name: opts.Name, clock: opts.Clock, auth: authMW,
 		notify: opts.Notify, auditSink: opts.AuditSink, claimHook: opts.Claim,
-		journal: []journalEvent{}, next: 1}
+		journal: []journalEvent{}}
 }
 
 func (p *Provider) Name() string                        { return p.name }
@@ -140,7 +139,6 @@ func (p *Provider) Publish(owner, title, body string, attachments []Attachment, 
 		Attachments: attachments, CreatedAt: p.clock(), ExpiresAt: expiresAt}
 	p.mu.Lock()
 	p.journal = append(p.journal, journalEvent{Kind: "publish", Mail: m, At: m.CreatedAt})
-	p.next++
 	p.mu.Unlock()
 	return m, nil
 }
@@ -172,8 +170,7 @@ func (p *Provider) route(w http.ResponseWriter, r *http.Request) {
 }
 
 // snapshot 重放账本 → 投影(所有者索引 + 已领集合)。
-func (p *Provider) snapshot(accountID string, now time.Time) ([]mailDTO, map[string]bool) {
-	seen := map[string]bool{}
+func (p *Provider) snapshot(accountID string, now time.Time) []mailDTO {
 	var mails []Mail
 	for _, e := range p.journal {
 		if e.Kind != "publish" {
@@ -187,9 +184,6 @@ func (p *Provider) snapshot(accountID string, now time.Time) ([]mailDTO, map[str
 			continue
 		}
 		mails = append(mails, m)
-		if !seen[m.ID] {
-			seen[m.ID] = true
-		}
 	}
 	// 契约 mail.md: createdAt 为列表排序键(最新在前);同毫秒内按 ID 升序作全序,
 	// 使键集游标(primitives.md 不透明)下翻页稳定。
@@ -203,7 +197,7 @@ func (p *Provider) snapshot(accountID string, now time.Time) ([]mailDTO, map[str
 	for _, m := range mails {
 		items = append(items, dto(m))
 	}
-	return items, seen
+	return items
 }
 
 func (p *Provider) handleList(w http.ResponseWriter, r *http.Request) {
@@ -214,7 +208,7 @@ func (p *Provider) handleList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p.mu.RLock()
-	items, _ := p.snapshot(account.AccountID, p.clock())
+	items := p.snapshot(account.AccountID, p.clock())
 	p.mu.RUnlock()
 	start := 0
 	if anchor.id != "" {
@@ -243,7 +237,7 @@ func (p *Provider) handleList(w http.ResponseWriter, r *http.Request) {
 func (p *Provider) handleDetail(w http.ResponseWriter, r *http.Request, id string) {
 	account, _ := auth.FromContext(r.Context())
 	p.mu.RLock()
-	items, _ := p.snapshot(account.AccountID, p.clock())
+	items := p.snapshot(account.AccountID, p.clock())
 	p.mu.RUnlock()
 	for _, it := range items {
 		if it.ID == id {
@@ -258,7 +252,7 @@ func (p *Provider) handleDetail(w http.ResponseWriter, r *http.Request, id strin
 func (p *Provider) handleClaim(w http.ResponseWriter, r *http.Request, id string) {
 	account, _ := auth.FromContext(r.Context())
 	p.mu.Lock()
-	items, _ := p.snapshot(account.AccountID, p.clock())
+	items := p.snapshot(account.AccountID, p.clock())
 	var found *mailDTO
 	for i := range items {
 		if items[i].ID == id {

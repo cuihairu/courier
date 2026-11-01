@@ -106,7 +106,6 @@ type Provider struct {
 	byID    map[string]Mail
 	byOwner map[string][]string
 	claimed map[string]map[string]bool
-	next    int
 }
 
 // New 构造邮件 Provider。
@@ -130,7 +129,7 @@ func New(opts Options) *Provider {
 		name: opts.Name, clock: opts.Clock, auth: authMW,
 		notify: opts.Notify, auditSink: opts.AuditSink, claimHook: opts.Claim,
 		byID: map[string]Mail{}, byOwner: map[string][]string{},
-		claimed: map[string]map[string]bool{}, next: 1,
+		claimed: map[string]map[string]bool{},
 	}
 }
 
@@ -163,7 +162,6 @@ func (p *Provider) Publish(owner, title, body string, attachments []Attachment, 
 	}
 	p.byID[m.ID] = m
 	p.byOwner[owner] = append(p.byOwner[owner], m.ID)
-	p.next++
 	p.mu.Unlock()
 	return m, nil
 }

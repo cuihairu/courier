@@ -50,6 +50,8 @@
 | `payment.paid` | payment(M5,v1.1) | 订单已支付(提示,载荷只含 orderId;[payment.md](./payment.md)) |
 | `payment.delivered` | payment(M5,v1.1) | 订单已发货(含对账恢复;提示,载荷只含 orderId) |
 | `realname.consent.updated` | realname(v1.1) | 同意状态变化(同 `config.updated` 形状;冻结未实现,[realname.md](./realname.md),实现面 F31) |
+| `mail.updated` | mail(F62) | 新邮件或领取(提示;列表端点为权威,[mail.md](./mail.md)) |
+| `cdk.redeemed` | cdk(F62) | 兑换码已兑换(提示;兑换结果走拉取,[cdk.md](./cdk.md)) |
 
 更正(2026-10-19):删去 M3 曾预登的 `app.maintenance_changed` / `app.force_update` 两行——从未在 app.md / messages.md 注册、无发射方;登记以 [messages.md](./messages.md) 为准。
 

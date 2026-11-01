@@ -171,7 +171,7 @@
 
 ## 10. Progression, Achievements, and Retention Gameplay
 
-> **Bottom line up front: this section is gameplay, not services; everything is listed under discussion to prevent scope creep; only F62 mail / redeem codes warrants follow-up evaluation (already evaluated: see [mail-cdk-evaluation.md](./mail-cdk-evaluation.md), delegated decision FW1016D — not initiated; if ops needs trigger it, freeze per sketch).**
+> **Bottom line up front: this section is gameplay, not services; everything is listed under discussion to prevent scope creep; only F62 mail / redeem codes has been frozen for the operating side and implemented (see [mail-cdk-evaluation.md](./mail-cdk-evaluation.md), [mail.md](../contract/mail.md), and [cdk.md](../contract/cdk.md)).**
 
 | ID | Feature | Typical capability | Commonness | Representative implementations | Trade-off |
 | --- | --- | --- | --- | --- | --- |
@@ -179,7 +179,7 @@
 | F59 | Achievements / tasks | One-time and incremental achievements, hidden achievements, progress visualization | must-have | [PGS achievements quality checklist](https://developer.android.com/games/pgs/quality), EOS Achievements | ❓ under discussion |
 | F60 | Stats | Server-saved player statistics consumed by achievements/leaderboards | common | EOS Stats, AccelByte Statistics | ❓ under discussion |
 | F61 | Seasons / passes / daily check-in | Event cycles, reward tracks, daily rewards | common | AccelByte Season Pass, [GamePush reward scheduling](https://gamepush.com/en/backend/) | ❓ under discussion |
-| F62 | Mail / redeem codes | Server-wide mail, individual mail, redeem codes; often share a source with live-ops tooling | must-have (ops side) | [Live-ops tools: server-wide & individual mail](https://cloud.tencent.com/developer/article/1978643), [MSDK gift vouchers](https://cloud.tencent.com/developer/article/1856528) | ✅ delegated decision (evaluation complete, not initiated; see [mail-cdk-evaluation.md](./mail-cdk-evaluation.md)) |
+| F62 | Mail / redeem codes | Server-wide mail, individual mail, redeem codes; often share a source with live-ops tooling | must-have (ops side) | [Live-ops tools: server-wide & individual mail](https://cloud.tencent.com/developer/article/1978643), [MSDK gift vouchers](https://cloud.tencent.com/developer/article/1856528) | ✅ implemented (2026-11-01, mail.md/cdk.md Frozen v1 + carrier/voucher dual implementations) |
 | F63 | Events and limited-time operations | Event schedules, countdowns, server-launch warm-ups | common | [BACKND events and announcements](https://backnd.com/en/), [SpellSync events](https://spellsync.com/game-backend/) | ❓ under discussion |
 
 **Courier trade-off**: most of this section is **gameplay systems** rather than "service delivery"; except F62 mail, which is adjacent to the messaging surface and worth evaluating first, the rest stay under discussion — avoiding turning Courier into a second Nakama (see [competitive.md](./competitive.md) conclusion 3).

@@ -217,10 +217,6 @@ func (p *Provider) writeInvalid(w http.ResponseWriter, r *http.Request, msg stri
 	aggregation.WriteError(w, middleware.TraceID(r.Context()), aggregation.CodeInvalidArgument, msg)
 }
 
-type CodeError struct{ Code string }
-
-func (e *CodeError) Error() string { return e.Code }
-
 type invalidError string
 
 func (e invalidError) Error() string { return string(e) }

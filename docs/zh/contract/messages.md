@@ -70,6 +70,13 @@ realname v1.1 追加(2026-10-18 冻结,**未实现**,实现面 F31;复用本通�
 | --- | --- | --- |
 | `realname.consent.updated` | 同 `config.updated` 模式(最小字段,客户端重拉;[realname.md](./realname.md) consent 节) | 同意状态变化 |
 
+F62 追加(邮件 / 兑换码;复用本通道——载荷只是提示,拉取端点为权威):
+
+| event | data | 触发 |
+| --- | --- | --- |
+| `mail.updated` | `{ "mailId": "mail_..." }`([mail.md](./mail.md)) | 新邮件或领取 |
+| `cdk.redeemed` | `{ "code": "..." }`([cdk.md](./cdk.md)) | 兑换码已兑换 |
+
 新事件随域契约冻结在此登记;`type` 冻结后不改,废弃事件服务端停发、类型保留。
 
 ## 语义规则

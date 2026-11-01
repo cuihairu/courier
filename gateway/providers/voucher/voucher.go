@@ -44,13 +44,6 @@ type Options struct {
 	Grant       func(accountID, code, grant string) error
 }
 
-type codeDTO struct {
-	Value  string `json:"value"`
-	Grant  string `json:"grant"`
-	Count  int    `json:"count"`
-	Remain int    `json:"remain"`
-}
-
 type redeemDTO struct {
 	Code     string `json:"code"`
 	Grant    string `json:"grant"`
@@ -203,10 +196,6 @@ func (p *Provider) emit(accountID, code string, repeated bool, r *http.Request) 
 func (p *Provider) writeInvalid(w http.ResponseWriter, r *http.Request, msg string) {
 	aggregation.WriteError(w, middleware.TraceID(r.Context()), aggregation.CodeInvalidArgument, msg)
 }
-
-type CodeError struct{ Code string }
-
-func (e *CodeError) Error() string { return e.Code }
 
 type invalidError string
 
