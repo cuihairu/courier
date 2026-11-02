@@ -1,9 +1,8 @@
 
-<p align="center"><img src="docs/public/logo.svg" width="64" height="64" alt="logo" /> <a href="https://cuihairu.github.io/courier/"><img src="https://img.shields.io/badge/docs-blue" alt="docs"></a>
+<p align="center"><img src="docs/public/logo.svg" width="64" height="64" alt="logo" /> <a href="https://cuihairu.github.io/courier/"><img src="https://img.shields.io/badge/docs-blue" alt="docs"></a> <a href="https://github.com/cuihairu/courier/releases"><img alt="Status" src="https://img.shields.io/badge/status-in%20development-orange"></a>
 </p>
 
 <h1 align="center">Courier — Universal Game SDK</h1>
-<a href="https://github.com/cuihairu/courier/releases"><img alt="Status" src="https://img.shields.io/badge/status-in%20development-orange"></a>
 <p align="center">
 <img src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white" alt="TypeScript" /> <img src="https://img.shields.io/badge/Go-00ADD8?logo=go&logoColor=white" alt="Go" /> <img src="https://img.shields.io/badge/Node.js-339933?logo=nodedotjs&logoColor=white" alt="Node.js" /> <img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License: Apache-2.0" />
 </p>
@@ -18,7 +17,7 @@ Courier means messenger: it is not any single business feature. It delivers serv
 
 ```text
  Service capabilities (Providers): account · announcements · support · messaging ·
- payments · real-name · config · branding · diagnostics
+ payments · real-name · config · branding · diagnostics · mail · redeem
                              │
                              ▼ pickup
                        Courier (the messenger)
@@ -130,6 +129,8 @@ Courier
 ├── Communication Announcement / Message / Push
 ├── Support       FAQ / Ticket (core) + Panel (optional UI package)
 ├── Payment       Order / Purchase / Receipt (contract only; four shapes optional)
+├── Mail          Mailbox / Claim gift-pack mail (F62, default carrier)
+├── Redeem        Redeem code (F62, default voucher)
 ├── Diagnostics   Crash / OTel Trace / Perf / Analytics (optional package)
 └── Platform      Unity / Unreal / Cocos / Godot / Layabox / MiniProgram
 ```
@@ -150,6 +151,8 @@ SDK packages: **Core (required) / Service (as needed) / UI (optional)**. `Create
 | Diagnostics (optional) | Crash/error tracking, OTel Trace, performance metrics, analytics events; all off by default | Sentry/GlitchTip/self-hosted OTLP | M3+ |
 | Assistant | FAQ bot, in-game guide | Can connect to croupier faq | M4 |
 | Payment | Contract + built-in sandbox channel (teller); the four shapes are each game's choice | Channel abstraction; optional risk pre-check (off by default) | M5 |
+| Mail | Mailbox fetch and claim, per-account+mail idempotent; personal + server-wide, newest first | carrier (+ carrier-alt) | F62 |
+| Redeem Code (CDK) | Gift-pack / redeem code redemption, per-account+code idempotent | voucher (+ voucher-alt) | F62 |
 
 ## Repository Layout
 

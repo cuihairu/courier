@@ -3,7 +3,7 @@
 
 > 面向要**替换或新增**网关能力域后端(Provider)的接入方。默认供应商可换可关;
 > 客户端 SDK **零改动**(wire 由 `docs/contract/` 冻结,见 [sdk-selection.md](./sdk-selection.md)
-> 九域默认接线与 501 降级后果)。治理原则见 [architecture.md](./architecture.md)「Provider 治理」:
+> 十一域默认接线与 501 降级后果)。治理原则见 [architecture.md](./architecture.md)「Provider 治理」:
 > 接口统一 ≠ 数据迁移;接入方式两种(服务端 Provider 默认 / 客户端直连例外)。
 
 ## 1. 最小接入:四方法 + 注册 + 路由表
@@ -60,6 +60,8 @@ sidecar 形态契约不动,属部署面演进。
 | player | /v1/player/ | `archivist` | M3 | 玩家档案 + 账号↔角色映射;第二实现 `archivist-alt`(事件日志,批次 67) |
 | assistant | /v1/assistant/ | `sage` | M4 | FAQ 检索;LLM 供应商按同一接口替换,默认不依赖;第二实现 `sage-alt`(写时预计算规范化,批次 70) |
 | payments | /v1/payments/ | `teller` | M5 | 自建沙箱渠道;真实渠道按同一回调签名面接入;第二实现 `teller-alt`(事件账本投影,批次 72) |
+| mail | /v1/mail/ | `carrier` | F62 | 邮箱拉取 + 领取(按账号+邮件幂等);第二实现 `carrier-alt` |
+| cdk | /v1/cdk/ | `voucher` | F62 | 兑换码核销(按账号+码幂等);第二实现 `voucher-alt` |
 
 ## 4. Options 装配面:逐域注入点
 

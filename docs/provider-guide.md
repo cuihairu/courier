@@ -3,7 +3,7 @@
 
 > For integrators who want to **replace or add** a gateway capability-domain backend (Provider). The default vendors can be swapped or turned off;
 > the client SDK needs **zero changes** (the wire is frozen by `docs/contract/`, see [sdk-selection.md](./sdk-selection.md)
-> for the default wiring of the nine domains and the 501 degradation consequences). For governance principles see "Provider Governance" in [architecture.md](./architecture.md):
+> for the default wiring of the eleven domains and the 501 degradation consequences). For governance principles see "Provider Governance" in [architecture.md](./architecture.md):
 > a unified interface ≠ a data migration; there are two integration modes (server-side Provider by default / client-side direct connection as the exception).
 
 ## 1. Minimal Integration: Four Methods + Registration + Routing Table
@@ -60,6 +60,8 @@ sidecar form leaves the contract untouched and belongs to deployment-surface evo
 | player | /v1/player/ | `archivist` | M3 | player profile + account↔character mapping; second implementation `archivist-alt` (event log, batch 67) |
 | assistant | /v1/assistant/ | `sage` | M4 | FAQ retrieval; LLM vendors are swapped through the same interface and are not depended on by default; second implementation `sage-alt` (write-time precomputed normalization, batch 70) |
 | payments | /v1/payments/ | `teller` | M5 | self-built sandbox channel; real channels integrate through the same callback signature surface; second implementation `teller-alt` (event ledger projection, batch 72) |
+| mail | /v1/mail/ | `carrier` | F62 | mailbox fetch + claim (per account+mail idempotent); second implementation `carrier-alt` |
+| cdk | /v1/cdk/ | `voucher` | F62 | redeem-code redemption (per account+code idempotent); second implementation `voucher-alt` |
 
 ## 4. The Options Assembly Surface: Per-Domain Injection Points
 

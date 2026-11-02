@@ -10,7 +10,7 @@
 | 包 | 实测源码字节 | 不装省什么 | 装了得到什么 |
 | --- | --- | --- | --- |
 | `com.courier.core` | 79,759 B(~78 KiB) | —— 地基,不可省 | scope 头/Bearer 附着/信封解析、生命周期状态机、ApiClient 退避重试与 `AUTH_TOKEN_EXPIRED` 刷新重放、Identity/Session 编排(refresh 单飞)、传输与令牌存储抽象 |
-| `com.courier.service` | 62,786 B(~61 KiB) | 自写九域 REST 调用 | `CourierServices` 门面:公告/客服(含附件直传)/应用配置/品牌/玩家/小助手/支付/实名 + consent 年龄门(v1.1)+ SSE 解析 |
+| `com.courier.service` | 62,786 B(~61 KiB) | 自写十一域 REST 调用 | `CourierServices` 门面:公告/客服(含附件直传)/应用配置/品牌/玩家/小助手/支付/实名/邮件(mailService)/兑换码(cdkService)+ consent 年龄门(v1.1)+ SSE 解析 |
 | `com.courier.ui` | 22,673 B(~22 KiB) | 自己写面板渲染 | 公告面板 + 跑马灯(`MarqueeRendered` 事件)、客服面板;纯逻辑 C#,不绑 UI 框架,渲染走回调/事件 |
 | `com.courier.diagnostics` | 20,495 B(~20 KiB) | 无埋点上报 | trace 关联/性能事件/崩溃上报三流(diagnostics.md) |
 
@@ -24,7 +24,7 @@
 | 子树 | 实测字节 | 说明 |
 | --- | --- | --- |
 | `core/` | 44,570 B | 地基(含 `FetchTransport`,miniprogram 侧用 `createWechatTransport(wx)`) |
-| `service/` | 41,575 B | 九域门面 + consent 年龄门(v1.1) |
+| `service/` | 41,575 B | 十一域门面(含 mailService / cdkService)+ consent 年龄门(v1.1) |
 | `ui/` | 13,323 B | 公告面板 + 跑马灯(`onMarqueeRendered`) |
 | `diagnostics/` | 16,088 B | 三流上报 |
 | `platform/` | 12,179 B | 只留自己用的那一端适配,其余可删 |

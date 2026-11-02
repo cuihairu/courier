@@ -1,9 +1,8 @@
 
-<p align="center"><img src="docs/public/logo.svg" width="64" height="64" alt="logo" /> <a href="https://cuihairu.github.io/courier/zh/"><img src="https://img.shields.io/badge/%E6%96%87%E6%A1%A3-blue" alt="docs"></a>
+<p align="center"><img src="docs/public/logo.svg" width="64" height="64" alt="logo" /> <a href="https://cuihairu.github.io/courier/zh/"><img src="https://img.shields.io/badge/%E6%96%87%E6%A1%A3-blue" alt="docs"></a> <a href="https://github.com/cuihairu/courier/releases"><img alt="Status" src="https://img.shields.io/badge/status-in%20development-orange"></a>
 </p>
 
 <h1 align="center">Courier — Universal Game SDK</h1>
-<a href="https://github.com/cuihairu/courier/releases"><img alt="Status" src="https://img.shields.io/badge/status-in%20development-orange"></a>
 <p align="center">
 <img src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white" alt="TypeScript" /> <img src="https://img.shields.io/badge/Go-00ADD8?logo=go&logoColor=white" alt="Go" /> <img src="https://img.shields.io/badge/Node.js-339933?logo=nodedotjs&logoColor=white" alt="Node.js" /> <img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License: Apache-2.0" />
 </p>
@@ -17,7 +16,7 @@
 Courier 是信使:它不是某一种具体业务,而是替游戏把各种服务能力送到客户端。
 
 ```text
- 各服务能力(Provider):账号 · 公告 · 客服 · 推送 · 支付 · 实名 · 配置 · 品牌 · 诊断
+ 各服务能力(Provider):账号 · 公告 · 客服 · 推送 · 支付 · 实名 · 配置 · 品牌 · 诊断 · 邮件 · 兑换码
                              │
                              ▼ 取件
                        Courier(信使)
@@ -121,6 +120,8 @@ Courier
 ├── Communication Announcement / Message / Push
 ├── Support       FAQ / Ticket(核心)+ Panel(可选 UI 包)
 ├── Payment       Order / Purchase / Receipt(契约 + 内置沙箱渠道,四形态可选)
+├── Mail          邮箱 / 领取礼包邮件(F62,默认 carrier)
+├── Redeem        兑换码(F62,默认 voucher)
 ├── Diagnostics   Crash / OTel Trace / Perf / Analytics(可选包)
 └── Platform      Unity / Unreal / Cocos / Godot / Layabox / MiniProgram
 ```
@@ -141,6 +142,8 @@ SDK 分包:**Core(必选)/ Service(按需)/ UI(可选包)**——`CreateTicket()
 | Diagnostics(可选) | 崩溃、OTel Trace、性能指标、埋点;默认全关 | Sentry/GlitchTip/自托管 OTLP | M3+ |
 | Assistant | FAQ 机器人、游戏内向导 | 可接 croupier faq | M4 |
 | Payment | 契约 + 内置沙箱渠道(teller);四形态由游戏选择 | 渠道抽象;风控前置可选(缺省不拦) | M5 |
+| Mail | 邮箱拉取与领取,按账号+邮件幂等;个人与全服,最新在前 | carrier(+ carrier-alt) | F62 |
+| 兑换码(CDK) | 礼包码 / 兑换码核销,按账号+码幂等 | voucher(+ voucher-alt) | F62 |
 
 ## 仓库结构
 

@@ -37,7 +37,7 @@ L1–L3 sit on the client side, L4–L5 on the server side; L1 is depended on by
 
 **Interface shape**
 
-- Primitives: primitives / errors / scope / versioning / events; domains: auth (Frozen v1.1), announcement/support/messages (Frozen v1.1), realname (Frozen v1.1; the consent group frozen 2026-10-18), config/app/branding/player/diagnostics (Frozen v1 · M3), assistant (Frozen v1 · M4), payment (Frozen v1.1 · M5), oauth (Frozen v1, batch 52).
+- Primitives: primitives / errors / scope / versioning / events; domains: auth (Frozen v1.1), announcement/support/messages (Frozen v1.1), realname (Frozen v1.1; the consent group frozen 2026-10-18), config/app/branding/player/diagnostics (Frozen v1 · M3), assistant (Frozen v1 · M4), payment (Frozen v1.1 · M5), mail/cdk (Frozen v1 · F62), oauth (Frozen v1, batch 52).
 
 **Repo mapping**: `docs/contract/` (this repo) + `docs/contract/fixtures/` + `tools/contractgen` (contract test skeleton: fixtures generate contract sources for all six platforms; any drift turns tests red).
 
@@ -48,7 +48,7 @@ L1–L3 sit on the client side, L4–L5 on the server side; L1 is depended on by
 **Responsibilities**
 
 - Unit-testable pure logic: DTO parsing and validation, **lifecycle state machine** (Uninitialized→…→PlayerReady, Suspended/Resuming), token storage interface, transport interface, retry and timeout, error normalization (error codes → per-platform enums).
-- The `CourierClient` facade composes only the two entry points Identity / Session; the nine capability-tree domain entry points belong to the Service package's `CourierServices` facade (same shape on every platform).
+- The `CourierClient` facade composes only the two entry points Identity / Session; the eleven capability-tree domain entry points belong to the Service package's `CourierServices` facade (same shape on every platform).
 
 **Boundaries**
 
@@ -58,7 +58,7 @@ L1–L3 sit on the client side, L4–L5 on the server side; L1 is depended on by
 
 - `CourierClient.Init({ gameId, env, endpoint })` → per-domain submodules; domain interfaces correspond one-to-one with L1.
 
-**Repo mapping**: `sdks/unity/packages/com.courier.core/Runtime` (Core/ state machine and API client, Identity/ Session/ auth domain, CourierClient.cs facade, Core/Contract/ generated artifacts); `CoreTests~` (65 Fact cases, xunit; runnable locally with dotnet test, also run by the engine Test Runner); `sdks/cocos src/core` (transport/apiClient/session/identity/sseStream/utf8, courierClient.ts facade) + `src/service` (nine-domain clients + SseStreamClient stream orchestration, `CourierServices` facade) + `src/ui` / `src/diagnostics` (optional packages), 200 node:test cases (contract 6 / core 35 / coreTransport 13 / lifecycle 35 / utf8 9 / service 18 / service2 16 incl. consent v1.1 / stream 20 / wechat 9 / wechatStream 8 / ui 17 / diagnostics 14); `sdks/ue/core` (pure ISO C++17 header-only: json parser, transport/apiClient/session/identity/lifecycle/courierClient/sse_stream) + `sdks/ue/service` (SSE parser + stream orchestration + nine-domain clients, `run_tests.sh` seven suites independently compiled with g++, all green); `sdks/godot src/core` (lifecycle/transport/tokenStore/courierError/apiClient/identity/session/courierClient) + `src/service` (SSE parser + nine-domain clients + `CourierServices` facade, eight headless SceneTree suites all green); the remaining platforms are the same shape.
+**Repo mapping**: `sdks/unity/packages/com.courier.core/Runtime` (Core/ state machine and API client, Identity/ Session/ auth domain, CourierClient.cs facade, Core/Contract/ generated artifacts); `CoreTests~` (65 Fact cases, xunit; runnable locally with dotnet test, also run by the engine Test Runner); `sdks/cocos src/core` (transport/apiClient/session/identity/sseStream/utf8, courierClient.ts facade) + `src/service` (eleven-domain clients + SseStreamClient stream orchestration, `CourierServices` facade) + `src/ui` / `src/diagnostics` (optional packages), 200 node:test cases (contract 6 / core 35 / coreTransport 13 / lifecycle 35 / utf8 9 / service 18 / service2 16 incl. consent v1.1 / stream 20 / wechat 9 / wechatStream 8 / ui 17 / diagnostics 14); `sdks/ue/core` (pure ISO C++17 header-only: json parser, transport/apiClient/session/identity/lifecycle/courierClient/sse_stream) + `sdks/ue/service` (SSE parser + stream orchestration + eleven-domain clients, `run_tests.sh` seven suites independently compiled with g++, all green); `sdks/godot src/core` (lifecycle/transport/tokenStore/courierError/apiClient/identity/session/courierClient) + `src/service` (SSE parser + eleven-domain clients + `CourierServices` facade, eight headless SceneTree suites all green); the remaining platforms are the same shape.
 
 **Next steps**: land the messages SSE stream client with the same shape on all six platforms (unity/godot wired to real stream reads; fetch stream source for the three TS platforms + UE SseSource seam, batch 38; WeChat enableChunked stream source + hand-written incremental UTF-8 decoding, batch 39; laya XHR stream source, batch 40); the one platform-specific stream source still outstanding is the UE SseSource engine wiring, which waits on the engine environment; real-device integration waits on the deployment side.
 
@@ -100,6 +100,8 @@ L1–L3 sit on the client side, L4–L5 on the server side; L1 is depended on by
 | PlayerProvider | Account profile + account↔character mapping | archivist (scope isolation; second implementation archivist-alt with event log, swappable) |
 | AssistantProvider | FAQ retrieval Q&A (hits return verbatim snapshots, nothing generated) | sage (in-house; second implementation sage-alt with write-time precomputed normalization, swappable; handoff to human agents reuses the support domain; LLM reserved, not a dependency by default) |
 | PaymentsProvider | Order-callback payments (server-side pricing; the channel signature is the authentication) | teller (sandbox channels; real channels attach via the same callback signature surface; second implementation teller-alt with event ledger projection, same contract, swappable) |
+| MailProvider | Player-facing mailbox fetch + claim (per account+mail idempotent, newest first) | carrier (read-time scan-and-sort; second implementation carrier-alt, swappable) |
+| CdkProvider | Redeem-code redemption (per account+code idempotent) | voucher (redeemed-set dedupe; second implementation voucher-alt, swappable) |
 | DiagnosticsProvider | Diagnostics reporting | Off by default; the client-side optional package ships directly to self-hosted endpoints (Sentry/GlitchTip/OTLP ecosystem), bypassing the gateway |
 
 **Boundaries**

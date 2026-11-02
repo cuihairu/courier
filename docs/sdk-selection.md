@@ -10,7 +10,7 @@ Packages are split into four layers by dependency direction: core is the base be
 | Package | Measured source bytes | What you save by skipping it | What you gain by installing it |
 | --- | --- | --- | --- |
 | `com.courier.core` | 79,759 B(~78 KiB) | — the foundation, can't be omitted | scope header / Bearer attachment / envelope parsing, lifecycle state machine, ApiClient backoff retry and `AUTH_TOKEN_EXPIRED` refresh-and-replay, Identity/Session orchestration (refresh single-flight), transport and token-storage abstractions |
-| `com.courier.service` | 62,786 B(~61 KiB) | writing the nine domains' REST calls yourself | `CourierServices` facade: announcements / support (including attachment direct upload) / app config / branding / player / assistant / payments / real name + the consent age gate (v1.1) + SSE parsing |
+| `com.courier.service` | 62,786 B(~61 KiB) | writing the eleven domains' REST calls yourself | `CourierServices` facade: announcements / support (including attachment direct upload) / app config / branding / player / assistant / payments / real name / mail (mailService) / redeem codes (cdkService) + the consent age gate (v1.1) + SSE parsing |
 | `com.courier.ui` | 22,673 B(~22 KiB) | writing the panel rendering yourself | announcements panel + marquee (`MarqueeRendered` event), support panel; pure logic C#, not bound to any UI framework, rendering happens through callbacks/events |
 | `com.courier.diagnostics` | 20,495 B(~20 KiB) | no telemetry reporting | the three streams: trace correlation / performance events / crash reporting (diagnostics.md) |
 
@@ -24,7 +24,7 @@ A single isomorphic tree, not splittable by directory (one `src/`), but dead cod
 | Subtree | Measured bytes | Notes |
 | --- | --- | --- |
 | `core/` | 44,570 B | the foundation (includes `FetchTransport`; on the miniprogram side `createWechatTransport(wx)` is used) |
-| `service/` | 41,575 B | the nine-domain facade + the consent age gate (v1.1) |
+| `service/` | 41,575 B | the eleven-domain facade (incl. mailService / cdkService) + the consent age gate (v1.1) |
 | `ui/` | 13,323 B | announcements panel + marquee (`onMarqueeRendered`) |
 | `diagnostics/` | 16,088 B | three-stream reporting |
 | `platform/` | 12,179 B | keep only the adapter for the platform you target; the rest can be deleted |

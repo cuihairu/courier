@@ -37,18 +37,18 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 
 **接口形状**
 
-- 基元:primitives / errors / scope / versioning / events;域:auth(Frozen v1.1)、announcement/support/messages(Frozen v1.1)、realname(Frozen v1.1;consent 组 2026-10-18 冻结)、config/app/branding/player/diagnostics(Frozen v1 · M3)、assistant(Frozen v1 · M4)、payment(Frozen v1.1 · M5)、oauth(Frozen v1,批次 52)。
+- 基元:primitives / errors / scope / versioning / events;域:auth(Frozen v1.1)、announcement/support/messages(Frozen v1.1)、realname(Frozen v1.1;consent 组 2026-10-18 冻结)、config/app/branding/player/diagnostics(Frozen v1 · M3)、assistant(Frozen v1 · M4)、payment(Frozen v1.1 · M5)、mail/cdk(Frozen v1 · F62)、oauth(Frozen v1,批次 52)。
 
 **现仓映射**:`docs/contract/`(本仓)+ `docs/contract/fixtures/` + `tools/contractgen`(契约测试骨架:fixture 生成六端契约源,漂移即测试红)。
 
-**下一步**:基元五件、auth、M2 三域、realname、M3 五域(config/app/branding/player/diagnostics)、assistant(M4)、payment(M5)均已冻结;新域随新里程碑开工前冻结。
+**下一步**:基元五件、auth、M2 三域、realname、M3 五域(config/app/branding/player/diagnostics)、assistant(M4)、payment(M5)、mail/cdk(F62)均已冻结;新域随新里程碑开工前冻结。
 
 ## L2 Core(平台无关内核)
 
 **职责**
 
 - 可单测纯逻辑:DTO 解析与校验、**生命周期状态机**(Uninitialized→…→PlayerReady、Suspended/Resuming)、token 存储接口、transport 接口、重试与超时、错误归一(错误码→本端枚举)。
-- `CourierClient` 门面仅组 Identity / Session 两接入点;能力树九域接入点归 Service 包 `CourierServices` 门面(各端同构)。
+- `CourierClient` 门面仅组 Identity / Session 两接入点;能力树十一域接入点归 Service 包 `CourierServices` 门面(各端同构)。
 
 **边界**
 
@@ -58,7 +58,7 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 
 - `CourierClient.Init({ gameId, env, endpoint })` → 按域子模块;域接口与 L1 一一对应。
 
-**现仓映射**:`sdks/unity/packages/com.courier.core/Runtime`(Core/ 状态机与 API 客户端、Identity/ Session/ auth 域、CourierClient.cs 门面、Core/Contract/ 生成物);`CoreTests~`(65 例 Fact,xunit;dotnet test 本地可验,引擎 Test Runner 亦跑);`sdks/cocos src/core`(transport/apiClient/session/identity/sseStream/utf8,courierClient.ts 门面)+ `src/service`(九域客户端 + SseStreamClient 流编排,`CourierServices` 门面)+ `src/ui` / `src/diagnostics`(可选包),node:test 200 例(契约 6 / core 35 / coreTransport 13 / lifecycle 35 / utf8 9 / service 18 / service2 16 含 consent v1.1 / stream 20 / wechat 9 / wechatStream 8 / ui 17 / diagnostics 14);`sdks/ue/core`(纯 ISO C++17 header-only:json 解析器、transport/apiClient/session/identity/lifecycle/courierClient/sse_stream)+ `sdks/ue/service`(SSE 解析器 + 流编排 + 九域客户端,`run_tests.sh` 七套 g++ 独立编译全绿);`sdks/godot src/core`(lifecycle/transport/tokenStore/courierError/apiClient/identity/session/courierClient)+ `src/service`(SSE 解析器 + 九域客户端 + `CourierServices` 门面,headless 八套 SceneTree 测试全绿);其余端同构。
+**现仓映射**:`sdks/unity/packages/com.courier.core/Runtime`(Core/ 状态机与 API 客户端、Identity/ Session/ auth 域、CourierClient.cs 门面、Core/Contract/ 生成物);`CoreTests~`(65 例 Fact,xunit;dotnet test 本地可验,引擎 Test Runner 亦跑);`sdks/cocos src/core`(transport/apiClient/session/identity/sseStream/utf8,courierClient.ts 门面)+ `src/service`(十一域客户端 + SseStreamClient 流编排,`CourierServices` 门面)+ `src/ui` / `src/diagnostics`(可选包),node:test 200 例(契约 6 / core 35 / coreTransport 13 / lifecycle 35 / utf8 9 / service 18 / service2 16 含 consent v1.1 / stream 20 / wechat 9 / wechatStream 8 / ui 17 / diagnostics 14);`sdks/ue/core`(纯 ISO C++17 header-only:json 解析器、transport/apiClient/session/identity/lifecycle/courierClient/sse_stream)+ `sdks/ue/service`(SSE 解析器 + 流编排 + 十一域客户端,`run_tests.sh` 七套 g++ 独立编译全绿);`sdks/godot src/core`(lifecycle/transport/tokenStore/courierError/apiClient/identity/session/courierClient)+ `src/service`(SSE 解析器 + 十一域客户端 + `CourierServices` 门面,headless 八套 SceneTree 测试全绿);其余端同构。
 
 **下一步**:六端 messages SSE 流客户端同构落位(unity/godot 真流读接线;TS 三端 fetch 流源 + UE SseSource 接缝,批次 38;微信 enableChunked 流源 + 手写增量 UTF-8 解码,批次 39;laya XHR 流源,批次 40);平台特化流源残留 UE SseSource 引擎接线随引擎环境;真机联调随部署面。
 
@@ -100,6 +100,8 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 | PlayerProvider | 账号档案 + 账号↔角色映射 | archivist(scope 隔离;第二实现 archivist-alt 事件日志可换) |
 | AssistantProvider | FAQ 检索问答(命中原样快照不生成) | sage(自建;第二实现 sage-alt 写时预计算规范化可换;转人工复用 support 域,LLM 预留默认不依赖) |
 | PaymentsProvider | 订单-回调支付(服务端定价;渠道签名即认证) | teller(沙箱渠道;真实渠道按同一回调签名面接入;第二实现 teller-alt 事件账本投影,同契约可换) |
+| MailProvider | 玩家侧邮箱拉取 + 领取(按账号+邮件幂等,最新在前) | carrier(读时扫描排序;第二实现 carrier-alt 可换) |
+| CdkProvider | 兑换码核销(按账号+码幂等) | voucher(已核销集合去重;第二实现 voucher-alt 可换) |
 | DiagnosticsProvider | 诊断上报 | 默认关闭;客户端可选包直发自托管端点(Sentry/GlitchTip/OTLP 生态),不经网关 |
 
 **边界**
