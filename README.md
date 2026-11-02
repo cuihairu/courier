@@ -1,10 +1,9 @@
 
-<p align="center"><img src="docs/public/logo.svg" width="64" height="64" alt="logo" />  <a href="https://github.com/cuihairu/courier/releases"><img alt="Status" src="https://img.shields.io/badge/status-in%20development-orange"></a>
+<p align="center"><a href="https://github.com/cuihairu/courier/releases"><img alt="Status" src="https://img.shields.io/badge/status-in%20development-orange"></a> <a href="https://cuihairu.github.io/courier/"><img src="https://img.shields.io/badge/docs-blue" alt="docs"></a> <img src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white" alt="TypeScript" /> <img src="https://img.shields.io/badge/Go-00ADD8?logo=go&logoColor=white" alt="Go" /> <img src="https://img.shields.io/badge/Node.js-339933?logo=nodedotjs&logoColor=white" alt="Node.js" /> <img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License: Apache-2.0" /></p>
 </p>
 
 <h1 align="center">Courier — Universal Game SDK</h1>
 <p align="center">
-<img src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white" alt="TypeScript" /> <img src="https://img.shields.io/badge/Go-00ADD8?logo=go&logoColor=white" alt="Go" /> <img src="https://img.shields.io/badge/Node.js-339933?logo=nodedotjs&logoColor=white" alt="Node.js" /> <img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License: Apache-2.0" /> <a href="https://cuihairu.github.io/courier/"><img src="https://img.shields.io/badge/docs-blue" alt="docs"></a>
 </p>
 
 <p align="center">[English](README.md) | [中文](README.zh.md)</p>
