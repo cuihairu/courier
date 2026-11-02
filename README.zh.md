@@ -1,5 +1,5 @@
 
-<p align="center"><img src="docs/public/logo.svg" width="64" height="64" alt="logo" /> <a href="https://github.com/cuihairu/courier/releases"><img alt="Status" src="https://img.shields.io/badge/status-in%20development-orange"></a> <a href="https://cuihairu.github.io/courier/zh/"><img src="https://img.shields.io/badge/%E6%96%87%E6%A1%A3-blue" alt="文档"></a> <img src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white" alt="TypeScript" /> <img src="https://img.shields.io/badge/Go-00ADD8?logo=go&logoColor=white" alt="Go" /> <img src="https://img.shields.io/badge/Node.js-339933?logo=nodedotjs&logoColor=white" alt="Node.js" /> <img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License: Apache-2.0" /></p>
+<p align="center"><img src="docs/public/logo.svg" width="64" height="64" alt="logo" /></p>
 
 <h1 align="center">Courier — Universal Game SDK</h1>
 
@@ -10,6 +10,10 @@
 > Courier 是一个面向游戏的通用 SDK,为 Unity、Unreal、Cocos、Godot、微信小游戏、LayaBox 等引擎与平台提供统一的账号、认证、玩家、消息、公告、客服、支付、实名、远程配置、品牌与诊断等能力接口。
 
 Courier 是信使:它不是某一种具体业务,而是替游戏把各种服务能力送到客户端。
+
+<p align="center">
+<a href="https://cuihairu.github.io/courier/zh/"><img src="https://img.shields.io/badge/%E6%96%87%E6%A1%A3-blue" alt="文档"></a> <a href="https://github.com/cuihairu/courier/releases"><img alt="Status" src="https://img.shields.io/badge/status-in%20development-orange"></a> <img src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white" alt="TypeScript" /> <img src="https://img.shields.io/badge/Go-00ADD8?logo=go&logoColor=white" alt="Go" /> <img src="https://img.shields.io/badge/Node.js-339933?logo=nodedotjs&logoColor=white" alt="Node.js" /> <img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License: Apache-2.0" />
+</p>
 
 ```text
  各服务能力(Provider):账号 · 公告 · 客服 · 推送 · 支付 · 实名 · 配置 · 品牌 · 诊断 · 邮件 · 兑换码
