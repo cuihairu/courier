@@ -62,7 +62,15 @@
 请求体(裸对象,信封外):
 
 ```json
-{ "title": "...", "body": "...", "category": "PAYMENT", "context": { "level": 42, "device": "Pixel 8" } }
+{
+  "title": "...",
+  "body": "...",
+  "category": "PAYMENT",
+  "context": {
+    "level": 42,
+    "device": "Pixel 8"
+  }
+}
 ```
 
 - `category` 可选,大写下划线枚举(接入方自定义集合,未知值容忍不拒);缺省 `OTHER`。

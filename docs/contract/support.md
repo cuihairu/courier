@@ -62,7 +62,15 @@ Detail responses order `messages` by `createdAt` ascending; the ticket's `body` 
 Request body (bare object, outside the envelope):
 
 ```json
-{ "title": "...", "body": "...", "category": "PAYMENT", "context": { "level": 42, "device": "Pixel 8" } }
+{
+  "title": "...",
+  "body": "...",
+  "category": "PAYMENT",
+  "context": {
+    "level": 42,
+    "device": "Pixel 8"
+  }
+}
 ```
 
 - `category` is optional, an uppercase underscore enum (integrator-defined set, unknown values tolerated, not rejected); default `OTHER`.
