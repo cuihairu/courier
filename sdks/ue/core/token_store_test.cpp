@@ -179,6 +179,25 @@ int main() {
         CHECK(load_clear_errors == 0, "non-session clear success reports no error");
     }
 
+    // ---- 非会话/损坏数据清理删除失败:仍按未认证降级(不抛) ----
+    {
+        MemoryFs fs;
+        fs.files[path] = "{\"accessToken\":\"x\"}";  // 缺必填字段 → 非会话
+        fs.remove_fail = true;                        // 删除失败
+        int errors = 0;
+        FileTokenStore store(&fs, path, [&errors](const std::string&) { errors++; });
+        CHECK(!store.load().has_value(), "non-session clear failure → nullopt(不抛)");
+        CHECK(errors == 1, "non-session clear failure reported via error callback");
+
+        MemoryFs fs2;
+        fs2.files[path] = "{not-json";  // 损坏数据
+        fs2.remove_fail = true;          // 删除失败
+        int errors2 = 0;
+        FileTokenStore store2(&fs2, path, [&errors2](const std::string&) { errors2++; });
+        CHECK(!store2.load().has_value(), "corrupt-data clear failure → nullopt(不抛)");
+        CHECK(errors2 == 1, "corrupt-data clear failure reported via error callback");
+    }
+
     // ---- 空文件:按未认证 ----
     {
         MemoryFs fs;

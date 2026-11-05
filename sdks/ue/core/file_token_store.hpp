@@ -25,7 +25,7 @@ struct FileSystem {
     virtual bool remove_file(const std::string& path) = 0;
 };
 
-/// 会话形状校验(契约 auth.md 会话数据模型):合法会话必须为对象且六个
+/// 会话形状校验(契约 auth.md 会话数据模型):合法会话必须为对象且五个
 /// 必填凭证/设备字段均为非空字符串——缺失/空串/非字符串即非会话。
 /// (load 用它区分「合法 JSON 但非会话对象」与真实会话;损坏数据按未认证清场。)
 inline bool is_session_dto(const json::Value& v) {

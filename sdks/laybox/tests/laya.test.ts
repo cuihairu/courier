@@ -165,6 +165,22 @@ test("laya tokenStore:完整会话通过校验(不误清)", () => {
   assert.equal(storage.store.get("courier.session"), sessionJson); // 未清场
 });
 
+test("laya tokenStore:非会话清理删除失败仍按未认证降级(不抛)", () => {
+  const storage = new FakeStorage();
+  storage.store.set("courier.session", JSON.stringify({ accessToken: "x" })); // 缺必填字段 → 非会话
+  storage.removeItem = () => { throw new Error("remove broken"); }; // 删除失败
+  const store = createLayaboxTokenStore(storage);
+  assert.equal(store.load(), null); // 仍按未认证降级,不抛出
+});
+
+test("laya tokenStore:损坏数据清理删除失败仍按未认证降级(不抛)", () => {
+  const storage = new FakeStorage();
+  storage.store.set("courier.session", "{not-json"); // 损坏数据
+  storage.removeItem = () => { throw new Error("remove broken"); }; // 删除失败
+  const store = createLayaboxTokenStore(storage);
+  assert.equal(store.load(), null); // 仍按未认证降级,不抛出
+});
+
 // ---- Transport(XMLHttpRequest) ----
 
 test("laya transport:wire 形状(method/url/header/body/timeout);响应头小写归一", async () => {

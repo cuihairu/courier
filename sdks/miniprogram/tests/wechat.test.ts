@@ -135,6 +135,22 @@ test("wx tokenStore:完整会话通过校验(不误清)", () => {
   assert.equal(wx.storage.get("courier.session"), sessionJson); // 未清场
 });
 
+test("wx tokenStore:非会话清理删除失败仍按未认证降级(不抛)", () => {
+  const wx = new FakeWx();
+  wx.setStorageSync("courier.session", JSON.stringify({ accessToken: "x" })); // 缺必填字段 → 非会话
+  wx.removeStorageSync = () => { throw new Error("remove broken"); }; // 删除失败
+  const store = createWechatTokenStore(wx);
+  assert.equal(store.load(), null); // 仍按未认证降级,不抛出
+});
+
+test("wx tokenStore:损坏数据清理删除失败仍按未认证降级(不抛)", () => {
+  const wx = new FakeWx();
+  wx.setStorageSync("courier.session", "{not-json"); // 损坏数据
+  wx.removeStorageSync = () => { throw new Error("remove broken"); }; // 删除失败
+  const store = createWechatTokenStore(wx);
+  assert.equal(store.load(), null); // 仍按未认证降级,不抛出
+});
+
 // ---- Transport(wx.request) ----
 
 test("wx transport:wire 形状(url/method/header/body/timeout);响应头小写归一", async () => {

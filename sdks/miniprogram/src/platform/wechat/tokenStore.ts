@@ -23,12 +23,20 @@ export function createWechatTokenStore(wx: WxStorage, key: string = defaultKey):
         const parsed: unknown = JSON.parse(raw);
         if (!isSessionDto(parsed)) {
           // 合法 JSON 但非会话对象(字符串/数字/数组/`{}`/缺字段/空 token):按未认证清场。
-          wx.removeStorageSync(key);
+          try {
+            wx.removeStorageSync(key);
+          } catch {
+            // 删除失败(磁盘满/权限/存储异常):仍按未认证降级,不抛。
+          }
           return null;
         }
         return parsed;
       } catch {
-        wx.removeStorageSync(key); // 损坏数据:本地清场(下次请求自然 401)
+        try {
+          wx.removeStorageSync(key); // 损坏数据:本地清场(下次请求自然 401)
+        } catch {
+          // 删除失败:仍按未认证降级,不抛。
+        }
         return null;
       }
     },

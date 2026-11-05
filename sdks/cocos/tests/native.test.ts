@@ -93,6 +93,22 @@ test("cocos tokenStore:完整会话通过校验(不误清)", () => {
   assert.equal(storage.getItem("courier.session"), sessionJson); // 未清场
 });
 
+test("cocos tokenStore:非会话清理删除失败仍按未认证降级(不抛)", () => {
+  const storage = new FakeStorage();
+  storage.setItem("courier.session", JSON.stringify({ accessToken: "x" })); // 缺必填字段 → 非会话
+  storage.removeItem = () => { throw new Error("remove broken"); }; // 删除失败
+  const store = createCocosTokenStore(storage);
+  assert.equal(store.load(), null); // 仍按未认证降级,不抛出
+});
+
+test("cocos tokenStore:损坏数据清理删除失败仍按未认证降级(不抛)", () => {
+  const storage = new FakeStorage();
+  storage.setItem("courier.session", "{not-json"); // 损坏数据
+  storage.removeItem = () => { throw new Error("remove broken"); }; // 删除失败
+  const store = createCocosTokenStore(storage);
+  assert.equal(store.load(), null); // 仍按未认证降级,不抛出
+});
+
 // ---- 全链组合(cocos 适配器 × core) ----
 
 test("cocos 全链:CourierClient(native store)+ fetch 登录落盘 localStorage", async () => {
