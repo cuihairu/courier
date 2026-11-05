@@ -27,6 +27,7 @@ public:
     std::map<std::string, std::string> files;
     bool read_fail = false;
     bool write_fail = false;
+    bool remove_fail = false;
 
     bool read_file(const std::string& path, std::string& out) override {
         if (read_fail) return false;
@@ -41,6 +42,7 @@ public:
         return true;
     }
     bool remove_file(const std::string& path) override {
+        if (remove_fail) return false;
         files.erase(path);
         return true;
     }
@@ -97,7 +99,19 @@ int main() {
         CHECK(fs.files.count(path) == 0, "corrupt JSON is cleared");
     }
 
-    // ---- 读写异常:安全降级(不抛) ----
+    // ---- 合法 JSON 但非会话对象(字符串/数字/数组/`{}`):按未认证清场 ----
+    {
+        const char* bad_shapes[] = {"\"access-1\"", "42", "[]", "{}"};
+        for (const char* shape : bad_shapes) {
+            MemoryFs fs;
+            fs.files[path] = shape;
+            FileTokenStore store(&fs, path);
+            CHECK(!store.load().has_value(), "non-session shape → nullopt");
+            CHECK(fs.files.count(path) == 0, "non-session shape is cleared");
+        }
+    }
+
+    // ---- 读写异常:安全降级(不抛)+ 失败经错误回调可观测 ----
     {
         MemoryFs fs;
         fs.files[path] = make_session().access_token;  // 内容非对象(类型不符)
@@ -107,10 +121,32 @@ int main() {
 
         MemoryFs fs2;
         fs2.write_fail = true;
-        FileTokenStore store2(&fs2, path);
+        int write_errors = 0;
+        FileTokenStore store2(&fs2, path, [&write_errors](const std::string&) { write_errors++; });
         store2.save(make_session());  // 写入失败:静默(不抛)
         CHECK(fs2.files.empty(), "write failure leaves no file");
-        store2.clear();  // clear 失败静默
+        CHECK(write_errors == 1, "write failure reported via error callback");
+
+        int clear_errors = 0;
+        FileTokenStore store3(&fs2, path, [&clear_errors](const std::string&) { clear_errors++; });
+        store3.clear();  // clear 失败:remove_file 的 erase 不失败,此处覆盖成功分支
+        CHECK(clear_errors == 0, "clear success reports no error");
+
+        int clear_failure_errors = 0;
+        FileTokenStore store3_fail(&fs2, path,
+                                   [&clear_failure_errors](const std::string&) { clear_failure_errors++; });
+        fs2.remove_fail = true;
+        store3_fail.clear();  // clear 失败:静默(不抛),错误回调可观测
+        CHECK(clear_failure_errors == 1, "clear failure reported via error callback");
+        fs2.remove_fail = false;
+
+        MemoryFs fs4;
+        fs4.files[path] = "{}";
+        int load_clear_errors = 0;
+        FileTokenStore store4(&fs4, path,
+                              [&load_clear_errors](const std::string&) { load_clear_errors++; });
+        CHECK(!store4.load().has_value(), "empty-object shape → nullopt");
+        CHECK(load_clear_errors == 0, "non-session clear success reports no error");
     }
 
     // ---- 空文件:按未认证 ----

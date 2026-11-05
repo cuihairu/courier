@@ -19,7 +19,14 @@ export function createCocosTokenStore(storage: CocosStorage, key: string = defau
         return null;
       }
       try {
-        return JSON.parse(raw) as SessionDto;
+        const parsed: unknown = JSON.parse(raw);
+        if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed) ||
+            typeof (parsed as { accessToken?: unknown }).accessToken !== "string") {
+          // 合法 JSON 但非会话对象(字符串/数字/数组/`{}`/缺 accessToken):按未认证清场。
+          storage.removeItem(key);
+          return null;
+        }
+        return parsed as SessionDto;
       } catch {
         storage.removeItem(key); // 损坏数据:本地清场(下次请求自然 401)
         return null;

@@ -65,6 +65,23 @@ test("cocos tokenStore:自定义 key 前缀;损坏数据清场返回 null", () =
   assert.equal(storage.getItem("courier.session.dev"), null); // 已清场
 });
 
+test("cocos tokenStore:合法 JSON 非会话对象清场返回 null", () => {
+  const badShapes = [
+    JSON.stringify("access-1"),
+    JSON.stringify(42),
+    JSON.stringify([]),
+    JSON.stringify({}),
+  ];
+
+  for (const raw of badShapes) {
+    const storage = new FakeStorage();
+    storage.setItem("courier.session", raw);
+    const store = createCocosTokenStore(storage);
+    assert.equal(store.load(), null); // 字符串/数字/数组/`{}` 均非会话
+    assert.equal(storage.getItem("courier.session"), null); // 已清场
+  }
+});
+
 // ---- 全链组合(cocos 适配器 × core) ----
 
 test("cocos 全链:CourierClient(native store)+ fetch 登录落盘 localStorage", async () => {

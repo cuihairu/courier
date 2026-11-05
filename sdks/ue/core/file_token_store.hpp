@@ -5,6 +5,7 @@
 #ifndef COURIER_CORE_FILE_TOKEN_STORE_HPP
 #define COURIER_CORE_FILE_TOKEN_STORE_HPP
 
+#include <functional>
 #include <optional>
 #include <string>
 
@@ -27,7 +28,9 @@ struct FileSystem {
 /// 文件持久化 TokenStore(经注入 FileSystem;JSON 序列化整会话;clear 即删文件)。
 class FileTokenStore : public TokenStore {
 public:
-    FileTokenStore(FileSystem* fs, std::string path) : fs_(fs), path_(std::move(path)) {}
+    FileTokenStore(FileSystem* fs, std::string path,
+                   std::function<void(const std::string&)> on_error = nullptr)
+        : fs_(fs), path_(std::move(path)), on_error_(std::move(on_error)) {}
 
     std::optional<SessionDto> load() override {
         std::string raw;
@@ -37,7 +40,17 @@ public:
         json::Value v;
         std::string err;
         if (!json::parse(raw, v, err)) {
-            fs_->remove_file(path_);  // 损坏数据:本地清场(下次请求自然 401)
+            if (!fs_->remove_file(path_)) {
+                report_error("load: corrupt data clear failed for " + path_);
+            }
+            return std::nullopt;
+        }
+        if (!v.is_object() || v.find("accessToken") == nullptr ||
+            !v.find("accessToken")->is_string()) {
+            // 合法 JSON 但非会话对象(字符串/数字/数组/`{}`):按未认证清场。
+            if (!fs_->remove_file(path_)) {
+                report_error("load: non-session clear failed for " + path_);
+            }
             return std::nullopt;
         }
         return decode_session(v);
@@ -47,19 +60,30 @@ public:
         if (fs_ == nullptr) {
             return;
         }
-        fs_->write_file(path_, encode_session(session).dump());
+        if (!fs_->write_file(path_, encode_session(session).dump())) {
+            report_error("save: write_file failed for " + path_);
+        }
     }
 
     void clear() override {
         if (fs_ == nullptr) {
             return;
         }
-        fs_->remove_file(path_);
+        if (!fs_->remove_file(path_)) {
+            report_error("clear: remove_file failed for " + path_);
+        }
     }
 
 private:
+    void report_error(const std::string& message) const {
+        if (on_error_) {
+            on_error_(message);
+        }
+    }
+
     FileSystem* fs_;
     std::string path_;
+    std::function<void(const std::string&)> on_error_;
 };
 
 }  // namespace courier
