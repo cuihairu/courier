@@ -25,6 +25,24 @@ struct FileSystem {
     virtual bool remove_file(const std::string& path) = 0;
 };
 
+/// 会话形状校验(契约 auth.md 会话数据模型):合法会话必须为对象且六个
+/// 必填凭证/设备字段均为非空字符串——缺失/空串/非字符串即非会话。
+/// (load 用它区分「合法 JSON 但非会话对象」与真实会话;损坏数据按未认证清场。)
+inline bool is_session_dto(const json::Value& v) {
+    if (!v.is_object()) {
+        return false;
+    }
+    const char* required[] = {"accessToken", "refreshToken", "accessExpiresAt",
+                              "refreshExpiresAt", "deviceId"};
+    for (const char* key : required) {
+        const json::Value* f = v.find(key);
+        if (f == nullptr || !f->is_string() || f->as_string().empty()) {
+            return false;
+        }
+    }
+    return true;
+}
+
 /// 文件持久化 TokenStore(经注入 FileSystem;JSON 序列化整会话;clear 即删文件)。
 class FileTokenStore : public TokenStore {
 public:
@@ -45,9 +63,8 @@ public:
             }
             return std::nullopt;
         }
-        if (!v.is_object() || v.find("accessToken") == nullptr ||
-            !v.find("accessToken")->is_string()) {
-            // 合法 JSON 但非会话对象(字符串/数字/数组/`{}`):按未认证清场。
+        if (!is_session_dto(v)) {
+            // 合法 JSON 但非会话对象(字符串/数字/数组/`{}`/缺字段/空 token):按未认证清场。
             if (!fs_->remove_file(path_)) {
                 report_error("load: non-session clear failed for " + path_);
             }

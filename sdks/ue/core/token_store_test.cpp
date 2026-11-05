@@ -111,6 +111,36 @@ int main() {
         }
     }
 
+    // ---- 会话形状缺必填字段/空 token(对象但非完整会话):按未认证清场 ----
+    {
+        // 缺 refreshToken/accessExpiresAt/refreshExpiresAt/deviceId(仅 accessToken)。
+        MemoryFs fs;
+        fs.files[path] = "{\"accessToken\":\"x\"}";
+        FileTokenStore store(&fs, path);
+        CHECK(!store.load().has_value(), "partial session (missing fields) → nullopt");
+        CHECK(fs.files.count(path) == 0, "partial session is cleared");
+
+        // 空字符串 accessToken/refreshToken。
+        MemoryFs fs2;
+        fs2.files[path] = "{\"accessToken\":\"\",\"refreshToken\":\"r\",\"accessExpiresAt\":\"t\",\"refreshExpiresAt\":\"t\",\"deviceId\":\"d\"}";
+        FileTokenStore store2(&fs2, path);
+        CHECK(!store2.load().has_value(), "empty accessToken → nullopt");
+        CHECK(fs2.files.count(path) == 0, "empty accessToken session is cleared");
+
+        MemoryFs fs3;
+        fs3.files[path] = "{\"accessToken\":\"a\",\"refreshToken\":\"\",\"accessExpiresAt\":\"t\",\"refreshExpiresAt\":\"t\",\"deviceId\":\"d\"}";
+        FileTokenStore store3(&fs3, path);
+        CHECK(!store3.load().has_value(), "empty refreshToken → nullopt");
+        CHECK(fs3.files.count(path) == 0, "empty refreshToken session is cleared");
+
+        // 非字符串必填字段(deviceId 为数字)。
+        MemoryFs fs4;
+        fs4.files[path] = "{\"accessToken\":\"a\",\"refreshToken\":\"r\",\"accessExpiresAt\":\"t\",\"refreshExpiresAt\":\"t\",\"deviceId\":42}";
+        FileTokenStore store4(&fs4, path);
+        CHECK(!store4.load().has_value(), "non-string deviceId → nullopt");
+        CHECK(fs4.files.count(path) == 0, "non-string deviceId session is cleared");
+    }
+
     // ---- 读写异常:安全降级(不抛)+ 失败经错误回调可观测 ----
     {
         MemoryFs fs;

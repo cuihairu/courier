@@ -137,6 +137,34 @@ test("laya tokenStore:storage 读取异常安全降级返回 null(不反噬)", (
   assert.equal(store.load(), null); // 读取异常:按未认证降级,不抛出
 });
 
+test("laya tokenStore:合法 JSON 非会话对象清场返回 null", () => {
+  const badShapes = [
+    JSON.stringify("access-1"),
+    JSON.stringify(42),
+    JSON.stringify([]),
+    JSON.stringify({}),
+    JSON.stringify({ accessToken: "x" }), // 缺 refreshToken/expires/deviceId
+    JSON.stringify({ accessToken: "", refreshToken: "r", accessExpiresAt: "t", refreshExpiresAt: "t", deviceId: "d" }),
+    JSON.stringify({ accessToken: "a", refreshToken: "r", accessExpiresAt: "t", refreshExpiresAt: "t", deviceId: 42 }),
+  ];
+
+  for (const raw of badShapes) {
+    const storage = new FakeStorage();
+    storage.store.set("courier.session", raw);
+    const store = createLayaboxTokenStore(storage);
+    assert.equal(store.load(), null); // 字符串/数字/数组/`{}`/缺字段/空 token 均非会话
+    assert.equal(storage.store.get("courier.session"), undefined); // 已清场
+  }
+});
+
+test("laya tokenStore:完整会话通过校验(不误清)", () => {
+  const storage = new FakeStorage();
+  storage.store.set("courier.session", sessionJson);
+  const store = createLayaboxTokenStore(storage);
+  assert.deepEqual(store.load(), sessionDto); // 完整会话原样返回
+  assert.equal(storage.store.get("courier.session"), sessionJson); // 未清场
+});
+
 // ---- Transport(XMLHttpRequest) ----
 
 test("laya transport:wire 形状(method/url/header/body/timeout);响应头小写归一", async () => {

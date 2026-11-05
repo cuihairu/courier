@@ -71,15 +71,26 @@ test("cocos tokenStore:合法 JSON 非会话对象清场返回 null", () => {
     JSON.stringify(42),
     JSON.stringify([]),
     JSON.stringify({}),
+    JSON.stringify({ accessToken: "x" }), // 缺 refreshToken/expires/deviceId
+    JSON.stringify({ accessToken: "", refreshToken: "r", accessExpiresAt: "t", refreshExpiresAt: "t", deviceId: "d" }),
+    JSON.stringify({ accessToken: "a", refreshToken: "r", accessExpiresAt: "t", refreshExpiresAt: "t", deviceId: 42 }),
   ];
 
   for (const raw of badShapes) {
     const storage = new FakeStorage();
     storage.setItem("courier.session", raw);
     const store = createCocosTokenStore(storage);
-    assert.equal(store.load(), null); // 字符串/数字/数组/`{}` 均非会话
+    assert.equal(store.load(), null); // 字符串/数字/数组/`{}`/缺字段/空 token 均非会话
     assert.equal(storage.getItem("courier.session"), null); // 已清场
   }
+});
+
+test("cocos tokenStore:完整会话通过校验(不误清)", () => {
+  const storage = new FakeStorage();
+  storage.setItem("courier.session", sessionJson);
+  const store = createCocosTokenStore(storage);
+  assert.deepEqual(store.load(), sessionDto); // 完整会话原样返回
+  assert.equal(storage.getItem("courier.session"), sessionJson); // 未清场
 });
 
 // ---- 全链组合(cocos 适配器 × core) ----

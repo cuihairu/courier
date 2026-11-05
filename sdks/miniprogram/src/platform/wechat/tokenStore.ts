@@ -1,5 +1,6 @@
 // L3 平台适配(微信小程序):TokenStore 的 wx storage 实现。
 // 会话落盘微信本地存储(key 前缀隔离);损坏数据按「未认证」清场,不抛。
+import { isSessionDto } from "../../core/tokenStore.ts";
 import type { TokenStore } from "../../core/tokenStore.ts";
 import type { SessionDto } from "../../core/types.ts";
 import type { WxStorage } from "./wxApi.ts";
@@ -19,7 +20,13 @@ export function createWechatTokenStore(wx: WxStorage, key: string = defaultKey):
         return null;
       }
       try {
-        return JSON.parse(raw) as SessionDto;
+        const parsed: unknown = JSON.parse(raw);
+        if (!isSessionDto(parsed)) {
+          // 合法 JSON 但非会话对象(字符串/数字/数组/`{}`/缺字段/空 token):按未认证清场。
+          wx.removeStorageSync(key);
+          return null;
+        }
+        return parsed;
       } catch {
         wx.removeStorageSync(key); // 损坏数据:本地清场(下次请求自然 401)
         return null;

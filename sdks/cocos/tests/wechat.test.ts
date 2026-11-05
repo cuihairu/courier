@@ -107,6 +107,34 @@ test("wx tokenStore:自定义 key 前缀;损坏数据清场返回 null", () => {
   assert.equal(wx.storage.get("courier.session.dev"), undefined); // 已清场
 });
 
+test("wx tokenStore:合法 JSON 非会话对象清场返回 null", () => {
+  const badShapes = [
+    JSON.stringify("access-1"),
+    JSON.stringify(42),
+    JSON.stringify([]),
+    JSON.stringify({}),
+    JSON.stringify({ accessToken: "x" }), // 缺 refreshToken/expires/deviceId
+    JSON.stringify({ accessToken: "", refreshToken: "r", accessExpiresAt: "t", refreshExpiresAt: "t", deviceId: "d" }),
+    JSON.stringify({ accessToken: "a", refreshToken: "r", accessExpiresAt: "t", refreshExpiresAt: "t", deviceId: 42 }),
+  ];
+
+  for (const raw of badShapes) {
+    const wx = new FakeWx();
+    wx.setStorageSync("courier.session", raw);
+    const store = createWechatTokenStore(wx);
+    assert.equal(store.load(), null); // 字符串/数字/数组/`{}`/缺字段/空 token 均非会话
+    assert.equal(wx.storage.get("courier.session"), undefined); // 已清场
+  }
+});
+
+test("wx tokenStore:完整会话通过校验(不误清)", () => {
+  const wx = new FakeWx();
+  wx.setStorageSync("courier.session", sessionJson);
+  const store = createWechatTokenStore(wx);
+  assert.deepEqual(store.load(), sessionDto); // 完整会话原样返回
+  assert.equal(wx.storage.get("courier.session"), sessionJson); // 未清场
+});
+
 // ---- Transport(wx.request) ----
 
 test("wx transport:wire 形状(url/method/header/body/timeout);响应头小写归一", async () => {
