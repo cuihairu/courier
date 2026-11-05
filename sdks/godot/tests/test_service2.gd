@@ -316,6 +316,42 @@ func t_realname_consent() -> void:
 	check(int(bad.get("error", {}).get("http", 0)) == 400, "http 应 400")
 
 
+# ---- Mail 域(F62,契约 mail.md Frozen v1):列表/详情/领取附件 + 501 降级 ----
+
+func t_mail() -> void:
+	var transport := FakeTransport.new(self)
+	var svc := await new_services(transport)
+
+	# 列表(个人+全量,最新在前)。
+	transport.enqueue(200, success('{"items":[{"id":"mail_1","title":"t","body":"b"}],"nextCursor":null}'))
+	var page: Dictionary = await svc.mail.list(20)
+	check(str(transport.requests[1]["method"]) == "GET", "列表应 GET")
+	check(str(transport.requests[1]["url"]) == "https://api.example.com/v1/mail?limit=20",
+			"列表 URL 不符:" + str(transport.requests[1]["url"]))
+	check(bool(page["data"]["items"][0]["id"] == "mail_1"), "列表项应解析")
+
+	# 详情(经 get_mail;不得覆盖原生 Object.get)。
+	transport.enqueue(200, success('{"id":"mail_1","title":"t","body":"b"}'))
+	var detail: Dictionary = await svc.mail.get_mail("mail_1")
+	check(str(transport.requests[2]["url"]) == "https://api.example.com/v1/mail/mail_1",
+			"详情 URL 不符:" + str(transport.requests[2]["url"]))
+	check(bool(detail.get("ok", true)) and str(detail["data"]["id"]) == "mail_1",
+			"详情应解析")
+
+	# 领取附件(幂等)。
+	transport.enqueue(200, success('{"id":"mail_1","title":"t","body":"b","claimed":true}'))
+	var claimed: Dictionary = await svc.mail.claim("mail_1")
+	check(str(transport.requests[3]["method"]) == "POST", "领取应 POST")
+	check(str(transport.requests[3]["url"]) == "https://api.example.com/v1/mail/mail_1/claim",
+			"领取 URL 不符:" + str(transport.requests[3]["url"]))
+	check(bool(claimed["data"]["claimed"]) == true, "领取应回传")
+
+	# 501 → data:null(能力未接,隐藏邮件入口)。
+	transport.enqueue(501, disabled_body())
+	var off: Dictionary = await svc.mail.list(20)
+	check(bool(off.get("ok", true)) and off["data"] == null, "邮件 501 应 data:null")
+
+
 func _init() -> void:
 	await t_app_anonymous_501()
 	await t_app_maintenance_typed()
@@ -327,5 +363,6 @@ func _init() -> void:
 	await t_payment_typed()
 	await t_realname()
 	await t_realname_consent()
+	await t_mail()
 	print("godot service2 tests: %s (%d failed)" % ["all green" if failed == 0 else "FAILED", failed])
 	quit(1 if failed > 0 else 0)

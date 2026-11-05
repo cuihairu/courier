@@ -21,7 +21,7 @@ func list(limit: int = 20, cursor: String = "") -> Dictionary:
 
 
 ## 邮件详情;不存在/非本人 → typed MAIL_NOT_FOUND。
-func get(mail_id: String) -> Dictionary:
+func get_mail(mail_id: String) -> Dictionary:
 	return await _send_or_disabled("GET", PREFIX + "/" + mail_id.uri_encode(), null)
 
 
