@@ -265,6 +265,26 @@ inline json::Value encode_oauth_bind(const std::string& provider, const std::str
     return v;
 }
 
+inline json::Value encode_session(const SessionDto& s) {
+    json::Value v = json::Value::object();
+    if (s.account.has_value()) {
+        json::Value acc = json::Value::object();
+        acc.set("id", json::Value::str(s.account->id));
+        acc.set("type", json::Value::str(s.account->type));
+        if (s.account->email.has_value()) {
+            acc.set("email", json::Value::str(*s.account->email));
+        }
+        acc.set("status", json::Value::str(s.account->status));
+        acc.set("createdAt", json::Value::str(s.account->created_at));
+        v.set("account", std::move(acc));
+    }
+    v.set("accessToken", json::Value::str(s.access_token));
+    v.set("accessExpiresAt", json::Value::str(s.access_expires_at));
+    v.set("refreshToken", json::Value::str(s.refresh_token));
+    v.set("refreshExpiresAt", json::Value::str(s.refresh_expires_at));
+    v.set("deviceId", json::Value::str(s.device_id));
+    return v;
+}
 }  // namespace courier
 
 #endif  // COURIER_CORE_TYPES_HPP

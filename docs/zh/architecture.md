@@ -236,7 +236,7 @@ CourierClient(门面)
 - 每端 = 平台无关 Core(DTO、生命周期状态机、token 存储、重试)+ 平台 binding(Unity UPM / UE 插件 / Cocos TS / 微信小程序 / Layabox / Godot——项目形态已落位,插件化打包随引擎集成面)。
 - **Adapter 禁带业务**:Adapter 只做「网络、存储、生命周期、线程」的平台翻译;任何业务语义出现即架构违规(上移 Core 或 Service)。
 - 公共 DTO 以 [contract/](./contract/index.md) 为唯一事实源,多端生成或手写对齐,禁止各自发明字段。
-- token 存储接口统一(`ITokenStore` / `TokenStore`),按端落地:Unity 加密存储、微信 storage(miniprogram `platform/wechat`)、Layabox LocalStorage、Godot `user://` 持久文件已实现;UE 平台凭证与 Cocos localStorage 未落仓——仓内默认 `MemoryTokenStore`(进程结束即失效),持久适配随引擎/接入面提供(详见 [layers.md](./layers.md))。
+- token 存储接口统一(`ITokenStore` / `TokenStore`),按端落地:Unity 加密存储、微信 storage(miniprogram `platform/wechat`)、Layabox LocalStorage、Godot `user://` 持久文件、Cocos `sys.localStorage`、UE 文件持久化(`FileTokenStore`,经注入 `FileSystem` 接缝)已实现;`MemoryTokenStore` 仍为仓内默认(测试与不落盘场景,详见 [layers.md](./layers.md))。
 
 ## 安全边界
 

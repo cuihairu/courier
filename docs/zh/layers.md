@@ -76,7 +76,7 @@ L1–L3 在客户端侧,L4–L5 在服务端侧;L1 被所有层依赖,自己不�
 
 **接口形状**
 
-- ITokenStore:Unity 加密存储 / 微信 storage / Layabox LocalStorage / Godot user:// 持久文件已落地;UE 平台凭证与 Cocos localStorage 未落仓(仓内仅 MemoryTokenStore,平台持久化随接入方/引擎面提供);ITransport:各平台网络栈。
+- ITokenStore:Unity 加密存储 / 微信 storage / Layabox LocalStorage / Godot user:// 持久文件 / Cocos sys.localStorage / UE 文件持久化(FileTokenStore,经注入 FileSystem 接缝)已落地;ITransport:各平台网络栈。
 
 **现仓映射**:Unity——`sdks/unity/packages/com.courier.core/Runtime/Adapter`(UnityWebRequest 传输 / SecureTokenStore 加密存储 / ApplicationLifecycleMonitor 前后台 + 引擎无关的 LifecycleSignalRelay 信号归一化(批次 81 拆出,去重/成对恢复/被拒不丢挂起/未绑定 no-op 纯 dotnet 可测)/ UnityWebRequestSseSource messages SSE 流读,批次 37 落位),`tools/packcheck` 结构验收,UPM 四包(core/service/ui/diagnostics)落位;TS 三端 adapter——cocos 与 miniprogram 的 `platform/wechat`、laybox 的 `platform/laya`(wx.request / wx storage / LayaAir 可见性与 onLine 信号;微信端 sseSource.ts——wx.request enableChunked 分块流读 + 增量 UTF-8 解码,批次 39 落位;laybox 端 sseSource.ts——XHR 流读 onprogress 增量 + onload 净关流重连,批次 40 落位);UE C++ header-only 批次 14 落位(引擎集成面 HttpModule 待引擎环境);Godot `src/platform`(httpTransport——HTTPClient poll 真传输、fileTokenStore——user:// 持久令牌存储、sseStreamTransport——messages SSE 流读 chunked 分框+退避重连、lifecycleMonitor——前后台信号→状态机事件,批次 34/35/36 落位,八套 headless 全绿)。
 

@@ -50,6 +50,9 @@ src/
                         sseSource.ts(createWechatSseSource:wx.request enableChunked
                         分块流读,头到回填连接,手写 UTF-8 解码;断流/静默归一重连,
                         真机净关流语义待验随部署面)
+    native/             Cocos 原生/Web 适配器:TokenStore(sys.localStorage,key 前缀隔离,
+                        损坏数据清场)/ 结构面 cocosApi.ts(CocosStorage 注入,测试鸭子匹配);
+                        Transport 走默认 FetchTransport(运行时须有 WHATWG fetch)
   service/
     courierServices.ts  门面:new CourierServices(client) → 九域服务
     announcementService.ts / supportService.ts / sseParser.ts   M2 通讯与客服
@@ -67,7 +70,7 @@ src/
                         直发接入方自有端点(不经网关,不复用认证 Transport 语义);
                         失败静默不重试不缓存,breadcrumb 环形 20 关闭即清空,
                         trace 只记 path 去 query,埋点 props 原始类型单条 ≤1KB 违例抛使用方错
-tests/                  零依赖 node --test(契约 / core / lifecycle / service / stream / wechat / ui / diagnostics,12 文件共 199 例)
+tests/                  零依赖 node --test(契约 / core / lifecycle / service / stream / wechat / native / ui / diagnostics,13 文件共 203 例)
 ```
 
 ## 运行测试
@@ -86,4 +89,4 @@ cd sdks/cocos && node --test tests/*.test.ts
 - 实名姓名/证件号只经 `submitAsync` 传输一次:不缓存、不落盘、不进日志。
 - 推送为提示(SSE 载荷只含提示字段),业务事实以归属校验后的拉取端点为准。
 - 流式接线:SseSource 平台实现(fetch 默认 / 微信 enableChunked);响应头键小写归一;断流统一归一重连,净停经 AbortSignal。
-- token 存储按平台隔离(native localStorage / 微信小游戏 storage),适配器随部署面补。
+- token 存储按平台隔离(native localStorage / 微信小游戏 storage);适配器已落(native/wechat)。

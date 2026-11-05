@@ -23,6 +23,7 @@ run contract contract/contract_test.cpp -Icontract
 run json core/json_test.cpp -Icore -Icontract
 run core core/core_test.cpp -Icore -Icontract
 run lifecycle core/lifecycle_test.cpp -Icore -Icontract
+run token_store core/token_store_test.cpp -Icore -Icontract
 run service service/service_test.cpp -Iservice -Icore -Icontract
 run service2 service/service2_test.cpp -Iservice -Icore -Icontract
 run stream service/sse_stream_test.cpp -Iservice -Icore -Icontract

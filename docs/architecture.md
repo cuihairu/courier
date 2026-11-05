@@ -236,7 +236,7 @@ CourierClient (facade)
 - Each platform = a platform-agnostic Core (DTOs, lifecycle state machine, token storage, retry) + a platform binding (Unity UPM / UE plugin / Cocos TS / WeChat Mini Program / Layabox / Godot — project shapes are in place; plugin-packaged builds follow the engine-integration surface).
 - **Adapters must carry no business logic**: an Adapter only translates "network, storage, lifecycle, threading" for the platform; any business semantics appearing there is an architecture violation (move it up into Core or Service).
 - Public DTOs take [contract/](./contract/index.md) as the single source of truth, generated or hand-aligned per platform; inventing fields per platform is forbidden.
-- Token storage keeps a unified interface (`ITokenStore` / `TokenStore`) landed per platform: Unity encrypted storage, WeChat storage (miniprogram `platform/wechat`), Layabox LocalStorage, and Godot `user://` persistent files are implemented; UE platform credentials and Cocos localStorage are not in-repo yet — the in-repo default is `MemoryTokenStore` (lost on process exit), with persistent adapters following the engine/integration surface (see [layers.md](./layers.md)).
+- Token storage keeps a unified interface (`ITokenStore` / `TokenStore`) landed per platform: Unity encrypted storage, WeChat storage (miniprogram `platform/wechat`), Layabox LocalStorage, Godot `user://` persistent files, Cocos `sys.localStorage`, and UE file-backed (`FileTokenStore` via an injected `FileSystem` seam) are implemented; `MemoryTokenStore` remains the in-repo default for tests and no-persistence scenarios (see [layers.md](./layers.md)).
 
 ## Security Boundaries
 

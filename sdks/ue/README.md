@@ -35,6 +35,9 @@ sdks/ue/
     transport.hpp       Transport 注入接口(引擎侧实现)
     sse_stream.hpp      messages SSE 流接缝(SseSource/SseStream)+ 退避纯函数(引擎侧实现)
     token_store.hpp     TokenStore 注入接口 + 内存实现
+    file_token_store.hpp  持久化文件实现(注入 FileSystem 接缝:引擎侧映射
+                        平台安全存储目录,损坏数据清场;JSON 序列化整会话)
+    token_store_test.cpp  文件 TokenStore 单测(往返/清场/损坏/异常降级)
     api_client.hpp      scope 头、信封解析、重试退避、TOKEN_EXPIRED 刷新重放
     session.hpp         会话域(刷新/登出/设备列表)
     identity.hpp        身份域(注册/登录/游客/bind/refresh)
@@ -51,7 +54,7 @@ sdks/ue/
     app_service.hpp / app_config_service.hpp / branding_service.hpp
     player_service.hpp / assistant_service.hpp / payment_service.hpp / realname_service.hpp
     service_test.cpp / service2_test.cpp / sse_stream_test.cpp
-  run_tests.sh  七套测试独立编译 + 运行(contract/json/core/lifecycle/service/service2/stream)
+  run_tests.sh  八套测试独立编译 + 运行(contract/json/core/lifecycle/token_store/service/service2/stream)
 ```
 
 ## 运行测试
@@ -67,4 +70,5 @@ g++ -std=c++17 -Wall -Wextra,零外部依赖,平台无关逻辑全绿。
 - 与其他端共享 `../../docs/contract/` 契约,DTO 字段逐一对应。
 - 纯 ISO C++17,无异常(错误随 RequestOutcome/ServiceOutcome 返回);同步核心(引擎侧异步化由 L3 适配)。
 - Transport / TokenStore 注入:引擎侧实现 HttpModule 传输与平台安全存储,本仓不含引擎依赖。
+  TokenStore 的引擎无关持久化实现已落(file_token_store.hpp,经注入 FileSystem 接缝;引擎侧映射平台安全存储目录)。
 - UE 引擎集成面(HttpModule 适配、UObject 包装、.uplugin)无编译链未验证——待引擎环境接入。
