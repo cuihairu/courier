@@ -79,6 +79,10 @@ Each Provider's `Options` struct is the sole assembly surface; **nil / not confi
 
 ## 5. Credentials and Configuration Injection
 
+### Runtime environment and routing-table inputs
+
+Source-layer evidence for these inputs is collected in [architecture](./architecture.md#source-layers); terminology is in [glossary](./glossary.md).
+
 Provider secrets are always **injected via environment variables and fail-closed in-process** (`COURIER_PAYMENTS_CHANNEL_SECRET`,
 `COURIER_REALNAME_S2S_TOKEN`, etc., see main.go); they never land in configuration files or enter the contract.
 The gateway side has its own assembly env vars: `COURIER_GATEWAY_ADDR` (listen address, default `:8080`),

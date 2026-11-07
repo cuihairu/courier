@@ -203,6 +203,76 @@ Payment
 
 The contract freezes only `Order / Purchase / Receipt` and the security boundary (callbacks trust only channel signatures); which shape to pick is decided by each game's configuration. The interface shape (`Order / Channel / Callback / Reconcile`) is still frozen up front to avoid rework.
 
+## Source Layers
+
+Source-layer analysis at `af2b0a2` groups the repository into seven responsibilities rather than repeating directory names. Terminology evidence is in [glossary](./glossary.md).
+
+### Runtime Layer
+
+- **Responsibility**: boot the process, validate scope, verify sessions, limit traffic, recover failures, select a healthy provider chain, and serialize response envelopes.
+- **Implementation**: `gateway/cmd/gateway/main.go:47`; capability dispatch is `gateway/routing/routing.go:28`; governance is `gateway/middleware/chain.go:32`; session verification is `gateway/session/session.go:46`.
+- **Configuration schema and inputs**: process and provider assembly inputs come from environment variables at `gateway/cmd/gateway/main.go:48`, `gateway/cmd/gateway/main.go:314`, and `gateway/cmd/gateway/main.go:341`; the JSON routing-table shape is `gateway/providers/config.go:14`.
+- **Dedicated protocol**: the common wire invariants live in [contract/primitives](./contract/primitives.md), [contract/scope](./contract/scope.md), [contract/errors](./contract/errors.md), and [contract/versioning](./contract/versioning.md); server encoding is `gateway/aggregation/envelope.go:148`.
+- **Narrative surface**: [Provider Integration Guide](./provider-guide.md) documents the runtime environment surface and replacement acceptance.
+
+### Contract Layer
+
+- **Responsibility**: freeze wire shape, scope, errors, pagination, events, compatibility, and each domain's player-facing semantics.
+- **Implementation**: normative Markdown in `docs/contract/`; machine-readable inputs are `docs/contract/fixtures/errors.json`, `docs/contract/fixtures/scope.json`, and `docs/contract/fixtures/dto.json`.
+- **Configuration schema**: the protocol fixtures are the schema snapshots; `tools/contractgen/main.go:77` validates that generated client surfaces match them byte-for-byte.
+- **Dedicated protocol**: every file in `docs/contract/` is the protocol source; `docs/contract/events.md:21` specifically freezes the SSE push semantics.
+- **Narrative surface**: [contract index](./contract/index.md) is the constitution page; domain contracts cross-link from the architecture capability tree.
+
+### SDK Core Layer
+
+- **Responsibility**: provide platform-neutral configuration, lifecycle, session, retry, envelope parsing, typed errors, and domain service orchestration.
+- **Implementation**: Cocos/TS Core is `sdks/cocos/src/core/`; the facade and delayed session/API wiring are `sdks/cocos/src/core/courierClient.ts:26`; Unity Core is `sdks/unity/packages/com.courier.core/Runtime/Core`; UE Core is `sdks/ue/core`; Godot Core is `sdks/godot/src/core`.
+- **Configuration schema**: `CourierConfig` fields and validation are `sdks/unity/packages/com.courier.core/Runtime/Core/CourierConfig.cs:13`; the TS shape is `sdks/cocos/src/core/types.ts:5`; Godot reads the same `gameId`, `env`, `endpoint`, and `language` keys at `sdks/godot/src/core/courierClient.gd:18`.
+- **Dedicated protocol**: generated client contract files are the concrete protocol surfaces, for example `sdks/cocos/src/contract/errors.ts` and `sdks/ue/contract/envelope.hpp`.
+- **Narrative surface**: [SDK Structure](#sdk-structure-isomorphic-across-platforms) and `examples/README.md` explain the integration shape.
+
+### Platform Adapter Layer
+
+- **Responsibility**: translate transport, token persistence, foreground/background signals, and optional diagnostics reporting into each engine or host runtime without adding business semantics.
+- **Implementation**: Unity adapters live in `sdks/unity/packages/com.courier.core/Runtime/Adapter`; WeChat/Cocos adapters in `sdks/cocos/src/platform/wechat`; Layabox adapters in `sdks/laybox/src/platform/laya`; Godot bindings in `sdks/godot/src`; UE host bindings are injected through UE Core seams.
+- **Configuration schema**: the optional diagnostics object is `sdks/cocos/src/diagnostics/diagnosticsTypes.ts:20`; transport and token-store implementations are constructor dependencies, as shown by `sdks/cocos/src/core/courierClient.ts:11`.
+- **Dedicated protocol**: diagnostics has its own direct-send schema in [contract/diagnostics](./contract/diagnostics.md); regular calls reuse the Contract and Core layers.
+- **Narrative surface**: the packaging and adapter boundary section in [SDK Structure](#sdk-structure-isomorphic-across-platforms), plus each SDK package README where present.
+
+### Domain Provider Layer
+
+- **Responsibility**: implement eleven capability domains behind the generic provider handler, including domain stores, event publication, external verification/payment seams, and alternate storage models.
+- **Implementation**: handlers are grouped under `gateway/providers/*`; the capability-to-directory map starts with `gateway/providers/account/account.go:82` and follows the registrations in `gateway/cmd/gateway/main.go:218` and `gateway/cmd/gateway/main.go:223`.
+- **Configuration schema**: selection is `gateway/providers/config.go:14`; credentials and persistence inputs are wired in `gateway/cmd/gateway/main.go:139` through `gateway/cmd/gateway/main.go:216`, and are summarized in [Provider Integration Guide](./provider-guide.md#5-credentials-and-configuration-injection).
+- **Dedicated protocol**: each domain contract under `docs/contract/` defines its endpoint and DTO protocol; push events are registered in [contract/events](./contract/events.md).
+- **Narrative surface**: [Provider Integration Guide](./provider-guide.md) maps each capability, options type, and second implementation.
+
+### Build and Guard Tooling Layer
+
+- **Responsibility**: generate cross-platform contract artifacts, enforce TS byte parity, validate Unity package isolation, and define the repository test matrix.
+- **Implementation**: generation is `tools/contractgen/main.go:112`; parity is `tools/tsync/main_test.go:44`; package assertions are `tools/packcheck/main_test.go:43`; the test matrix is `.github/workflows/tests.yml:47`.
+- **Configuration schema**: generation paths and fixture inputs are declared in `tools/contractgen/main.go:77`; CI tool versions and projects are encoded in `.github/workflows/tests.yml` and `package.json`.
+- **Dedicated protocol**: fixtures under `docs/contract/fixtures/` are both protocol snapshots and generation inputs.
+- **Narrative surface**: README's testing and repository-layout sections link this layer to its commands.
+
+### Acceptance Layer
+
+- **Responsibility**: execute unit, pure-engine, headless, and local-gateway end-to-end checks; prove that paired providers expose the same wire behavior.
+- **Implementation**: gateway conformance suites are `gateway/e2e/*_conformance_test.go`; engine suites live beside their SDKs; CI orchestration is `.github/workflows/tests.yml:47`.
+- **Configuration schema**: CI commands and engine versions are `.github/workflows/tests.yml:54` through `.github/workflows/tests.yml:137`; no runtime configuration is introduced here.
+- **Dedicated protocol**: fixtures and conformance scenarios encode the acceptance protocol; pair examples include `gateway/e2e/identity_conformance_test.go` and `gateway/e2e/payments_conformance_test.go`.
+- **Narrative surface**: [Provider Integration Guide, replacement acceptance](./provider-guide.md#6-replacement-acceptance-the-consistency-test-precedent) and the repository TODO ledger.
+
+### Why This Splitting Holds
+
+1. **Contract-first, not code-first**: compatibility is defined before endpoints (`docs/contract/versioning.md:14`), and unknown error codes/fields must be tolerated (`docs/contract/versioning.md:26`). A separate Contract Layer prevents an SDK or gateway implementation from silently becoming the wire definition.
+2. **Runtime governance is generic**: `Capability` explicitly forbids backend entity names (`gateway/providers/capability.go:3`), and the dispatcher only sees health plus a provider chain (`gateway/routing/routing.go:64`). A provider can be swapped without editing entry governance.
+3. **Scope and identity need one shared path**: scope arrives only through two validated headers (`gateway/middleware/chain.go:68`), then sessions compare it to their issued binding (`gateway/session/session.go:68`). Putting this inside domain code would allow per-domain divergence.
+4. **Cross-domain semantics are seam-owned**: dependent providers receive the switchable verifier and publish through an atomic event target (`gateway/cmd/gateway/main.go:69`, `gateway/cmd/gateway/main.go:80`). Reload then redirects verifier, publisher, and maintenance gate together (`gateway/cmd/gateway/reload.go:53`), avoiding stale dependencies after a primary switch.
+5. **Client portability needs two boundaries**: transport and token storage are injected before `CourierClient` is constructed (`sdks/cocos/src/core/courierClient.ts:14`). That keeps retry/envelope/lifecycle logic out of every engine binding and makes memory versus secure persistence an explicit adapter choice (`sdks/cocos/src/core/tokenStore.ts:27`).
+6. **Domain implementations must be independently replaceable**: payment state is hidden behind an `OrderStore`/`StateFile` seam (`gateway/providers/teller/teller.go:77`), and support attachments are fail-closed unless a signer is injected (`gateway/providers/croupier/croupier.go:48`). This keeps an alternate ledger or object store from leaking into the contract or gateway.
+7. **Generated surfaces need mechanical guards**: contract generation maps fixtures to fixed Unity/TS/UE/Godot paths (`tools/contractgen/main.go:99`) and drift exits nonzero (`tools/contractgen/main.go:112`), while TS shared directories are byte-compared (`tools/tsync/main_test.go:44`). Layer drift becomes a test failure instead of a review-only claim.
+
 ## Key Decisions
 
 1. **The contract is the constitution.** Constituted and frozen at M0 ([contract/](./contract/index.md)); the precondition for M1 Auth work. SDK Contract > Everything.

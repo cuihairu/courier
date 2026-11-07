@@ -26,6 +26,7 @@ export default defineConfig({
             items: [
               { text: '架构', link: '/zh/architecture' },
               { text: '五层架构', link: '/zh/layers' },
+              { text: '源码术语表', link: '/zh/glossary' },
               { text: '路线图', link: '/zh/roadmap' },
               { text: 'TODO', link: '/zh/todo' },
               { text: '选装清单', link: '/zh/sdk-selection' },
@@ -89,6 +90,7 @@ export default defineConfig({
         items: [
           { text: 'Architecture', link: '/architecture' },
           { text: 'Five-Layer Architecture', link: '/layers' },
+          { text: 'Source Glossary', link: '/glossary' },
           { text: 'Roadmap', link: '/roadmap' },
           { text: 'TODO', link: '/todo' },
           { text: 'SDK Selection', link: '/sdk-selection' },

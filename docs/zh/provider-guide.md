@@ -79,6 +79,10 @@ sidecar 形态契约不动,属部署面演进。
 
 ## 5. 凭据与配置注入
 
+### 运行环境与路由表输入
+
+这些输入的源码分层证据汇总于[架构](./architecture.md#源码分层)；术语见[术语表](./glossary.md)。
+
 Provider 的密钥一律**环境变量注入、进程内 fail-closed**(`COURIER_PAYMENTS_CHANNEL_SECRET`、
 `COURIER_REALNAME_S2S_TOKEN` 等,见 main.go);不落配置文件、不进契约。
 网关侧另有装配 env:`COURIER_GATEWAY_ADDR`(监听地址,缺省 `:8080`)、
