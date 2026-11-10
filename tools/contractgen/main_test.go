@@ -400,6 +400,124 @@ func TestReadJSONFatalBranches(t *testing.T) {
 	})
 }
 
+// TestCamelName 各端枚举成员命名:下划线分段首字母大写、其余小写;空段(首/尾/
+// 连续下划线产生)跳过不产空段;全小写输入同样归一。
+func TestCamelName(t *testing.T) {
+	cases := []struct {
+		wire, want string
+	}{
+		{"COMMON_INTERNAL", "CommonInternal"},
+		{"ORDER_TIMEOUT", "OrderTimeout"},
+		{"_LEADING", "Leading"},
+		{"TRAILING_", "Trailing"},
+		{"DOUBLE__UNDER", "DoubleUnder"},
+		{"", ""},
+		{"lower_case", "LowerCase"},
+	}
+	for _, c := range cases {
+		if got := camelName(c.wire); got != c.want {
+			t.Errorf("camelName(%q) = %q, want %q", c.wire, got, c.want)
+		}
+	}
+}
+
+// TestCheckOrWriteReadFatal 读错误(非缺失):生成物落点被目录占据时 ReadFile
+// 报「is a directory」,既非 IsNotExist 也非可写回——校验模式直接致命退出 1。
+func TestCheckOrWriteReadFatal(t *testing.T) {
+	tmp := t.TempDir()
+	stageFixtures(t, tmp)
+	checkOrWrite(tmp, true)
+
+	files := generate(tmp)
+	rel := ""
+	for r := range files {
+		rel = r
+		break
+	}
+	if err := os.Remove(filepath.Join(tmp, rel)); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(tmp, rel), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	code, _, stderr := captureIO(t, func() { checkOrWrite(tmp, false) })
+	if code != 1 {
+		t.Errorf("读错误应致命退出 1,实得 %d", code)
+	}
+	if !strings.Contains(stderr, "读 "+rel) {
+		t.Errorf("stderr 缺读错误信息: %q", stderr)
+	}
+}
+
+// TestCheckOrWriteUpdate 写模式下内容漂移 = 更新:逐文件报「更新:」后落盘纠正,
+// 结尾报「生成完成。」;复查落盘内容与重新生成逐字节一致。
+func TestCheckOrWriteUpdate(t *testing.T) {
+	tmp := t.TempDir()
+	stageFixtures(t, tmp)
+	checkOrWrite(tmp, true)
+
+	files := generate(tmp)
+	rel := ""
+	for r := range files {
+		rel = r
+		break
+	}
+	path := filepath.Join(tmp, rel)
+	if err := os.WriteFile(path, append([]byte("drift\n"), files[rel]...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	code, stdout, _ := captureIO(t, func() { checkOrWrite(tmp, true) })
+	if code != 0 {
+		t.Errorf("写模式纠正漂移不应致命,实得退出码 %d", code)
+	}
+	if !strings.Contains(stdout, "更新: "+rel) {
+		t.Errorf("stdout 缺更新行: %q", stdout)
+	}
+	if !strings.Contains(stdout, "生成完成。") {
+		t.Errorf("stdout 缺完成行: %q", stdout)
+	}
+	have, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(have) != string(files[rel]) {
+		t.Errorf("更新后 %s 与生成内容不一致", rel)
+	}
+}
+
+// TestCheckOrWriteWriteFatal 写错误:生成物为只读文件时 -write 打不开写句柄,
+// 致命退出 1 且信息点名该文件(root 下权限不拦写,跳过)。
+func TestCheckOrWriteWriteFatal(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root 不受文件权限约束,无法触发写错误")
+	}
+	tmp := t.TempDir()
+	stageFixtures(t, tmp)
+	checkOrWrite(tmp, true)
+
+	files := generate(tmp)
+	rel := ""
+	for r := range files {
+		rel = r
+		break
+	}
+	path := filepath.Join(tmp, rel)
+	if err := os.Chmod(path, 0o444); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(path, 0o644) })
+
+	code, _, stderr := captureIO(t, func() { checkOrWrite(tmp, true) })
+	if code != 1 {
+		t.Errorf("写错误应致命退出 1,实得 %d", code)
+	}
+	if !strings.Contains(stderr, "写 "+rel) {
+		t.Errorf("stderr 缺写错误信息: %q", stderr)
+	}
+}
+
 // TestCheckOrWriteDriftFatal 缺文件与内容漂移:同一轮各命中一支,汇总致命信息
 // 指回 -write(校验模式下重生成;stdout 逐文件行缺失/漂移)。
 func TestCheckOrWriteDriftFatal(t *testing.T) {
