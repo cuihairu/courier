@@ -2,6 +2,7 @@ package account
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -339,6 +340,78 @@ func TestRefreshExpired(t *testing.T) {
 	r := h.post(t, "/v1/identity/refresh", `{"refreshToken":"`+s.RefreshToken+`"}`)
 	if r.status != http.StatusUnauthorized || r.code != "AUTH_TOKEN_EXPIRED" {
 		t.Fatalf("status=%d code=%s", r.status, r.code)
+	}
+}
+
+// 审核回归(2026-11-11 P1):并发 refresh 同一 token 必须严格串行化——
+// 恰好一次成功、其余全部 REUSED,且胜者刚换到的新 token 属当前代(会话被
+// 重放侧吊销后应答 TOKEN_REVOKED,绝不 REUSED)。原两段锁(LookupRefresh→
+// RotateSession 分两次持锁)下「都读到当前代、双双轮换」绕过重放检测,
+// 先到者的新 token 立即落后一代,正常使用即被误判 REUSED 整会话吊销。
+func TestRefreshConcurrentRotation(t *testing.T) {
+	for round := 0; round < 16; round++ {
+		h := newHarness(t, nil)
+		s := h.mustRegister(t, fmt.Sprintf("race-%d@b.co", round), "password8", "dev-1")
+		body := `{"refreshToken":"` + s.RefreshToken + `"}`
+
+		const n = 8
+		type outcome struct {
+			status int
+			code   string
+			data   json.RawMessage
+		}
+		start := make(chan struct{})
+		out := make(chan outcome, n)
+		for i := 0; i < n; i++ {
+			go func() {
+				<-start
+				r := httptest.NewRequest(http.MethodPost, "/v1/identity/refresh", strings.NewReader(body))
+				r.Header.Set("Content-Type", "application/json")
+				r.Header.Set(scope.HeaderGameID, "game_a")
+				r.Header.Set(scope.HeaderEnv, "prod")
+				rec := httptest.NewRecorder()
+				h.h.ServeHTTP(rec, r)
+				var env struct {
+					Error *struct {
+						Code string `json:"code"`
+					} `json:"error"`
+					Data json.RawMessage `json:"data"`
+				}
+				_ = json.Unmarshal(rec.Body.Bytes(), &env)
+				oc := outcome{status: rec.Code, code: "", data: env.Data}
+				if env.Error != nil {
+					oc.code = env.Error.Code
+				}
+				out <- oc
+			}()
+		}
+		close(start)
+
+		var ok, reused int
+		var winner sessionDTO
+		for i := 0; i < n; i++ {
+			r := <-out
+			switch {
+			case r.status == http.StatusOK:
+				ok++
+				if err := json.Unmarshal(r.data, &winner); err != nil {
+					t.Fatalf("轮 %d:解析成功响应: %v", round, err)
+				}
+			case r.code == "AUTH_REFRESH_REUSED":
+				reused++
+			default:
+				t.Fatalf("轮 %d:意外响应 status=%d code=%s", round, r.status, r.code)
+			}
+		}
+		if ok != 1 || reused != n-1 {
+			t.Fatalf("轮 %d:成功=%d 重放=%d,期望恰好 1/%d", round, ok, reused, n-1)
+		}
+		// 胜者新 token 是当前代;会话已被重放侧吊销 → TOKEN_REVOKED,
+		// 双轮换旧缺陷下它会落后一代被误答 REUSED。
+		after := h.post(t, "/v1/identity/refresh", `{"refreshToken":"`+winner.RefreshToken+`"}`)
+		if after.status != http.StatusUnauthorized || after.code != "AUTH_TOKEN_REVOKED" {
+			t.Fatalf("轮 %d:胜者新 token 应 TOKEN_REVOKED: %d %s", round, after.status, after.code)
+		}
 	}
 }
 

@@ -519,47 +519,32 @@ func (p *Provider) handleRefresh(w http.ResponseWriter, r *http.Request) {
 		aggregation.WriteError(w, tid, aggregation.CodeInvalidCredentials, "invalid refresh token")
 		return
 	}
-	sess, ok := p.store.Session(claims.sessionID)
-	if !ok {
-		aggregation.WriteError(w, tid, aggregation.CodeInvalidCredentials, "invalid refresh token")
-		return
-	}
-	if sess.revoked {
-		aggregation.WriteError(w, tid, aggregation.CodeTokenRevoked, "session revoked")
-		return
-	}
-	if p.store.now().After(claims.expiresAt) {
-		aggregation.WriteError(w, tid, aggregation.CodeTokenExpired, "refresh token expired")
-		return
-	}
-	switch {
-	case claims.gen < sess.gen:
-		// 已轮换的 refresh 再次出现 = 令牌泄露 → 吊销整个会话。
-		p.store.RevokeSession(sess.id)
-		aggregation.WriteError(w, tid, aggregation.CodeRefreshReused,
-			"refresh token replay detected; session revoked")
-	case claims.gen > sess.gen:
-		aggregation.WriteError(w, tid, aggregation.CodeInvalidCredentials, "invalid refresh token")
-	default:
-		access, refresh, err := p.store.Rotate(sess.id)
-		if err != nil {
-			p.writeStoreError(w, r, err)
-			return
-		}
+	switch d, sess, access, refresh := p.store.ConsumeRefresh(claims.sessionID, claims.gen, claims.expiresAt); d {
+	case RefreshRotated:
 		acc, ok := p.store.GetAccount(sess.accountID)
 		if !ok {
 			aggregation.WriteError(w, tid, aggregation.CodeInternal, "internal error")
 			return
 		}
-		rotated, _ := p.store.Session(sess.id)
 		aggregation.WriteData(w, sessionDTO{
 			Account:          toAccountDTO(acc),
 			AccessToken:      access,
 			AccessExpiresAt:  fmtTime(p.store.now().Add(p.store.opts.AccessTTL)),
 			RefreshToken:     refresh,
-			RefreshExpiresAt: fmtTime(rotated.refreshExpires),
+			RefreshExpiresAt: fmtTime(sess.refreshExpires),
 			DeviceID:         sess.deviceID,
 		})
+	case RefreshReused:
+		// 已轮换的 refresh 再次出现 = 令牌泄露 → 吊销整个会话
+		//(吊销已在 ConsumeRefresh 同临界区完成,消除原两段锁窗口)。
+		aggregation.WriteError(w, tid, aggregation.CodeRefreshReused,
+			"refresh token replay detected; session revoked")
+	case RefreshRevoked:
+		aggregation.WriteError(w, tid, aggregation.CodeTokenRevoked, "session revoked")
+	case RefreshExpired:
+		aggregation.WriteError(w, tid, aggregation.CodeTokenExpired, "refresh token expired")
+	default:
+		aggregation.WriteError(w, tid, aggregation.CodeInvalidCredentials, "invalid refresh token")
 	}
 }
 

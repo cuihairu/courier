@@ -437,52 +437,59 @@ func (s *Store) CreateSession(accountID, gameID, env, deviceID string) (sess ses
 	return *row, access, refresh, nil
 }
 
-// RefreshGeneration refresh token 所属代(重放检测)。
-type RefreshGeneration int
+// RefreshOutcome ConsumeRefresh 的原子判定结果(契约 auth.md POST /refresh 表)。
+type RefreshOutcome int
 
 const (
-	RefreshNone RefreshGeneration = iota
-	RefreshCurrent
-	RefreshPrevious
+	RefreshInvalid  RefreshOutcome = iota // 未知 token
+	RefreshRotated                        // 当前代,已完成轮换
+	RefreshReused                         // 上一代重放,整个会话已在同临界区吊销
+	RefreshRevoked                        // 当前代但会话已吊销(err=auth.ErrTokenRevoked)
+	RefreshExpired                        // 当前代但已过 refresh TTL(err=auth.ErrTokenExpired)
 )
 
-// LookupRefresh 定位 refresh token → (会话 ID, 所属代)。
-func (s *Store) LookupRefresh(refresh string) (string, RefreshGeneration) {
+// ConsumeRefresh 定位+判定+变更并入同一临界区(审核 2026-11-11 P1 修复:
+// 原两段锁 LookupRefresh→RotateSession/ReuseDetected 分两次持锁,并发
+// refresh 同一会话都读到当前代、双双轮换,绕过重放检测且先到者刚换到的
+// 新 token 立即落后一代,正常使用即被误判 REUSED 整会话吊销)。当前代路径
+// 沿用原轮换前置校验与代际翻页(旧 refresh 记入 previous、旧 access 立即
+// 失效);上一代路径同步完成吊销。err 仅在 Revoked/Expired 携带哨兵值供
+// 错误码映射,RefreshInvalid+err 为 genToken 内部错误。
+func (s *Store) ConsumeRefresh(refresh string) (out RefreshOutcome, sess sessionRow, access, newRefresh string, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	h := sha256Hex(refresh)
-	if id, ok := s.refreshIndex[h]; ok {
-		return id, RefreshCurrent
-	}
-	if id, ok := s.prevRefreshIdx[h]; ok {
-		return id, RefreshPrevious
-	}
-	return "", RefreshNone
-}
-
-// RotateSession 轮换:旧 access 立即失效,旧 refresh 记入 previous;
-// refresh 已过期 → auth.ErrTokenExpired(客户端应重登)。
-func (s *Store) RotateSession(sessionID string) (sess sessionRow, access, refresh string, err error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	t := s.now()
-	row, ok := s.sessions[sessionID]
+	id, ok := s.refreshIndex[h]
 	if !ok {
-		return sessionRow{}, "", "", ErrNotFound
+		id, ok = s.prevRefreshIdx[h]
+		if !ok {
+			return RefreshInvalid, sessionRow{}, "", "", nil
+		}
+		// 上一代重放 = 令牌泄露 → 吊销整个会话(auth.md POST /refresh 表)。
+		if row, ok := s.sessions[id]; ok && row.revokedAt == nil {
+			t := s.now()
+			row.revokedAt = &t
+		}
+		return RefreshReused, sessionRow{}, "", "", nil
+	}
+	row, ok := s.sessions[id]
+	if !ok {
+		return RefreshInvalid, sessionRow{}, "", "", nil
 	}
 	if row.revokedAt != nil {
-		return sessionRow{}, "", "", auth.ErrTokenRevoked
+		return RefreshRevoked, sessionRow{}, "", "", auth.ErrTokenRevoked
 	}
+	t := s.now()
 	if t.After(row.refreshExpiresAt) {
-		return sessionRow{}, "", "", auth.ErrTokenExpired
+		return RefreshExpired, sessionRow{}, "", "", auth.ErrTokenExpired // 客户端应重登
 	}
 	access, err = genToken()
 	if err != nil {
-		return sessionRow{}, "", "", err
+		return RefreshInvalid, sessionRow{}, "", "", err
 	}
-	refresh, err = genToken()
+	newRefresh, err = genToken()
 	if err != nil {
-		return sessionRow{}, "", "", err
+		return RefreshInvalid, sessionRow{}, "", "", err
 	}
 	if row.prevRefreshHash != "" {
 		delete(s.prevRefreshIdx, row.prevRefreshHash) // 只保留上一代
@@ -493,22 +500,12 @@ func (s *Store) RotateSession(sessionID string) (sess sessionRow, access, refres
 	s.prevRefreshIdx[row.prevRefreshHash] = row.id
 
 	row.accessHash = sha256Hex(access)
-	row.refreshHash = sha256Hex(refresh)
+	row.refreshHash = sha256Hex(newRefresh)
 	s.accessIndex[row.accessHash] = row.id
 	s.refreshIndex[row.refreshHash] = row.id
 	row.accessExpiresAt = t.Add(s.opts.AccessTTL)
 	row.refreshExpiresAt = t.Add(s.opts.RefreshTTL)
-	return *row, access, refresh, nil
-}
-
-// ReuseDetected 重放命中:吊销整个会话(安全处置,auth.md POST /refresh 表)。
-func (s *Store) ReuseDetected(sessionID string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if row, ok := s.sessions[sessionID]; ok && row.revokedAt == nil {
-		t := s.now()
-		row.revokedAt = &t
-	}
+	return RefreshRotated, *row, access, newRefresh, nil
 }
 
 // RevokeSession 吊销单个会话(logout);幂等。

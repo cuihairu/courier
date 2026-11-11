@@ -349,6 +349,53 @@ func (s *Store) Rotate(sessID string) (access, refresh string, err error) {
 		nil
 }
 
+// RefreshDecision ConsumeRefresh 的原子判定结果(契约 auth.md POST /refresh 表)。
+type RefreshDecision int
+
+const (
+	RefreshInvalid  RefreshDecision = iota // 会话不存在或代际超前(伪造)
+	RefreshRotated                         // 当前代,已代际 +1 完成轮换
+	RefreshReused                          // 上一代重放,整个会话已在同临界区吊销
+	RefreshRevoked                         // 会话已吊销
+	RefreshExpired                         // refresh claim 已过 exp
+)
+
+// ConsumeRefresh 会话加载+代际判定+轮换/吊销并入同一临界区(审核
+// 2026-11-11 P1 修复:原 handler「Session 读锁→判定→Rotate/Revoke 再持锁」
+// 两段式,并发 refresh 同一会话都读到当前代、双双 Rotate,绕过重放检测且
+// 先到者刚换到的新 token 立即落后一代,正常使用即被误判 REUSED 整会话
+// 吊销)。判定顺序沿用原 handler:不存在→吊销→过期→代际。
+func (s *Store) ConsumeRefresh(sessID string, gen int, expiresAt time.Time) (RefreshDecision, altSession, string, string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	sess, ok := s.sessions[sessID]
+	if !ok {
+		return RefreshInvalid, altSession{}, "", ""
+	}
+	if sess.revoked {
+		return RefreshRevoked, *sess, "", ""
+	}
+	if s.now().After(expiresAt) {
+		return RefreshExpired, *sess, "", ""
+	}
+	switch {
+	case gen < sess.gen:
+		// 上一代重放 = 令牌泄露 → 吊销整个会话(auth.md POST /refresh 表)。
+		sess.revoked = true
+		return RefreshReused, *sess, "", ""
+	case gen > sess.gen:
+		return RefreshInvalid, *sess, "", ""
+	}
+	now := s.now()
+	sess.gen++
+	sess.refreshExpires = now.Add(s.opts.RefreshTTL)
+	n := nonce()
+	sess.accessNonce = n
+	return RefreshRotated, *sess,
+		s.codec.issueAccess(sess.id, sess.accountID, sess.deviceID, sess.gameID, sess.env, now.Add(s.opts.AccessTTL), n),
+		s.codec.issueRefresh(sess.id, sess.gen, sess.refreshExpires)
+}
+
 func (s *Store) RevokeSession(sessID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

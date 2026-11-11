@@ -99,7 +99,7 @@ func TestRefreshGenerationReplay(t *testing.T) {
 	if _, err := p.store.codec.parseRefresh(refresh1); err != nil {
 		t.Fatalf("旧 refresh 应仍可解析: %v", err)
 	}
-	p.store.RevokeSession(r1.sessionID) // 上层在 gen<current 时吊销(行为契约)
+	p.store.RevokeSession(r1.sessionID) // 旧 handler 在 gen<current 时吊销;现由 ConsumeRefresh 原子完成(行为契约不变)
 
 	// 旧 access 因会话吊销而死(签名仍有效但状态拒)
 	ac, err := p.store.codec.parseAccess(access1)
@@ -109,6 +109,64 @@ func TestRefreshGenerationReplay(t *testing.T) {
 	sess, _ = p.store.Session(ac.sessionID)
 	if !sess.revoked {
 		t.Fatal("会话应已吊销")
+	}
+}
+
+// 审核回归(2026-11-11 P1):并发 refresh 同一会话必须严格串行化——恰好
+// 一次轮换、其余全部 REUSED,代际恰好 +1(两段式「Session 读→Rotate」下
+// 「都读到当前代、双双 Rotate」会使 gen +2,绕过重放检测且先到者刚换到
+// 的 token 立即落后一代,正常使用即被误判 REUSED)。
+func TestConsumeRefreshConcurrent(t *testing.T) {
+	p := newTestProvider(t, nil)
+	acc, err := p.store.CreateEmailAccount("race@b.co", "password8")
+	if err != nil {
+		t.Fatalf("注册: %v", err)
+	}
+	for round := 0; round < 32; round++ {
+		_, _, refresh, err := p.store.CreateSession(acc.id, "game_a", "prod", "d1")
+		if err != nil {
+			t.Fatalf("建会话: %v", err)
+		}
+		claims, err := p.store.codec.parseRefresh(refresh)
+		if err != nil {
+			t.Fatalf("解析: %v", err)
+		}
+
+		const n = 8
+		start := make(chan struct{})
+		out := make(chan RefreshDecision, n)
+		for i := 0; i < n; i++ {
+			go func() {
+				<-start
+				d, _, _, _ := p.store.ConsumeRefresh(claims.sessionID, claims.gen, claims.expiresAt)
+				out <- d
+			}()
+		}
+		close(start)
+
+		var rotated, replay int
+		for i := 0; i < n; i++ {
+			d := <-out
+			switch d {
+			case RefreshRotated:
+				rotated++
+			case RefreshReused, RefreshRevoked:
+				// 首个重放侧命中 REUSED 并吊销;其余人见会话已吊销 → REVOKED
+				//(revoked 检查先于代际判定,与旧 handler 顺序一致)。
+				replay++
+			default:
+				t.Fatalf("轮 %d:不应出现其他判定 %d", round, d)
+			}
+		}
+		if rotated != 1 || replay != n-1 {
+			t.Fatalf("轮 %d:rotated=%d replay=%d,期望恰好 1/%d", round, rotated, replay, n-1)
+		}
+		// 恰好一次轮换 → gen 恰好 +1;会话已被重放侧吊销。
+		sess, _ := p.store.Session(claims.sessionID)
+		if sess.gen != claims.gen+1 || !sess.revoked {
+			t.Fatalf("轮 %d:gen=%d revoked=%v,期望 gen=%d revoked=true",
+				round, sess.gen, sess.revoked, claims.gen+1)
+		}
 	}
 }
 

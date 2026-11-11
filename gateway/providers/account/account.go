@@ -485,14 +485,9 @@ func (p *AccountProvider) handleRefresh(w http.ResponseWriter, r *http.Request) 
 		badRequest(w, r, "refreshToken required")
 		return
 	}
-	sid, gen := p.store.LookupRefresh(req.RefreshToken)
-	switch gen {
-	case RefreshCurrent:
-		sess, access, refresh, err := p.store.RotateSession(sid)
-		if err != nil {
-			p.writeStoreError(w, r, err)
-			return
-		}
+	out, sess, access, refresh, err := p.store.ConsumeRefresh(req.RefreshToken)
+	switch out {
+	case RefreshRotated:
 		acc, ok := p.store.GetAccount(sess.accountID)
 		if !ok {
 			aggregation.WriteError(w, tid, aggregation.CodeInternal, "internal error")
@@ -506,12 +501,18 @@ func (p *AccountProvider) handleRefresh(w http.ResponseWriter, r *http.Request) 
 			RefreshExpiresAt: fmtTime(sess.refreshExpiresAt),
 			DeviceID:         sess.deviceID,
 		})
-	case RefreshPrevious:
-		// 已轮换的 refresh 再次出现 = 令牌泄露 → 吊销整个会话。
-		p.store.ReuseDetected(sid)
+	case RefreshReused:
+		// 已轮换的 refresh 再次出现 = 令牌泄露 → 吊销整个会话
+		//(吊销已在 ConsumeRefresh 同临界区完成,消除原两段锁窗口)。
 		aggregation.WriteError(w, tid, aggregation.CodeRefreshReused,
 			"refresh token replay detected; session revoked")
+	case RefreshRevoked, RefreshExpired:
+		p.writeStoreError(w, r, err)
 	default:
+		if err != nil { // genToken 内部错误
+			p.writeStoreError(w, r, err)
+			return
+		}
 		aggregation.WriteError(w, tid, aggregation.CodeInvalidCredentials, "invalid refresh token")
 	}
 }
