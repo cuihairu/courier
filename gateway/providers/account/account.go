@@ -423,17 +423,14 @@ func (p *AccountProvider) handleGuest(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, r, "deviceId required")
 		return
 	}
-	acc, found := p.store.FindGuestByDevice(req.DeviceID)
-	if !found {
-		acc, err := p.store.CreateGuestAccount(req.DeviceID, req.Platform)
-		if err != nil {
-			p.writeStoreError(w, r, err)
-			return
-		}
-		p.writeSession(w, r, acc, req.DeviceID)
+	// 幂等查重与建号在存储同一临界区完成(审核 2026-11-11 P1:原两段锁下
+	// 同 deviceId 并发请求各自建号)。
+	acc, existed, err := p.store.EnsureGuestAccount(req.DeviceID, req.Platform)
+	if err != nil {
+		p.writeStoreError(w, r, err)
 		return
 	}
-	if acc.status != StatusActive {
+	if existed && acc.status != StatusActive {
 		aggregation.WriteError(w, middleware.TraceID(r.Context()), aggregation.CodeAccountDisabled,
 			"account disabled")
 		return

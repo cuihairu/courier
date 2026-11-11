@@ -246,6 +246,58 @@ func TestGuestIdempotent(t *testing.T) {
 	}
 }
 
+// 审核回归(2026-11-11 P1):同 deviceId 并发 /guest 必须幂等——全部请求
+// 指向同一账号 ID。原「FindGuestByDevice→CreateGuestAccount」分两次持锁,
+// 并发请求都查不到、各自建号,产生两个 GUEST 账号。
+func TestGuestConcurrentIdempotent(t *testing.T) {
+	for round := 0; round < 16; round++ {
+		h := newHarness(t, nil)
+		body := `{"deviceId":"g-race","platform":"ios"}`
+		const n = 8
+		start := make(chan struct{})
+		out := make(chan sessionDTO, n)
+		for i := 0; i < n; i++ {
+			go func() {
+				<-start
+				r := httptest.NewRequest(http.MethodPost, "/v1/identity/guest", strings.NewReader(body))
+				r.Header.Set("Content-Type", "application/json")
+				r.Header.Set(scope.HeaderGameID, "game_a")
+				r.Header.Set(scope.HeaderEnv, "prod")
+				rec := httptest.NewRecorder()
+				h.h.ServeHTTP(rec, r)
+				var env struct {
+					Error *struct {
+						Code string `json:"code"`
+					} `json:"error"`
+					Data json.RawMessage `json:"data"`
+				}
+				_ = json.Unmarshal(rec.Body.Bytes(), &env)
+				var s sessionDTO
+				if rec.Code == http.StatusOK {
+					_ = json.Unmarshal(env.Data, &s)
+				} else {
+					s.Account.ID = fmt.Sprintf("status:%d code:%s", rec.Code, env.Error.Code)
+				}
+				out <- s
+			}()
+		}
+		close(start)
+
+		want := ""
+		for i := 0; i < n; i++ {
+			s := <-out
+			if s.Account.ID == "" || strings.Contains(s.Account.ID, "status:") {
+				t.Fatalf("轮 %d:请求 %d 失败: %s", round, i, s.Account.ID)
+			}
+			if want == "" {
+				want = s.Account.ID
+			} else if s.Account.ID != want {
+				t.Fatalf("轮 %d:并发 /guest 产生两个账号 %s vs %s", round, want, s.Account.ID)
+			}
+		}
+	}
+}
+
 func TestBind(t *testing.T) {
 	h := newHarness(t, nil)
 	guest := h.post(t, "/v1/identity/guest", `{"deviceId":"b-dev"}`).dataSession(t)

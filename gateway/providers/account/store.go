@@ -207,34 +207,28 @@ func (s *Store) CreateEmailAccount(email, password string) (accountRow, error) {
 	return *s.accounts[id], nil
 }
 
-// FindGuestByDevice 游客幂等:按设备找 GUEST 账号(auth.md「数据模型:devices」)。
-func (s *Store) FindGuestByDevice(deviceID string) (accountRow, bool) {
+// EnsureGuestAccount 游客按设备幂等(auth.md「数据模型:devices」;审核
+// 2026-11-11 P1 修复:原 handler「FindGuestByDevice→CreateGuestAccount」
+// 分两次持锁,同 deviceId 并发请求都查不到、各自建号,产生两个 GUEST
+// 账号且先建者脱离设备索引成孤儿)。查重与建号并入同一临界区;已存在 →
+// 返回既有账号(existed=true),否则创建并绑定首台设备(首绑不受上限约束)。
+func (s *Store) EnsureGuestAccount(deviceID, platform string) (acc accountRow, existed bool, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	id, ok := s.guestDevIndex[deviceID]
-	if !ok {
-		return accountRow{}, false
+	if id, ok := s.guestDevIndex[deviceID]; ok {
+		if cur, ok := s.accounts[id]; ok && cur.typ == AccountGuest {
+			return *cur, true, nil
+		}
 	}
-	acc, ok := s.accounts[id]
-	if !ok || acc.typ != AccountGuest {
-		return accountRow{}, false
-	}
-	return *acc, true
-}
-
-// CreateGuestAccount 创建游客账号并绑定首台设备(首绑不受上限约束)。
-func (s *Store) CreateGuestAccount(deviceID, platform string) (accountRow, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	t := s.now()
 	id := s.newID("acc_", t)
-	acc := &accountRow{id: id, typ: AccountGuest, status: StatusActive, createdAt: t, updatedAt: t}
-	s.accounts[id] = acc
-	if _, err := s.bindDeviceLocked(acc, deviceID, platform, t); err != nil {
+	row := &accountRow{id: id, typ: AccountGuest, status: StatusActive, createdAt: t, updatedAt: t}
+	s.accounts[id] = row
+	if _, err := s.bindDeviceLocked(row, deviceID, platform, t); err != nil {
 		delete(s.accounts, id)
-		return accountRow{}, err
+		return accountRow{}, false, err
 	}
-	return *acc, nil
+	return *row, false, nil
 }
 
 // GetAccount 按 ID 查询。
