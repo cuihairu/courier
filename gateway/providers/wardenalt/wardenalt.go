@@ -593,12 +593,18 @@ func (c *cloudCore) Curfew(accountID string, now time.Time) (router.CurfewOutcom
 			return router.CurfewOutcome{Playable: true}, nil
 		}
 	}
-	for i := 1; i <= 8; i++ {
+	// 从今天(i=0)起搜下一窗口:今天尚未开始的窗口才是真正的"下一窗口"
+	//——原实现从明天起搜,当天未开始的窗口被整段漏算,"下次可玩时间"最多
+	// 晚报一周(审核 2026-11-11 P1)。今天已开始/已过的窗口跳过。
+	for i := 0; i <= 8; i++ {
 		next := now.AddDate(0, 0, i)
 		for _, win := range windows {
 			if next.Weekday() == win.Weekday {
 				at := time.Date(next.Year(), next.Month(), next.Day(),
 					win.StartHour, 0, 0, 0, next.Location())
+				if i == 0 && !at.After(now) {
+					continue
+				}
 				return router.CurfewOutcome{Playable: false,
 					NextWindowAt: at, HasNextWindow: true}, nil
 			}

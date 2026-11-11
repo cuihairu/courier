@@ -318,6 +318,39 @@ func TestCurfew_Minor_Blocked_WithNextWindow(t *testing.T) {
 	}
 }
 
+// 审核回归(2026-11-11 P1):窗口日但窗口未开始时,"下一窗口"必须是当天
+// 起点(原实现从明天起搜,当天未开始的窗口被漏算,"下次可玩时间"最多晚报
+// 一周);当天窗口已过则回到明天窗口,不得把过去时刻当下一窗口。
+func TestCurfew_Minor_SameDayNextWindow(t *testing.T) {
+	cases := []struct {
+		name string
+		now  time.Time
+		want string
+	}{
+		{"周五10:00_窗口未开始", time.Date(2026, 10, 9, 10, 0, 0, 0, time.UTC), "2026-10-09T20:00:00.000Z"},
+		{"周五22:00_窗口已过", time.Date(2026, 10, 9, 22, 0, 0, 0, time.UTC), "2026-10-10T20:00:00.000Z"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			p := New(Options{Clock: fixedClock(tc.now), RequireAuth: newAuth,
+				Cloud: scriptedVerdicts(), S2SToken: "s2s-secret"})
+			post(t, p, "/v1/realname/verify", "player", verifyBody(minorID))
+			code, env := get(t, p, "/v1/realname/curfew", "player")
+			var curfew struct {
+				Playable     bool    `json:"playable"`
+				NextWindowAt *string `json:"nextWindowAt"`
+			}
+			if err := json.Unmarshal(env.Data, &curfew); err != nil {
+				t.Fatal(err)
+			}
+			if code != http.StatusOK || curfew.Playable || curfew.NextWindowAt == nil ||
+				*curfew.NextWindowAt != tc.want {
+				t.Fatalf("curfew = %d %+v, want blocked nextWindow=%s", code, curfew, tc.want)
+			}
+		})
+	}
+}
+
 // F29:限额按服务下发的年龄段(非本地解析);单次超限回带限额字段。
 func TestCharge_Minor_SingleLimitByBand(t *testing.T) {
 	p := newProvider(scriptedVerdicts())

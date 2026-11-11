@@ -199,6 +199,53 @@ func TestCurfewMinor_OutOfWindow_BlockedWithNextWindow(t *testing.T) {
 	}
 }
 
+// 审核回归(2026-11-11 P1):窗口日但窗口未开始时,"下一窗口"必须是当天
+// 的窗口起点——原实现从明天起搜,周五 10:00 询问会答成"明天周六 20:00",
+// "下次可玩时间"最多晚报一周(合规输出错误)。
+func TestCurfewMinor_SameDayNextWindow(t *testing.T) {
+	// 2026-10-09 是周五 10:00:窗口 20:00–21:00 未开始。
+	w := newWarden(fixedClock(time.Date(2026, 10, 9, 10, 0, 0, 0, time.UTC)), "")
+	post(t, w, "/v1/realname/verify", "player",
+		`{"name":"李四","idNumber":"`+minorID+`"}`)
+	_, env := get(t, w, "/v1/realname/curfew", "player")
+	var got struct {
+		Playable     bool    `json:"playable"`
+		NextWindowAt *string `json:"nextWindowAt"`
+	}
+	if err := json.Unmarshal(env.Data, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Playable || got.NextWindowAt == nil {
+		t.Fatalf("got %+v, want playable=false + nextWindowAt", got)
+	}
+	if *got.NextWindowAt != "2026-10-09T20:00:00.000Z" { // 当天周五 20:00
+		t.Errorf("nextWindowAt = %q, want 2026-10-09T20:00:00.000Z(当天周五窗口起点)",
+			*got.NextWindowAt)
+	}
+}
+
+// 当天窗口已过(周五 22:00)→ 下一窗口是明天周六 20:00;
+// 修复不得把过去时刻当"下一窗口"。
+func TestCurfewMinor_WindowPassed_TomorrowNext(t *testing.T) {
+	w := newWarden(fixedClock(time.Date(2026, 10, 9, 22, 0, 0, 0, time.UTC)), "")
+	post(t, w, "/v1/realname/verify", "player",
+		`{"name":"李四","idNumber":"`+minorID+`"}`)
+	_, env := get(t, w, "/v1/realname/curfew", "player")
+	var got struct {
+		Playable     bool    `json:"playable"`
+		NextWindowAt *string `json:"nextWindowAt"`
+	}
+	if err := json.Unmarshal(env.Data, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Playable || got.NextWindowAt == nil {
+		t.Fatalf("got %+v, want playable=false + nextWindowAt", got)
+	}
+	if *got.NextWindowAt != "2026-10-10T20:00:00.000Z" { // 明天周六 20:00
+		t.Errorf("nextWindowAt = %q, want 2026-10-10T20:00:00.000Z(周六窗口)", *got.NextWindowAt)
+	}
+}
+
 func TestCurfewMinor_InWindow_Playable(t *testing.T) {
 	// 2026-10-09 是周五 20:30:窗口内。
 	w := newWarden(fixedClock(time.Date(2026, 10, 9, 20, 30, 0, 0, time.UTC)), "")
