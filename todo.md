@@ -242,3 +242,13 @@ F13 Cloud saves/progress sync — player.md:5,11 red line 'progress does not pas
 - 抽象层清单：运行层——进程启动、scope/会话/限流/降级路由和响应信封（`gateway/cmd/gateway/main.go:47`）；契约层——wire、scope、错误、事件与兼容规则的事实源（`docs/contract/versioning.md:6`）；SDK 核心层——平台无关配置、生命周期、会话、重试与域服务门面（`sdks/cocos/src/core/courierClient.ts:19`）；平台适配层——传输、令牌持久化、宿主信号与可选诊断绑定（`sdks/cocos/src/platform/wechat/transport.ts:1`）；域供应商层——11 个能力域的默认/第二实现与状态存储（`gateway/providers/registry.go:29`）；构建与守同工具层——契约生成、包隔离和 TS 字节守同（`tools/contractgen/main.go:112`）；验收层——单元、引擎、网关一致性和 CI 门禁（`.github/workflows/tests.yml:47`）。
 - 超大文件候选：无 >1000 行文件（排除 `package-lock.json` 与测试后，最大源码文件为 `gateway/providers/account/store.go`，789 行）。
 - 目录/分类不合理处：未见分类问题。
+
+## Codex 深审发现（2026-11-12，luna profile 近5 commit 审核，0C/4M/3m，待修）
+
+- [ ] [M] voucheralt grantHook 改锁外执行+重入不死锁测试（gateway/providers/voucheralt/voucheralt.go:151）——同 68059d0 死锁模式
+- [ ] [M] carrieralt claimHook 改锁外执行+重入不死锁测试（gateway/providers/carrieralt/carrieralt.go:276）——同型死锁残留
+- [ ] [M] telleralt deliver 改锁外执行（gateway/providers/telleralt/telleralt.go:593）——发货回调重入死锁
+- [ ] [M] teller 发货引原子 in-flight 状态并处理 CloseOrder 冲突（gateway/providers/teller/teller.go:588）——防关单意图被锁外发货窗口绕过
+- [ ] [m] 三个 TS SDK refresh 结果改严格 ===true 并补非布尔失败用例（sdks/cocos/src/core/apiClient.ts:109）——与 Godot fail-closed 契约一致
+- [ ] [m] 近期修复涉及的 Go 文件执行 gofmt 并加格式校验（gateway/providers/carrier/carrier.go:134）
+- [ ] [m] 决定 pnpm-lock.yaml 提交或删除并独立变更（pnpm-lock.yaml:1）——消除未跟踪环境状态
