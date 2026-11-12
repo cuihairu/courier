@@ -61,6 +61,11 @@ type Provider struct {
 	mu       sync.Mutex
 	codes    map[string]*Code
 	redeemed map[string]map[string]bool // code → accountID → redeemed
+
+	// inflight 按码登记交付中的信号量:grantHook 在锁外执行期间,同码并发
+	// 兑换在此等待、定局后重查——与原锁内执行的外部可观察行为一致;钩子
+	// 本身零锁,可安全回调本 Provider(审核 2026-11-11 P1)。
+	inflight map[string]chan struct{}
 }
 
 func New(opts Options) *Provider {
@@ -83,6 +88,7 @@ func New(opts Options) *Provider {
 		name: opts.Name, clock: opts.Clock, auth: authMW, notify: opts.Notify,
 		auditSink: opts.AuditSink, grantHook: opts.Grant,
 		codes: map[string]*Code{}, redeemed: map[string]map[string]bool{},
+		inflight: map[string]chan struct{}{},
 	}
 }
 
@@ -107,34 +113,61 @@ func (p *Provider) Register(value, grant string, maxRedemptions int) error {
 }
 
 // Redeem 兑换(幂等:同账号同码重复 = 同结果,不二次发放)。
+// grantHook 在锁外执行(审核 2026-11-11 P1:原实现持 p.mu 调接入方代码,
+// 钩子回调本 Provider 即自锁死锁)。同码并发经 inflight 信号串行化:后到者
+// 等待交付定局后整轮重查——先到成功则幂等返回 repeated、先到失败则名额
+// 回滚由后到者接手,限次与重复判定与原锁内执行的外部可观察行为一致;
+// 预占一格(计数先行)保证钩子执行期间并发请求不越过限次。
 func (p *Provider) Redeem(accountID, value string) (redeemDTO, error) {
-	p.mu.Lock()
-	c, ok := p.codes[value]
-	if !ok {
-		p.mu.Unlock()
-		return redeemDTO{}, &aggregation.CodeError{Code: aggregation.CodeCdkNotFound}
-	}
-	if p.redeemed[value] == nil {
-		p.redeemed[value] = map[string]bool{}
-	}
-	if p.redeemed[value][accountID] {
-		p.mu.Unlock()
-		return redeemDTO{Code: value, Grant: c.Grant, Repeated: true}, nil
-	}
-	if c.RedeemCount >= c.MaxRedemptions {
-		p.mu.Unlock()
-		return redeemDTO{}, &aggregation.CodeError{Code: aggregation.CodeCdkExhausted}
-	}
-	if p.grantHook != nil {
-		if err := p.grantHook(accountID, value, c.Grant); err != nil {
+	for {
+		p.mu.Lock()
+		c, ok := p.codes[value]
+		if !ok {
 			p.mu.Unlock()
+			return redeemDTO{}, &aggregation.CodeError{Code: aggregation.CodeCdkNotFound}
+		}
+		if p.redeemed[value] == nil {
+			p.redeemed[value] = map[string]bool{}
+		}
+		if p.redeemed[value][accountID] {
+			p.mu.Unlock()
+			return redeemDTO{Code: value, Grant: c.Grant, Repeated: true}, nil
+		}
+		if f, busy := p.inflight[value]; busy {
+			// 同码交付进行中:等定局后重查(钩子在锁外执行期间)。
+			p.mu.Unlock()
+			<-f
+			continue
+		}
+		if c.RedeemCount >= c.MaxRedemptions {
+			p.mu.Unlock()
+			return redeemDTO{}, &aggregation.CodeError{Code: aggregation.CodeCdkExhausted}
+		}
+		f := make(chan struct{})
+		p.inflight[value] = f
+		c.RedeemCount++ // 预占一格,失败回滚
+		p.mu.Unlock()
+
+		err := error(nil)
+		if p.grantHook != nil {
+			err = p.grantHook(accountID, value, c.Grant)
+		}
+
+		p.mu.Lock()
+		delete(p.inflight, value)
+		if err != nil {
+			c.RedeemCount-- // 回滚预占
+		} else {
+			p.redeemed[value][accountID] = true
+		}
+		p.mu.Unlock()
+		close(f)
+
+		if err != nil {
 			return redeemDTO{}, &aggregation.CodeError{Code: aggregation.CodeUnavailable}
 		}
+		return redeemDTO{Code: value, Grant: c.Grant}, nil
 	}
-	p.redeemed[value][accountID] = true
-	c.RedeemCount++
-	p.mu.Unlock()
-	return redeemDTO{Code: value, Grant: c.Grant}, nil
 }
 
 // ServeHTTP 分发 /v1/cdk/*(全部要求 Bearer)。

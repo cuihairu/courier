@@ -106,6 +106,11 @@ type Provider struct {
 	byID    map[string]Mail
 	byOwner map[string][]string
 	claimed map[string]map[string]bool
+
+	// inflight 按邮件登记交付中的信号量:claimHook 在锁外执行期间,同邮件
+	// 并发领取在此等待、定局后重查——与原锁内执行的外部可观察行为一致;
+	// 钩子本身零锁,可安全回调本 Provider(审核 2026-11-11 P1)。
+	inflight map[string]chan struct{}
 }
 
 // New 构造邮件 Provider。
@@ -130,6 +135,7 @@ func New(opts Options) *Provider {
 		notify: opts.Notify, auditSink: opts.AuditSink, claimHook: opts.Claim,
 		byID: map[string]Mail{}, byOwner: map[string][]string{},
 		claimed: map[string]map[string]bool{},
+		inflight: map[string]chan struct{}{},
 	}
 }
 
@@ -259,40 +265,67 @@ func (p *Provider) handleDetail(w http.ResponseWriter, r *http.Request, id strin
 	aggregation.WriteData(w, dto(m))
 }
 
+// handleClaim 领取(一次性发放,同账号同邮件重复 = 同结果)。
+// claimHook 在锁外执行(审核 2026-11-11 P1:原实现持 p.mu 调接入方代码,
+// 钩子回调本 Provider 即自锁死锁)。同邮件并发领取经 inflight 信号串行化:
+// 后到者等待交付定局后整轮重查——先到成功则幂等返回、先到失败由后到者
+// 接手,与原锁内执行的外部可观察行为一致。
 func (p *Provider) handleClaim(w http.ResponseWriter, r *http.Request, id string) {
 	account, _ := auth.FromContext(r.Context())
-	p.mu.Lock()
-	m, ok := p.byID[id]
-	if ok && (!m.ownedBy(account.AccountID) || !m.visible(p.clock())) {
-		ok = false
-	}
-	if ok {
+	for {
+		// 写锁:inflight 登记是 map 写,读锁下并发登记即 map 并发写。
+		p.mu.Lock()
+		m, ok := p.byID[id]
+		if ok && (!m.ownedBy(account.AccountID) || !m.visible(p.clock())) {
+			ok = false
+		}
+		if !ok {
+			p.mu.Unlock()
+			aggregation.WriteError(w, middleware.TraceID(r.Context()),
+				aggregation.CodeMailNotFound, "mail not found")
+			return
+		}
 		if p.claimed[account.AccountID][id] {
 			p.mu.Unlock()
 			p.emit(account.AccountID, id, true, r)
 			aggregation.WriteData(w, dto(m))
 			return
 		}
-		if p.claimHook != nil {
-			if err := p.claimHook(account.AccountID, id); err != nil {
-				p.mu.Unlock()
-				aggregation.WriteError(w, middleware.TraceID(r.Context()),
-					aggregation.CodeUnavailable, err.Error())
-				return
-			}
+		if f, busy := p.inflight[id]; busy {
+			// 同邮件交付进行中:等定局后重查(钩子在锁外执行期间)。
+			p.mu.Unlock()
+			<-f
+			continue
 		}
-		if p.claimed[account.AccountID] == nil {
-			p.claimed[account.AccountID] = map[string]bool{}
-		}
-		p.claimed[account.AccountID][id] = true
+		f := make(chan struct{})
+		p.inflight[id] = f
 		p.mu.Unlock()
+
+		hookErr := error(nil)
+		if p.claimHook != nil {
+			hookErr = p.claimHook(account.AccountID, id)
+		}
+
+		p.mu.Lock()
+		delete(p.inflight, id)
+		if hookErr == nil {
+			if p.claimed[account.AccountID] == nil {
+				p.claimed[account.AccountID] = map[string]bool{}
+			}
+			p.claimed[account.AccountID][id] = true
+		}
+		p.mu.Unlock()
+		close(f)
+
+		if hookErr != nil {
+			aggregation.WriteError(w, middleware.TraceID(r.Context()),
+				aggregation.CodeUnavailable, hookErr.Error())
+			return
+		}
 		p.emit(account.AccountID, id, false, r)
 		aggregation.WriteData(w, dto(m))
 		return
 	}
-	p.mu.Unlock()
-	aggregation.WriteError(w, middleware.TraceID(r.Context()),
-		aggregation.CodeMailNotFound, "mail not found")
 }
 
 func (p *Provider) emit(accountID, mailID string, repeated bool, r *http.Request) {
