@@ -337,6 +337,92 @@ func TestDeliverFail_StaysPaid_ReconcileRecovers(t *testing.T) {
 	}
 }
 
+// 审核回归(2026-11-11 P1):发货钩子在锁外执行——钩子回调本 Provider(取
+// p.mu 的任意方法)不得自锁死锁;原 deliverOrderLocked 持 p.mu 调接入方代码,
+// 回调即死锁。死锁以守护超时呈现为失败。
+func TestDeliverHookReentrantNoDeadlock(t *testing.T) {
+	var p *PaymentsProvider
+	done := make(chan struct{})
+	p, cur := harness(t, "s3cret", func(d Delivery) error {
+		// 钩子回调本 Provider:取 p.mu(健康检查/价格表登记)。
+		if err := p.HealthCheck(context.Background()); err != nil {
+			t.Errorf("钩子内 HealthCheck: %v", err)
+		}
+		p.AddSku("probe", "prod", "virtual", 1, "CNY")
+		close(done)
+		return nil
+	}, nil)
+	seedSkus(p)
+	_, rec := createOrder(t, p, cur, "sku_gem_60")
+	var oid struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &oid); err != nil {
+		t.Fatal(err)
+	}
+
+	body := `{"orderId":"` + oid.Data.ID + `"}`
+	rec = call(t, p, http.MethodPost, "/v1/payments/callback", body,
+		map[string]string{"X-Payment-Signature": sign("s3cret", []byte(body))})
+	if rec.Code != 200 {
+		t.Fatalf("回调 = %d %s", rec.Code, rec.Body.String())
+	}
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("发货钩子回调本 Provider 死锁(缺陷:钩子曾在 p.mu 内执行)")
+	}
+	// 钩子成功 → DELIVERED 落库
+	*cur = "acc_1"
+	rec = call(t, p, http.MethodGet, "/v1/payments/orders/"+oid.Data.ID, "", nil)
+	if !strings.Contains(rec.Body.String(), `"status":"DELIVERED"`) {
+		t.Fatalf("回调后 = %s", rec.Body.String())
+	}
+}
+
+// 对账重发的发货钩子同样在锁外执行:钩子回调本 Provider 不死锁。
+func TestReconcileHookReentrantNoDeadlock(t *testing.T) {
+	fail := true
+	var p *PaymentsProvider
+	done := make(chan struct{})
+	p, cur := harness(t, "s3cret", func(Delivery) error {
+		if fail {
+			return errRisk("下游挂了")
+		}
+		p.HealthCheck(context.Background()) // 回调取 p.mu
+		close(done)
+		return nil
+	}, nil)
+	seedSkus(p)
+	_, rec := createOrder(t, p, cur, "sku_gem_60")
+	var oid struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &oid); err != nil {
+		t.Fatal(err)
+	}
+	body := `{"orderId":"` + oid.Data.ID + `"}`
+	rec = call(t, p, http.MethodPost, "/v1/payments/callback", body,
+		map[string]string{"X-Payment-Signature": sign("s3cret", []byte(body))})
+	if rec.Code != 200 {
+		t.Fatalf("回调 = %d %s", rec.Code, rec.Body.String())
+	}
+
+	fail = false // 下游恢复,对账重发:此次发货钩子回调 Provider
+	if attempted, delivered := p.Reconcile(); attempted != 1 || delivered != 1 {
+		t.Fatalf("Reconcile = (%d,%d)", attempted, delivered)
+	}
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("对账发货钩子回调本 Provider 死锁(缺陷:钩子曾在 p.mu 内执行)")
+	}
+}
+
 func TestCloseOrder_StateMachine(t *testing.T) {
 	p, cur := harness(t, "s3cret", nil, nil)
 	seedSkus(p)
@@ -349,6 +435,7 @@ func TestCloseOrder_StateMachine(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &oid); err != nil {
 		t.Fatal(err)
 	}
+
 
 	// 不存在的订单
 	if err := p.CloseOrder("order_nope"); err == nil || err.Error() != "PAYMENT_ORDER_NOT_FOUND" {

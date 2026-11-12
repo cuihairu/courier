@@ -331,26 +331,39 @@ func (p *PaymentsProvider) AddSku(id, productID, form string, amountCents int64,
 
 // Reconcile 对账重发:枚举停 PAID(已付未发)的订单逐个重试发货(发货幂等由
 // 接入方钩子兜底);返回(尝试数, 成功数)。断单可对账恢复的落点。
+// 发货钩子在锁外执行(审核 2026-11-11 P1);提交前复查状态,期间被管理面
+// 关单的订单不再推进(发放事实由接入方幂等兜底)。
 func (p *PaymentsProvider) Reconcile() (attempted, delivered int) {
 	p.mu.Lock()
-	var stuck []*orderRecord
+	type stuckOrder struct {
+		id string
+		at time.Time
+	}
+	var stuck []stuckOrder
 	for _, o := range p.orders {
 		if o.Status == StatusPaid {
-			stuck = append(stuck, o)
+			stuck = append(stuck, stuckOrder{id: o.ID, at: o.CreatedAt})
 		}
 	}
-	sort.Slice(stuck, func(i, j int) bool { return stuck[i].CreatedAt.Before(stuck[j].CreatedAt) })
+	sort.Slice(stuck, func(i, j int) bool { return stuck[i].at.Before(stuck[j].at) })
 	now := p.clock()
+	p.mu.Unlock()
+
 	var recovered []string
-	for _, o := range stuck {
+	for _, s := range stuck {
+		p.mu.Lock()
+		o := p.orders[s.id]
+		if o == nil || o.Status != StatusPaid {
+			p.mu.Unlock()
+			continue
+		}
+		p.mu.Unlock()
 		attempted++
-		if p.deliverOrderLocked(o, now) {
+		if ok, _ := p.deliverAndAdvance(o, now); ok {
 			delivered++
-			recovered = append(recovered, o.ID)
+			recovered = append(recovered, s.id)
 		}
 	}
-	p.persistLocked()
-	p.mu.Unlock()
 	// 对账恢复的发货同样推送 delivered(v1.1:含对账恢复的重发)。
 	for _, id := range recovered {
 		p.notify(EventDelivered, orderEventDTO{OrderID: id})
@@ -466,9 +479,10 @@ func (p *PaymentsProvider) handleCreateOrder(w http.ResponseWriter, r *http.Requ
 	o.ID = p.nextOrderID(now)
 	p.orders[o.ID] = o
 	p.byOwner[o.Owner] = append(p.byOwner[o.Owner], o.ID)
+	dto := orderDTOOf(o, true) // 响应快照锁内取(审核 2026-11-11 P1:Unlock 后读订单字段与他端回调写并发)
 	p.persistLocked()
 	p.mu.Unlock()
-	aggregation.WriteData(w, orderDTOOf(o, true))
+	aggregation.WriteData(w, dto)
 }
 
 func (p *PaymentsProvider) handleListOrders(w http.ResponseWriter, r *http.Request) {
@@ -536,8 +550,9 @@ func (p *PaymentsProvider) handleCallback(w http.ResponseWriter, r *http.Request
 	switch o.Status {
 	case StatusPaid, StatusDelivered, StatusClosed:
 		// 幂等受理:重复回调不回退、不二次发货(契约红线 3)。
+		dto := orderDTOOf(o, false) // 快照锁内取(审核 2026-11-11 P1:Unlock 后读订单字段与发货写并发)
 		p.mu.Unlock()
-		aggregation.WriteData(w, orderDTOOf(o, false))
+		aggregation.WriteData(w, dto)
 		return
 	}
 	paidAt := p.clock()
@@ -547,9 +562,12 @@ func (p *PaymentsProvider) handleCallback(w http.ResponseWriter, r *http.Request
 	o.Status = StatusPaid
 	o.PaidAt = &paidAt
 	o.UpdatedAt = paidAt
-	deliveredNow := p.deliverOrderLocked(o, paidAt) // 发货失败不回滚 PAID:停 PAID 等对账(契约红线 6)
+	// PAID 受理事实先落库再放发货钩子:发货在锁外执行,失败停 PAID 等对账(契约红线 6),
+	// 中途崩溃由对账恢复补发。
 	p.persistLocked()
 	p.mu.Unlock()
+
+	deliveredNow, snap := p.deliverAndAdvance(o, paidAt) // 发货失败不回滚 PAID:停 PAID 等对账(契约红线 6)
 
 	// 推送只报状态转移,不报受理(幂等重复回调走上面提前返回,不重发事件)。
 	p.notify(EventPaid, orderEventDTO{OrderID: o.ID})
@@ -558,12 +576,15 @@ func (p *PaymentsProvider) handleCallback(w http.ResponseWriter, r *http.Request
 	}
 
 	// 回调本身已受理(200);发货进度看订单状态(轮询)。
-	aggregation.WriteData(w, orderDTOOf(o, false))
+	aggregation.WriteData(w, snap)
 }
 
-// deliverOrderLocked 发货并推进状态(调用方须持锁;钩子为接入方代码,须快返);
-// 返回是否转 DELIVERED。
-func (p *PaymentsProvider) deliverOrderLocked(o *orderRecord, now time.Time) bool {
+// deliverAndAdvance 发货并推进状态。发货钩子在锁外执行(审核 2026-11-11
+// P1:原 deliverOrderLocked 持 p.mu 调接入方代码,钩子回调本 Provider 即自锁
+// 死锁);成功后重新持锁推进 DELIVERED 并落库,返回(是否本次转 DELIVERED,
+// 响应用订单快照——快照一律锁内取)。提交前复查:期间被管理面关单的订单
+// 以 CLOSED 为终态,不再推进(发放事实由接入方幂等兜底)。
+func (p *PaymentsProvider) deliverAndAdvance(o *orderRecord, now time.Time) (bool, orderDTO) {
 	if p.deliver != nil {
 		if err := p.deliver(Delivery{
 			OrderID:     o.ID,
@@ -574,13 +595,23 @@ func (p *PaymentsProvider) deliverOrderLocked(o *orderRecord, now time.Time) boo
 			AmountCents: o.Sku.AmountCents,
 			Currency:    o.Sku.Currency,
 		}); err != nil {
-			return false // 停 PAID,不丢单(对账恢复)
+			p.mu.Lock()
+			snap := orderDTOOf(o, false)
+			p.mu.Unlock()
+			return false, snap // 停 PAID,不丢单(对账恢复)
 		}
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if o.Status != StatusPaid {
+		return false, orderDTOOf(o, false)
 	}
 	o.Status = StatusDelivered
 	o.DeliveredAt = &now
 	o.UpdatedAt = now
-	return true
+	snap := orderDTOOf(o, false)
+	p.persistLocked()
+	return true, snap
 }
 
 func (p *PaymentsProvider) writeInvalid(w http.ResponseWriter, r *http.Request, msg string) {
