@@ -267,6 +267,23 @@ func t_refresh_failure_keeps_original() -> void:
 	check(transport.requests.size() == 3, "应共 3 次请求(guest/过期/refresh)")
 
 
+# ---- 审核回归(2026-11-11 P1):hook 返回非 bool 一律视为失败,不得重放 ----
+# 常见误接:把返回 Dictionary 的刷新函数直接挂上(如 session.refresh)。
+# GDScript Dictionary 恒真值,旧实现 `if await refresh_hook.call():` 会把
+# {ok:false} 误判为成功——刷新失败仍重放已吊销 token。
+func t_refresh_hook_non_bool_no_replay() -> void:
+	var transport := FakeTransport.new(self)
+	var client := make_client(transport)
+	transport.enqueue(200, success(session_json()))
+	await client.identity.guest("device-1")
+	client.api.refresh_hook = func(): return {"ok": false, "message": "refresh failed"}
+	transport.enqueue(401, '{"error":{"code":"AUTH_TOKEN_EXPIRED","message":"expired","retryable":false}}')
+	transport.enqueue_fn(200, success('{"ok":true}'))  # 不会被消费
+	var r: Dictionary = await client.api.request("GET", "/x", null, false)
+	check(err_wire(r) == "AUTH_TOKEN_EXPIRED", "非 bool hook 失败应返回原 401(实际 %s)" % err_wire(r))
+	check(transport.requests.size() == 2, "应共 2 次请求(guest/过期),不得重放(实际 %d)" % transport.requests.size())
+
+
 # ---- 安全事件:refresh REUSED → 本地清场(重登) ----
 func t_security_event_clears() -> void:
 	var transport := FakeTransport.new(self)
@@ -459,6 +476,7 @@ func _init() -> void:
 	await t_network_failure()
 	await t_token_expired_replay()
 	await t_refresh_failure_keeps_original()
+	await t_refresh_hook_non_bool_no_replay()
 	await t_security_event_clears()
 	await t_refresh_single_flight()
 	await t_logout_best_effort()

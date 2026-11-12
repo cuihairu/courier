@@ -21,7 +21,7 @@ var transport: CourierTransport
 var retry_max_attempts: int = DEFAULT_RETRY_MAX_ATTEMPTS
 var retry_base_delay_ms: int = DEFAULT_RETRY_BASE_DELAY_MS
 var token_provider: Callable = Callable()  # () -> String
-var refresh_hook: Callable = Callable()    # () -> bool(协程;成功拿到新会话才重放)
+var refresh_hook: Callable = Callable()    # () -> bool(协程;仅返回 true 才重放,非 bool 一律视为失败)
 var sleep_f: Callable = Callable()          # (ms) -> void
 
 
@@ -48,10 +48,13 @@ func request(method: String, path: String, body: Variant = null, with_auth: bool
 		var err: Dictionary = parsed["error"]
 
 		# access 过期:refresh 一次后重放(不计入退避重试次数);refresh 失败放弃,
-		# 返回原 401(与 TS 同构:refreshHook 返回 boolean)。
+		# 返回原 401(与 TS 同构:refreshHook 返回 boolean)。GDScript 无类型强制
+		# 且 Dictionary 恒真值,真值判断会把失败结果(如 {ok:false})误判为成功
+		# 而重放已吊销 token——故仅接受字面 bool(审核 2026-11-11 P1)。
 		if CourierApiError.wire(err) == "AUTH_TOKEN_EXPIRED" and refresh_hook.is_valid() and not refresh_used:
 			refresh_used = true
-			if await refresh_hook.call():
+			var refreshed: Variant = await refresh_hook.call()
+			if refreshed is bool and refreshed:
 				token = _access_token()
 				attempt -= 1
 				continue
