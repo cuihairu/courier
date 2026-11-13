@@ -65,6 +65,11 @@ type Provider struct {
 	mu     sync.RWMutex
 	codes  map[string]*Code
 	ledger []ledgerEvent
+
+	// inflight 按码登记交付中的信号量:grantHook 在锁外执行期间,同码并发
+	// 兑换在此等待、定局后重查——与原锁内执行的外部可观察行为一致;钩子
+	// 本身零锁,可安全回调本 Provider(审核 2026-11-12 P1)。
+	inflight map[string]chan struct{}
 }
 
 func New(opts Options) *Provider {
@@ -85,7 +90,8 @@ func New(opts Options) *Provider {
 	}
 	return &Provider{name: opts.Name, clock: opts.Clock, auth: authMW,
 		notify: opts.Notify, auditSink: opts.AuditSink, grantHook: opts.Grant,
-		codes: map[string]*Code{}, ledger: []ledgerEvent{}}
+		codes: map[string]*Code{}, ledger: []ledgerEvent{},
+		inflight: map[string]chan struct{}{}}
 }
 
 func (p *Provider) Name() string                        { return p.name }
@@ -133,30 +139,56 @@ func (p *Provider) redeemLocked(accountID, value string) (redeemDTO, bool, bool)
 	return redeemDTO{Code: value, Grant: c.Grant}, true, false
 }
 
+// Redeem 兑换(幂等:同账号同码重复 = 同结果,不二次发放)。
+// grantHook 在锁外执行(审核 2026-11-12 P1:原实现持 p.mu 调接入方代码,
+// 钩子回调本 Provider 即自锁死锁)。同码并发经 inflight 信号串行化:后到者
+// 等待交付定局后整轮重查——先到成功则幂等返回 repeated、先到失败由后到者
+// 接手,与原锁内执行的外部可观察行为一致。
 func (p *Provider) Redeem(accountID, value string) (redeemDTO, error) {
-	p.mu.Lock()
-	out, known, exhausted := p.redeemLocked(accountID, value)
-	if !known {
-		p.mu.Unlock()
-		return redeemDTO{}, &aggregation.CodeError{Code: aggregation.CodeCdkNotFound}
-	}
-	if exhausted {
-		p.mu.Unlock()
-		return redeemDTO{}, &aggregation.CodeError{Code: aggregation.CodeCdkExhausted}
-	}
-	if out.Repeated {
-		p.mu.Unlock()
-		return out, nil
-	}
-	if p.grantHook != nil {
-		if err := p.grantHook(accountID, value, out.Grant); err != nil {
+	for {
+		p.mu.Lock()
+		out, known, exhausted := p.redeemLocked(accountID, value)
+		if !known {
 			p.mu.Unlock()
+			return redeemDTO{}, &aggregation.CodeError{Code: aggregation.CodeCdkNotFound}
+		}
+		if exhausted {
+			p.mu.Unlock()
+			return redeemDTO{}, &aggregation.CodeError{Code: aggregation.CodeCdkExhausted}
+		}
+		if out.Repeated {
+			p.mu.Unlock()
+			return out, nil
+		}
+		if f, busy := p.inflight[value]; busy {
+			// 同码交付进行中:等定局后重查(钩子在锁外执行期间)。
+			p.mu.Unlock()
+			<-f
+			continue
+		}
+		f := make(chan struct{})
+		p.inflight[value] = f
+		grant := out.Grant
+		p.mu.Unlock()
+
+		err := error(nil)
+		if p.grantHook != nil {
+			err = p.grantHook(accountID, value, grant)
+		}
+
+		p.mu.Lock()
+		delete(p.inflight, value)
+		if err == nil {
+			p.ledger = append(p.ledger, ledgerEvent{Kind: "redeem", Code: value, Account: accountID, Grant: grant, At: p.clock()})
+		}
+		p.mu.Unlock()
+		close(f)
+
+		if err != nil {
 			return redeemDTO{}, &aggregation.CodeError{Code: aggregation.CodeUnavailable}
 		}
+		return out, nil
 	}
-	p.ledger = append(p.ledger, ledgerEvent{Kind: "redeem", Code: value, Account: accountID, Grant: out.Grant, At: p.clock()})
-	p.mu.Unlock()
-	return out, nil
 }
 
 func (p *Provider) ServeHTTP(w http.ResponseWriter, r *http.Request) {

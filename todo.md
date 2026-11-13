@@ -245,7 +245,7 @@ F13 Cloud saves/progress sync — player.md:5,11 red line 'progress does not pas
 
 ## Codex 深审发现（2026-11-12，luna profile 近5 commit 审核，0C/4M/3m，待修）
 
-- [ ] [M] voucheralt grantHook 改锁外执行+重入不死锁测试（gateway/providers/voucheralt/voucheralt.go:151）——同 68059d0 死锁模式
+- [x] [M] voucheralt grantHook 改锁外执行+重入不死锁测试（gateway/providers/voucheralt/voucheralt.go:151）——同 68059d0 死锁模式。**Done**：Redeem 重构为按码 inflight 信号量重试环(占位/钩子零锁/锁内提交/close+重查,外部可观察行为同原锁内执行;voucheralt.go:147, inflight 字段 voucheralt.go:72);回归 TestGrantHookReentrantNoDeadlock(钩子回调 Register+Redeem,2s 守护超时)+ TestRedeemConcurrentIdempotent(8 协程恰好 1 真实发放)— voucheralt_test.go:46/81 | gateway `go test -race -count=1 ./...` 34 包绿 + voucheralt -race×20 绿
 - [ ] [M] carrieralt claimHook 改锁外执行+重入不死锁测试（gateway/providers/carrieralt/carrieralt.go:276）——同型死锁残留
 - [ ] [M] telleralt deliver 改锁外执行（gateway/providers/telleralt/telleralt.go:593）——发货回调重入死锁
 - [ ] [M] teller 发货引原子 in-flight 状态并处理 CloseOrder 冲突（gateway/providers/teller/teller.go:588）——防关单意图被锁外发货窗口绕过
