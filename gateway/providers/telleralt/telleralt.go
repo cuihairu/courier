@@ -200,6 +200,11 @@ type PaymentsProvider struct {
 	orders  map[string]*journalEntry
 	byOwner map[string][]string // accountID → 登记序 orderIDs
 
+	// inflight 按订单登记发货中的信号量:deliver 钩子在锁外执行期间,同订单
+	// CloseOrder 在此等待定局后按终局裁决——防关单意图被锁外发货窗口绕过
+	//(审核 2026-11-12 P1;与原锁内执行的外部可观察行为一致)。
+	inflight map[string]chan struct{}
+
 	stateFile string     // StateFile 快照路径(空 = 纯内存)
 	store     OrderStore // 二期存储接缝(nil = 未配置;非 nil 时优先于 stateFile)
 	stateErr  error      // 快照回放/写入失败(HealthCheck fail-closed,不静默丢单)
@@ -239,6 +244,7 @@ func New(opts Options) *PaymentsProvider {
 		skus:          make(map[string]skuRecord),
 		orders:        make(map[string]*journalEntry),
 		byOwner:       make(map[string][]string),
+		inflight:      make(map[string]chan struct{}),
 	}
 	p.loadState()
 	return p
@@ -377,26 +383,35 @@ func (p *PaymentsProvider) AddSku(id, productID, form string, amountCents int64,
 // Reconcile 对账重发:枚举停 PAID(已付未发)的订单逐个重试发货(发货幂等由
 // 接入方钩子兜底);返回(尝试数, 成功数)。断单可对账恢复的落点。
 // 异构面:teller 全表扫描可变状态找停 PAID;本实现投影重放每个账本取末事件。
+// 发货钩子在锁外执行(审核 2026-11-12 P1),每单发货前锁内复查停 PAID。
 func (p *PaymentsProvider) Reconcile() (attempted, delivered int) {
 	p.mu.Lock()
-	var stuck []*journalEntry
-	for _, e := range p.orders {
+	var stuck []string
+	for id, e := range p.orders {
 		if projectOrder(e).Status == StatusPaid {
-			stuck = append(stuck, e)
+			stuck = append(stuck, id)
+			attempted++
 		}
 	}
-	sort.Slice(stuck, func(i, j int) bool { return projectOrder(stuck[i]).CreatedAt.Before(projectOrder(stuck[j]).CreatedAt) })
+	sort.Slice(stuck, func(i, j int) bool {
+		return projectOrder(p.orders[stuck[i]]).CreatedAt.Before(projectOrder(p.orders[stuck[j]]).CreatedAt)
+	})
 	now := p.clock()
+	p.mu.Unlock()
 	var recovered []string
-	for _, e := range stuck {
-		attempted++
-		if p.deliverJournalLocked(e, now) {
+	for _, id := range stuck {
+		p.mu.Lock()
+		e, ok := p.orders[id]
+		stillPaid := ok && projectOrder(e).Status == StatusPaid
+		p.mu.Unlock()
+		if !stillPaid {
+			continue // 对账途中已定局(回调先行/关单):不再重发
+		}
+		if adv, _ := p.deliverAndAdvance(e, now); adv {
 			delivered++
-			recovered = append(recovered, e.ID)
+			recovered = append(recovered, id)
 		}
 	}
-	p.persistLocked()
-	p.mu.Unlock()
 	// 对账恢复的发货同样推送 delivered(v1.1:含对账恢复的重发)。
 	for _, id := range recovered {
 		p.notify(EventDelivered, orderEventDTO{OrderID: id})
@@ -410,19 +425,31 @@ type CodeError struct{ Code string }
 func (e *CodeError) Error() string { return e.Code }
 
 // CloseOrder 管理面关单:CREATED/PAID → CLOSED;已发货订单不可关(409 PAYMENT_ORDER_STATE)。
+// 发货在途时等待定局后按终局裁决(审核 2026-11-12 P1:原实现与发货互斥于
+// p.mu,关单意图不会被锁外发货窗口绕过;inflight 等待恢复同一语义)。
 func (p *PaymentsProvider) CloseOrder(orderID string) error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	e, ok := p.orders[orderID]
-	if !ok {
-		return &CodeError{Code: aggregation.CodePaymentOrderNotFound}
+	for {
+		p.mu.Lock()
+		e, ok := p.orders[orderID]
+		if !ok {
+			p.mu.Unlock()
+			return &CodeError{Code: aggregation.CodePaymentOrderNotFound}
+		}
+		if projectOrder(e).Status == StatusDelivered {
+			p.mu.Unlock()
+			return &CodeError{Code: aggregation.CodePaymentOrderState}
+		}
+		if f, busy := p.inflight[orderID]; busy {
+			// 同订单发货进行中:等定局后按终局裁决(发货成功 → 409,失败 → 关得掉)。
+			p.mu.Unlock()
+			<-f
+			continue
+		}
+		e.Events = append(e.Events, orderEvent{Type: evClosed, At: p.clock()})
+		p.persistLocked()
+		p.mu.Unlock()
+		return nil
 	}
-	if projectOrder(e).Status == StatusDelivered {
-		return &CodeError{Code: aggregation.CodePaymentOrderState}
-	}
-	e.Events = append(e.Events, orderEvent{Type: evClosed, At: p.clock()})
-	p.persistLocked()
-	return nil
 }
 
 // ---- HTTP:玩家端点(全 Bearer)+ S2S 回调(渠道签名) ----
@@ -590,38 +617,63 @@ func (p *PaymentsProvider) handleCallback(w http.ResponseWriter, r *http.Request
 		paidAt = t
 	}
 	e.Events = append(e.Events, orderEvent{Type: evPaid, At: paidAt})
-	deliveredNow := p.deliverJournalLocked(e, paidAt) // 发货失败不回滚 PAID:停 PAID 等对账(契约红线 6)
-	p.persistLocked()
+	p.persistLocked() // PAID 先落库:发货中断不丢单,对账恢复(契约红线 6)
 	p.mu.Unlock()
+
+	delivered, snap := p.deliverAndAdvance(e, paidAt)
 
 	// 推送只报状态转移,不报受理(幂等重复回调走上面提前返回,不重发事件)。
 	p.notify(EventPaid, orderEventDTO{OrderID: e.ID})
-	if deliveredNow {
+	if delivered {
 		p.notify(EventDelivered, orderEventDTO{OrderID: e.ID})
 	}
 
 	// 回调本身已受理(200);发货进度看订单状态(轮询)。
-	aggregation.WriteData(w, orderDTOOf(e, projectOrder(e), false))
+	aggregation.WriteData(w, snap)
 }
 
-// deliverJournalLocked 发货并追加 delivered 事件(调用方须持锁;钩子为接入方代码,
-// 须快返);返回是否转 DELIVERED。
-func (p *PaymentsProvider) deliverJournalLocked(e *journalEntry, now time.Time) bool {
+// deliverAndAdvance 发货并按定局追加 delivered 事件:钩子零锁执行(审核
+// 2026-11-12 P1:原 deliverJournalLocked 持 p.mu 调接入方代码,钩子回调本
+// Provider 即自锁死锁);同订单发货经 inflight 登记,CloseOrder 等待定局。
+// 提交时复查停 PAID(钩子期间被并发定局则不追加);返回(是否转 DELIVERED,
+// 响应快照——锁内投影,锁外组装响应不读共享账本)。
+func (p *PaymentsProvider) deliverAndAdvance(e *journalEntry, now time.Time) (bool, orderDTO) {
+	p.mu.Lock()
+	f := make(chan struct{})
+	p.inflight[e.ID] = f
+	p.mu.Unlock()
+
+	err := error(nil)
 	if p.deliver != nil {
-		if err := p.deliver(Delivery{
-			OrderID:     e.ID,
-			AccountID:   e.Owner,
-			SkuID:       e.Sku.ID,
-			ProductID:   e.Sku.ProductID,
-			Form:        e.Sku.Form,
-			AmountCents: e.Sku.AmountCents,
-			Currency:    e.Sku.Currency,
-		}); err != nil {
-			return false // 停 PAID,不丢单(对账恢复)
-		}
+		err = p.deliver(p.deliveryOf(e)) // 入参为创建期不可变字段的快照
 	}
-	e.Events = append(e.Events, orderEvent{Type: evDelivered, At: now})
-	return true
+
+	p.mu.Lock()
+	delete(p.inflight, e.ID)
+	view := projectOrder(e)
+	advanced := err == nil && view.Status == StatusPaid
+	if advanced {
+		e.Events = append(e.Events, orderEvent{Type: evDelivered, At: now})
+		p.persistLocked()
+		view = projectOrder(e)
+	}
+	snap := orderDTOOf(e, view, false)
+	p.mu.Unlock()
+	close(f)
+	return advanced, snap
+}
+
+// deliveryOf 组装发货出参(仅读创建期不可变字段,免锁)。
+func (p *PaymentsProvider) deliveryOf(e *journalEntry) Delivery {
+	return Delivery{
+		OrderID:     e.ID,
+		AccountID:   e.Owner,
+		SkuID:       e.Sku.ID,
+		ProductID:   e.Sku.ProductID,
+		Form:        e.Sku.Form,
+		AmountCents: e.Sku.AmountCents,
+		Currency:    e.Sku.Currency,
+	}
 }
 
 func (p *PaymentsProvider) writeInvalid(w http.ResponseWriter, r *http.Request, msg string) {

@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -1173,5 +1174,104 @@ func TestOrdersStoreSaveFailClosed(t *testing.T) {
 	mustCreate(t, p)
 	if st.saves != saves {
 		t.Fatal("stateErr 置位后不应再写 Store")
+	}
+}
+
+// 审核回归(2026-11-12 P1):deliver 钩子在锁外执行——钩子回调本 Provider
+// (AddSku/HealthCheck 都取 p.mu)不得自锁死锁;原实现持 p.mu 调接入方代码,
+// 回调即死锁。死锁以守护超时呈现为失败。
+func TestDeliverHookReentrantNoDeadlock(t *testing.T) {
+	done := make(chan struct{})
+	var once sync.Once
+	var p *PaymentsProvider
+	var hook func(Delivery) error
+	hook = func(_ Delivery) error {
+		// 钩子回调本 Provider:取 p.mu 的两条路径(登记/健康检查)。
+		p.AddSku("probe", "com.demo.probe", "DIRECT_PURCHASE", 1, "CNY")
+		if err := p.HealthCheck(context.Background()); err != nil {
+			t.Errorf("钩子内 HealthCheck: %v", err)
+		}
+		once.Do(func() { close(done) })
+		return nil
+	}
+	p, acc := harness(t, "s3cret", hook, nil)
+	seedSkus(p)
+	_, rec := createOrder(t, p, acc, "sku_gem_60")
+	var oid struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &oid); err != nil {
+		t.Fatal(err)
+	}
+	body := `{"orderId":"` + oid.Data.ID + `","paidAt":"2026-10-09T12:01:00Z"}`
+	rec = call(t, p, http.MethodPost, "/v1/payments/callback", body,
+		map[string]string{"X-Payment-Signature": sign("s3cret", []byte(body))})
+	if rec.Code != 200 {
+		t.Fatalf("callback=%d %s", rec.Code, rec.Body.String())
+	}
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("deliver 钩子回调本 Provider 死锁(缺陷:钩子曾在 p.mu 内执行)")
+	}
+}
+
+// 审核回归(2026-11-12 P1):关单意图不被锁外发货窗口绕过——发货在途时
+// CloseOrder 等待定局后按终局裁决:发货成功 → 订单已 DELIVERED,关单 409。
+func TestCloseOrderWaitsForInFlightDelivery(t *testing.T) {
+	release := make(chan struct{})
+	hookDone := make(chan struct{})
+	p, acc := harness(t, "s3cret", func(_ Delivery) error {
+		<-release // 拉长锁外发货窗口
+		close(hookDone)
+		return nil
+	}, nil)
+	seedSkus(p)
+	_, rec := createOrder(t, p, acc, "sku_gem_60")
+	var oid struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &oid); err != nil {
+		t.Fatal(err)
+	}
+	body := `{"orderId":"` + oid.Data.ID + `","paidAt":"2026-10-09T12:01:00Z"}`
+	go func() {
+		rec := call(t, p, http.MethodPost, "/v1/payments/callback", body,
+			map[string]string{"X-Payment-Signature": sign("s3cret", []byte(body))})
+		if rec.Code != 200 {
+			t.Errorf("callback=%d", rec.Code)
+		}
+	}()
+	waitHookEntered := func() bool {
+		for i := 0; i < 200; i++ { // 轮询等 PAID 事件落库、钩子进入
+			p.mu.Lock()
+			e, ok := p.orders[oid.Data.ID]
+			inHook := ok && projectOrder(e).Status == StatusPaid && len(p.inflight) == 1
+			p.mu.Unlock()
+			if inHook {
+				return true
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+		return false
+	}
+	if !waitHookEntered() {
+		t.Fatal("发货未进入在途窗口")
+	}
+	closed := make(chan error, 1)
+	go func() { closed <- p.CloseOrder(oid.Data.ID) }()
+	select {
+	case err := <-closed:
+		t.Fatalf("关单在发货在途时应等待定局,却提前返回: %v", err)
+	case <-time.After(150 * time.Millisecond):
+	}
+	close(release)
+	<-hookDone
+	if err := <-closed; err == nil {
+		t.Fatal("发货定局为 DELIVERED 后关单应 409,却成功了")
 	}
 }
