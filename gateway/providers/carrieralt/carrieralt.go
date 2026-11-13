@@ -96,6 +96,11 @@ type Provider struct {
 
 	mu      sync.RWMutex
 	journal []journalEvent
+
+	// inflight 按邮件登记交付中的信号量:claimHook 在锁外执行期间,同邮件
+	// 并发领取在此等待、定局后重查——与原锁内执行的外部可观察行为一致;
+	// 钩子本身零锁,可安全回调本 Provider(审核 2026-11-12 P1)。
+	inflight map[string]chan struct{}
 }
 
 func New(opts Options) *Provider {
@@ -116,7 +121,7 @@ func New(opts Options) *Provider {
 	}
 	return &Provider{name: opts.Name, clock: opts.Clock, auth: authMW,
 		notify: opts.Notify, auditSink: opts.AuditSink, claimHook: opts.Claim,
-		journal: []journalEvent{}}
+		journal: []journalEvent{}, inflight: map[string]chan struct{}{}}
 }
 
 func (p *Provider) Name() string                        { return p.name }
@@ -249,42 +254,74 @@ func (p *Provider) handleDetail(w http.ResponseWriter, r *http.Request, id strin
 		aggregation.CodeMailNotFound, "mail not found")
 }
 
+// handleClaim 领取(一次性发放,同账号同邮件重复 = 同结果)。
+// claimHook 在锁外执行(审核 2026-11-12 P1:原实现持 p.mu 调接入方代码,
+// 钩子回调本 Provider 即自锁死锁)。同邮件并发领取经 inflight 信号串行化:
+// 后到者等待交付定局后整轮重查——先到成功则幂等返回、先到失败由后到者
+// 接手,与原锁内执行的外部可观察行为一致。
 func (p *Provider) handleClaim(w http.ResponseWriter, r *http.Request, id string) {
 	account, _ := auth.FromContext(r.Context())
-	p.mu.Lock()
-	items := p.snapshot(account.AccountID, p.clock())
-	var found *mailDTO
-	for i := range items {
-		if items[i].ID == id {
-			found = &items[i]
-			break
-		}
-	}
-	if found == nil {
-		p.mu.Unlock()
-		aggregation.WriteError(w, middleware.TraceID(r.Context()),
-			aggregation.CodeMailNotFound, "mail not found")
-		return
-	}
-	repeated := false
-	for _, e := range p.journal {
-		if e.Kind == "claim" && e.Mail.ID == id && e.Account == account.AccountID {
-			repeated = true
-		}
-	}
-	if !repeated {
-		if p.claimHook != nil {
-			if err := p.claimHook(account.AccountID, id); err != nil {
-				p.mu.Unlock()
-				aggregation.WriteError(w, middleware.TraceID(r.Context()), aggregation.CodeUnavailable, err.Error())
-				return
+	for {
+		p.mu.Lock()
+		items := p.snapshot(account.AccountID, p.clock())
+		var found *mailDTO
+		for i := range items {
+			if items[i].ID == id {
+				found = &items[i]
+				break
 			}
 		}
-		p.journal = append(p.journal, journalEvent{Kind: "claim", Account: account.AccountID, Mail: Mail{ID: id}, At: p.clock()})
+		if found == nil {
+			p.mu.Unlock()
+			aggregation.WriteError(w, middleware.TraceID(r.Context()),
+				aggregation.CodeMailNotFound, "mail not found")
+			return
+		}
+		snap := *found // 快照锁内捕获:响应值不随钩子期间新事件漂移
+		repeated := false
+		for _, e := range p.journal {
+			if e.Kind == "claim" && e.Mail.ID == id && e.Account == account.AccountID {
+				repeated = true
+			}
+		}
+		if repeated {
+			p.mu.Unlock()
+			p.emit(account.AccountID, id, true, r)
+			aggregation.WriteData(w, snap)
+			return
+		}
+		if f, busy := p.inflight[id]; busy {
+			// 同邮件交付进行中:等定局后重查(钩子在锁外执行期间)。
+			p.mu.Unlock()
+			<-f
+			continue
+		}
+		f := make(chan struct{})
+		p.inflight[id] = f
+		p.mu.Unlock()
+
+		hookErr := error(nil)
+		if p.claimHook != nil {
+			hookErr = p.claimHook(account.AccountID, id)
+		}
+
+		p.mu.Lock()
+		delete(p.inflight, id)
+		if hookErr == nil {
+			p.journal = append(p.journal, journalEvent{Kind: "claim", Account: account.AccountID, Mail: Mail{ID: id}, At: p.clock()})
+		}
+		p.mu.Unlock()
+		close(f)
+
+		if hookErr != nil {
+			aggregation.WriteError(w, middleware.TraceID(r.Context()),
+				aggregation.CodeUnavailable, hookErr.Error())
+			return
+		}
+		p.emit(account.AccountID, id, false, r)
+		aggregation.WriteData(w, snap)
+		return
 	}
-	p.mu.Unlock()
-	p.emit(account.AccountID, id, repeated, r)
-	aggregation.WriteData(w, *found)
 }
 
 func (p *Provider) emit(accountID, mailID string, repeated bool, r *http.Request) {

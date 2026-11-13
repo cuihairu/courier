@@ -1,10 +1,13 @@
 package carrieralt
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -160,4 +163,81 @@ func TestListCursorPagination(t *testing.T) {
 	if rec.Code != 400 {
 		t.Fatalf("非法 cursor 应 400, got %d", rec.Code)
 	}
+}
+
+// 审核回归(2026-11-12 P1):claimHook 在锁外执行——钩子回调本 Provider
+// (Publish/handleList 都取 p.mu)不得自锁死锁;原实现持 p.mu 调接入方代码,
+// 回调即死锁。死锁以守护超时呈现为失败。
+func TestClaimHookReentrantNoDeadlock(t *testing.T) {
+	done := make(chan struct{})
+	var once sync.Once
+	var p *Provider
+	p = New(Options{
+		RequireAuth: authStub,
+		Claim: func(accountID, mailID string) error {
+			// 钩子回调本 Provider:取 p.mu 的两条路径(投递/列表)。
+			if _, err := p.Publish("acct1", "probe", "body", nil, nil); err != nil {
+				t.Errorf("钩子内 Publish: %v", err)
+			}
+			_ = p.HealthCheck(context.Background())
+			once.Do(func() { close(done) })
+			return nil
+		},
+	})
+	m, err := p.Publish("acct1", "hi", "body", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if code, _ := post(t, p, "/v1/mail/"+m.ID+"/claim"); code != 200 {
+		t.Fatalf("claim=%d", code)
+	}
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("claimHook 回调本 Provider 死锁(缺陷:钩子曾在 p.mu 内执行)")
+	}
+}
+
+// 并发同邮件领取幂等:同账号并发领取全部 200,但钩子恰好执行一次
+// (领取响应为邮件快照,无 repeated 字段,以钩子计数断言)。
+func TestClaimConcurrentIdempotent(t *testing.T) {
+	var claims atomic.Int32
+	p := New(Options{
+		RequireAuth: authStub,
+		Claim:       func(_, _ string) error { claims.Add(1); return nil },
+	})
+	m, err := p.Publish("acct1", "hi", "body", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const n = 8
+	start := make(chan struct{})
+	out := make(chan int, n)
+	for i := 0; i < n; i++ {
+		go func() {
+			<-start
+			req := httptest.NewRequest(http.MethodPost, "/v1/mail/"+m.ID+"/claim", strings.NewReader("{}"))
+			rec := httptest.NewRecorder()
+			p.ServeHTTP(rec, req)
+			out <- rec.Code
+		}()
+	}
+	close(start)
+	for i := 0; i < n; i++ {
+		if code := <-out; code != 200 {
+			t.Fatalf("并发领取出现非 200: %d", code)
+		}
+	}
+	if claims.Load() != 1 {
+		t.Fatalf("领取钩子执行 %d 次,期望恰好 1", claims.Load())
+	}
+}
+
+func post(t *testing.T, p *Provider, path string) (int, string) {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, path, strings.NewReader("{}"))
+	rec := httptest.NewRecorder()
+	p.ServeHTTP(rec, req)
+	return rec.Code, rec.Body.String()
 }
