@@ -2,6 +2,7 @@ package voucher
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -109,7 +110,7 @@ func TestRedeemConcurrentIdempotent(t *testing.T) {
 	var grants atomic.Int32
 	p := New(Options{
 		RequireAuth: authStub,
-		Grant: func(_, _, _ string) error { grants.Add(1); return nil },
+		Grant:       func(_, _, _ string) error { grants.Add(1); return nil },
 	})
 	p.Register("RACE1", "coin", 10)
 
@@ -140,5 +141,56 @@ func TestRedeemConcurrentIdempotent(t *testing.T) {
 	}
 	if real != 1 || grants.Load() != 1 {
 		t.Fatalf("真实发放=%d grants=%d,期望恰好 1/1", real, grants.Load())
+	}
+}
+
+// 竞态回归(2026-11-12):grant 值须锁内单次捕获——钩子锁外执行期间并发
+// Register 改写 Grant,旧实现两次锁外读 c.Grant(调钩子一次、组装响应一次)
+// 既属数据竞争(-race 抓出),又可能使响应值 ≠ 钩子收到的值。捕获后钩子与
+// 响应必然同值。
+func TestGrantValueStableDuringHook(t *testing.T) {
+	var p *Provider
+	hookIn := make(chan struct{})
+	hookOut := make(chan struct{})
+	hookGrant := make(chan string, 1)
+	p = New(Options{
+		RequireAuth: authStub,
+		Grant: func(_, _, grant string) error {
+			select {
+			case <-hookIn:
+			default:
+				close(hookIn)
+			}
+			<-hookOut // 拉长锁外窗口:并发 Register 与锁外 Grant 读交错
+			hookGrant <- grant
+			return nil
+		},
+	})
+	p.Register("G1", "coin_100", 1)
+	stop := make(chan struct{})
+	go func() { // 持续 Register 改写 Grant(全部在锁内)
+		for i := 0; ; i++ {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			p.Register("G1", fmt.Sprintf("rewritten-%d", i), 10)
+		}
+	}()
+	done := make(chan string, 1)
+	go func() {
+		rec := httptest.NewRecorder()
+		p.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/v1/cdk/redeem",
+			strings.NewReader(`{"code":"G1"}`)))
+		done <- rec.Body.String()
+	}()
+	<-hookIn
+	close(hookOut)
+	body := <-done
+	close(stop)
+	hg := <-hookGrant
+	if !strings.Contains(body, `"grant":"`+hg+`"`) {
+		t.Fatalf("兑换结果 grant 应与钩子收到的一致(锁内单次捕获): hook=%q body=%s", hg, body)
 	}
 }

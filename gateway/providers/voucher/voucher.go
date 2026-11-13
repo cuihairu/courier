@@ -145,12 +145,13 @@ func (p *Provider) Redeem(accountID, value string) (redeemDTO, error) {
 		}
 		f := make(chan struct{})
 		p.inflight[value] = f
-		c.RedeemCount++ // 预占一格,失败回滚
+		c.RedeemCount++  // 预占一格,失败回滚
+		grant := c.Grant // 锁内捕获:钩子期间 Register 可改写,锁外读即竞争
 		p.mu.Unlock()
 
 		err := error(nil)
 		if p.grantHook != nil {
-			err = p.grantHook(accountID, value, c.Grant)
+			err = p.grantHook(accountID, value, grant)
 		}
 
 		p.mu.Lock()
@@ -166,7 +167,7 @@ func (p *Provider) Redeem(accountID, value string) (redeemDTO, error) {
 		if err != nil {
 			return redeemDTO{}, &aggregation.CodeError{Code: aggregation.CodeUnavailable}
 		}
-		return redeemDTO{Code: value, Grant: c.Grant}, nil
+		return redeemDTO{Code: value, Grant: grant}, nil
 	}
 }
 
