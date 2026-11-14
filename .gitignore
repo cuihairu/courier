@@ -10,6 +10,8 @@ gateway/gateway
 node_modules/
 dist/
 build/
+# pnpm 本地误装产物;锁文件以 npm package-lock.json 为准
+pnpm-lock.yaml
 
 # Unity
 [Ll]ibrary/
