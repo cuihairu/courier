@@ -26,7 +26,7 @@ export interface ApiClientOptions {
   readonly retry?: RetryPolicy;
   /** 每次请求现取 access token(轮换后自动为新值);null = 匿名请求。 */
   readonly accessTokenProvider?: () => string | null;
-  /** access 过期(AUTH_TOKEN_EXPIRED)时尝试 refresh;返回 true 则重放一次。 */
+  /** access 过期(AUTH_TOKEN_EXPIRED)时尝试 refresh;返回严格 true 才重放一次(非布尔视作失败)。 */
   readonly refreshHook?: () => Promise<boolean>;
   /** 退避睡眠(测试注入;默认真实 setTimeout)。 */
   readonly sleep?: (ms: number) => Promise<void>;
@@ -106,7 +106,9 @@ export class ApiClient {
       // access 过期:refresh 一次后重放(不计入退避重试次数)。
       if (error.wire === "AUTH_TOKEN_EXPIRED" && this.refreshHook && !refreshed) {
         refreshed = true;
-        if (await this.refreshHook()) {
+        // 严格 === true:非布尔返回(如 undefined/对象)视作刷新失败,回原 401——
+        // 与 Godot 端 fail-closed 契约一致,防接线方误返非布尔值导致意外重放。
+        if ((await this.refreshHook()) === true) {
           token = this.accessTokenProvider ? this.accessTokenProvider() : null;
           if (token) {
             headers["Authorization"] = "Bearer " + token;

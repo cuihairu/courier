@@ -650,6 +650,28 @@ test("refresh 重放边界:二次过期不再 refresh;refresh 后 token 为空 B
   assert.equal(transport.requests[1].headers["Authorization"], "Bearer tok-1"); // token 空:Bearer 不更新
 });
 
+test("refresh 返回非布尔:视作失败回原 401 不重放(与 Godot fail-closed 同契约)", async () => {
+  for (const bad of [undefined, null, 1, "yes", { ok: true }]) {
+    const transport = new FakeTransport();
+    let refreshCalls = 0;
+    const raw: unknown = bad; // 故意违反 Promise<boolean> 契约,验证运行时 fail-closed
+    const client = new ApiClient({
+      config, transport,
+      accessTokenProvider: () => "tok-1",
+      refreshHook: async () => { refreshCalls++; return raw as boolean; },
+      sleep: async () => {},
+    });
+    transport.enqueue(401, JSON.stringify({
+      error: { code: "AUTH_TOKEN_EXPIRED", message: "expired", retryable: false },
+    }));
+
+    const e = isErr(await client.request("GET", "/x").catch((x) => x));
+    assert.equal(e.wire, "AUTH_TOKEN_EXPIRED"); // 非 true 一律回原 401
+    assert.equal(transport.requests.length, 1); // 不重放
+    assert.equal(refreshCalls, 1);
+  }
+});
+
 test("refresh 重放:无 accessTokenProvider(匿名请求)hook 仍生效,Bearer 恒不设", async () => {
   const transport = new FakeTransport();
   let refreshCalls = 0;
