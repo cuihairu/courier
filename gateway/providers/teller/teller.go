@@ -155,6 +155,11 @@ type PaymentsProvider struct {
 	orders  map[string]*orderRecord
 	byOwner map[string][]string // accountID → 登记序 orderIDs
 
+	// inflight 按订单登记发货中的信号量:deliver 钩子在锁外执行期间,同订单
+	// CloseOrder 在此等待定局后按终局裁决——防关单意图被锁外发货窗口绕过
+	//(审核 2026-11-12 P1;与原锁内执行的外部可观察行为一致)。
+	inflight map[string]chan struct{}
+
 	stateFile string     // StateFile 快照路径(空 = 纯内存)
 	store     OrderStore // 二期存储接缝(nil = 未配置;非 nil 时优先于 stateFile)
 	stateErr  error      // 快照回放/写入失败(HealthCheck fail-closed,不静默丢单)
@@ -194,6 +199,7 @@ func New(opts Options) *PaymentsProvider {
 		skus:          make(map[string]skuRecord),
 		orders:        make(map[string]*orderRecord),
 		byOwner:       make(map[string][]string),
+		inflight:      make(map[string]chan struct{}),
 	}
 	p.loadState()
 	return p
@@ -377,20 +383,32 @@ type CodeError struct{ Code string }
 func (e *CodeError) Error() string { return e.Code }
 
 // CloseOrder 管理面关单:CREATED/PAID → CLOSED;已发货订单不可关(409 PAYMENT_ORDER_STATE)。
+// 发货在途时等待定局后按终局裁决(审核 2026-11-12 P1:原实现与发货互斥于
+// p.mu,关单意图不会被锁外发货窗口绕过;inflight 等待恢复同一语义)。
 func (p *PaymentsProvider) CloseOrder(orderID string) error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	o, ok := p.orders[orderID]
-	if !ok {
-		return &CodeError{Code: aggregation.CodePaymentOrderNotFound}
+	for {
+		p.mu.Lock()
+		o, ok := p.orders[orderID]
+		if !ok {
+			p.mu.Unlock()
+			return &CodeError{Code: aggregation.CodePaymentOrderNotFound}
+		}
+		if o.Status == StatusDelivered {
+			p.mu.Unlock()
+			return &CodeError{Code: aggregation.CodePaymentOrderState}
+		}
+		if f, busy := p.inflight[orderID]; busy {
+			// 同订单发货进行中:等定局后按终局裁决(发货成功 → 409,失败 → 关得掉)。
+			p.mu.Unlock()
+			<-f
+			continue
+		}
+		o.Status = StatusClosed
+		o.UpdatedAt = p.clock()
+		p.persistLocked()
+		p.mu.Unlock()
+		return nil
 	}
-	if o.Status == StatusDelivered {
-		return &CodeError{Code: aggregation.CodePaymentOrderState}
-	}
-	o.Status = StatusClosed
-	o.UpdatedAt = p.clock()
-	p.persistLocked()
-	return nil
 }
 
 // ---- HTTP:玩家端点(全 Bearer)+ S2S 回调(渠道签名) ----
@@ -582,11 +600,18 @@ func (p *PaymentsProvider) handleCallback(w http.ResponseWriter, r *http.Request
 // deliverAndAdvance 发货并推进状态。发货钩子在锁外执行(审核 2026-11-11
 // P1:原 deliverOrderLocked 持 p.mu 调接入方代码,钩子回调本 Provider 即自锁
 // 死锁);成功后重新持锁推进 DELIVERED 并落库,返回(是否本次转 DELIVERED,
-// 响应用订单快照——快照一律锁内取)。提交前复查:期间被管理面关单的订单
-// 以 CLOSED 为终态,不再推进(发放事实由接入方幂等兜底)。
+// 响应用订单快照——快照一律锁内取)。发货期间订单经 inflight 登记,同订单
+// CloseOrder 等待定局后按终局裁决(审核 2026-11-12 P1:关单意图不被锁外
+// 发货窗口绕过);提交前复查 StatusPaid 仍作防御(正常路径经 inflight 排除)。
 func (p *PaymentsProvider) deliverAndAdvance(o *orderRecord, now time.Time) (bool, orderDTO) {
+	p.mu.Lock()
+	f := make(chan struct{})
+	p.inflight[o.ID] = f
+	p.mu.Unlock()
+
+	err := error(nil)
 	if p.deliver != nil {
-		if err := p.deliver(Delivery{
+		err = p.deliver(Delivery{ // 入参为创建期不可变字段的快照
 			OrderID:     o.ID,
 			AccountID:   o.Owner,
 			SkuID:       o.Sku.ID,
@@ -594,24 +619,22 @@ func (p *PaymentsProvider) deliverAndAdvance(o *orderRecord, now time.Time) (boo
 			Form:        o.Sku.Form,
 			AmountCents: o.Sku.AmountCents,
 			Currency:    o.Sku.Currency,
-		}); err != nil {
-			p.mu.Lock()
-			snap := orderDTOOf(o, false)
-			p.mu.Unlock()
-			return false, snap // 停 PAID,不丢单(对账恢复)
-		}
+		})
 	}
+
 	p.mu.Lock()
-	defer p.mu.Unlock()
-	if o.Status != StatusPaid {
-		return false, orderDTOOf(o, false)
+	delete(p.inflight, o.ID)
+	advanced := err == nil && o.Status == StatusPaid
+	if advanced {
+		o.Status = StatusDelivered
+		o.DeliveredAt = &now
+		o.UpdatedAt = now
+		p.persistLocked()
 	}
-	o.Status = StatusDelivered
-	o.DeliveredAt = &now
-	o.UpdatedAt = now
-	snap := orderDTOOf(o, false)
-	p.persistLocked()
-	return true, snap
+	snap := orderDTOOf(o, false) // 快照一律锁内取
+	p.mu.Unlock()
+	close(f)
+	return advanced, snap
 }
 
 func (p *PaymentsProvider) writeInvalid(w http.ResponseWriter, r *http.Request, msg string) {
