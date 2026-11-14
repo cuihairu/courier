@@ -221,12 +221,12 @@ func TestClaimHookReentrantNoDeadlock(t *testing.T) {
 }
 
 // 并发同邮件领取幂等:同账号并发领取全部 200,但钩子恰好执行一次
-//(恰好一次真实发放;领取响应为邮件快照,无 repeated 字段,以钩子计数断言)。
+// (恰好一次真实发放;领取响应为邮件快照,无 repeated 字段,以钩子计数断言)。
 func TestClaimConcurrentIdempotent(t *testing.T) {
 	var claims atomic.Int32
 	p := New(Options{
 		RequireAuth: authStub,
-		Claim: func(_, _ string) error { claims.Add(1); return nil },
+		Claim:       func(_, _ string) error { claims.Add(1); return nil },
 	})
 	m, err := p.Publish("acct1", "hi", "body", []Attachment{{ID: "a", Type: "coin", Amount: 100}}, nil)
 	if err != nil {

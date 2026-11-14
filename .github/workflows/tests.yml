@@ -54,6 +54,14 @@ jobs:
           go-version-file: go.mod
       - name: root module tools
         run: go test -race ./tools/...
+      - name: gofmt (root + gateway)
+        run: |
+          drift=$(gofmt -l . ; cd gateway && gofmt -l .)
+          if [ -n "$drift" ]; then
+            echo "unformatted go files:"
+            printf '%s\n' "$drift"
+            exit 1
+          fi
       - name: vet (root module)
         run: go vet ./...
       - name: vet (gateway)

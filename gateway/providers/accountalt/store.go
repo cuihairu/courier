@@ -353,11 +353,11 @@ func (s *Store) Rotate(sessID string) (access, refresh string, err error) {
 type RefreshDecision int
 
 const (
-	RefreshInvalid  RefreshDecision = iota // 会话不存在或代际超前(伪造)
-	RefreshRotated                         // 当前代,已代际 +1 完成轮换
-	RefreshReused                          // 上一代重放,整个会话已在同临界区吊销
-	RefreshRevoked                         // 会话已吊销
-	RefreshExpired                         // refresh claim 已过 exp
+	RefreshInvalid RefreshDecision = iota // 会话不存在或代际超前(伪造)
+	RefreshRotated                        // 当前代,已代际 +1 完成轮换
+	RefreshReused                         // 上一代重放,整个会话已在同临界区吊销
+	RefreshRevoked                        // 会话已吊销
+	RefreshExpired                        // refresh claim 已过 exp
 )
 
 // ConsumeRefresh 会话加载+代际判定+轮换/吊销并入同一临界区(审核

@@ -435,11 +435,11 @@ func (s *Store) CreateSession(accountID, gameID, env, deviceID string) (sess ses
 type RefreshOutcome int
 
 const (
-	RefreshInvalid  RefreshOutcome = iota // 未知 token
-	RefreshRotated                        // 当前代,已完成轮换
-	RefreshReused                         // 上一代重放,整个会话已在同临界区吊销
-	RefreshRevoked                        // 当前代但会话已吊销(err=auth.ErrTokenRevoked)
-	RefreshExpired                        // 当前代但已过 refresh TTL(err=auth.ErrTokenExpired)
+	RefreshInvalid RefreshOutcome = iota // 未知 token
+	RefreshRotated                       // 当前代,已完成轮换
+	RefreshReused                        // 上一代重放,整个会话已在同临界区吊销
+	RefreshRevoked                       // 当前代但会话已吊销(err=auth.ErrTokenRevoked)
+	RefreshExpired                       // 当前代但已过 refresh TTL(err=auth.ErrTokenExpired)
 )
 
 // ConsumeRefresh 定位+判定+变更并入同一临界区(审核 2026-11-11 P1 修复:

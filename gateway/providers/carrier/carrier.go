@@ -134,7 +134,7 @@ func New(opts Options) *Provider {
 		name: opts.Name, clock: opts.Clock, auth: authMW,
 		notify: opts.Notify, auditSink: opts.AuditSink, claimHook: opts.Claim,
 		byID: map[string]Mail{}, byOwner: map[string][]string{},
-		claimed: map[string]map[string]bool{},
+		claimed:  map[string]map[string]bool{},
 		inflight: map[string]chan struct{}{},
 	}
 }
