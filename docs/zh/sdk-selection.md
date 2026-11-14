@@ -57,6 +57,10 @@
 
 替换/降级语义见 routing 包（`gateway/routing`）与 [layers.md](./layers.md):primary + `fallbacks[]`,健康检查为逐请求探活(无缓存),熔断仅实名域已落地(批次 7);禁用或全链不健康分别回 501 / 503 `COMMON_UNAVAILABLE`。自建/替换后端的完整接入步骤见 [provider-guide.md](./provider-guide.md)。
 
+## 刷新接缝(六端一致)
+
+每个 L2 `ApiClient` 都带一个可选刷新钩子,仅在 `AUTH_TOKEN_EXPIRED` 时触发一次:它回报令牌是否换发成功,**只有严格 `true` 才重放一次**(TS `refreshHook`,`sdks/{cocos,miniprogram,laybox}/src/core/apiClient.ts`;Godot `refresh_hook`,`sdks/godot/src/core/apiClient.gd`;UE `refresh_hook`,`sdks/ue/core/api_client.hpp`;Unity `RefreshHook`,`sdks/unity/packages/com.courier.core/Runtime/Core/ApiClient.cs`)。任何非 `true` 返回——`false`、`undefined`、类型不对——一律视作刷新失败,原 401 原样上抛(fail-closed:不拿可能已失效的令牌去重放)。该次重放不占退避重试次数。
+
 ## 口径注
 
 - 字节 = 2026-10-19 `du -sb` 实测**源码**字节(批次 102 复测:unity service / TS service / UE service / Godot src 含 consent 组 v1.1 增量;批次 97:unity core 含 lifecycle 信号中继与 refresh 单飞、TS core 含查表键型修复、UE 含测试收口增量;历史批次 63/60/55 见 git);UPM 统一取 `packages/*/Runtime/`(包根另含 README/package.json,非源码)——批次 55 原口径混用(后两包取包根),批次 60 统一:UPM 包在引擎内编译、无独立构建产物,TS 三端无 bundler 不产构建产物——此处是「接入面积」,不等于下载体积或引擎内占用。

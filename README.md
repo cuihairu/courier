@@ -201,6 +201,7 @@ Local gates (run all green before commit):
 go test -race ./...                # root module: contractgen + packcheck + tsync
 (cd gateway && go test -race ./...)  # gateway module: all providers + e2e
 (cd gateway && go vet ./...)       # copylocks etc. beyond go test's default vet
+gofmt -l . ; (cd gateway && gofmt -l .)  # both modules must print nothing
 go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...   # root module reachable-stdlib scan
 (cd gateway && go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...)  # gateway module
 node --test tests/*.test.ts        # in each of: sdks/cocos, sdks/miniprogram, sdks/laybox
@@ -242,7 +243,8 @@ The Go gateway is **not** distributed through nightly: this channel is the SDK p
 Download and verify:
 
 ```bash
-gh release download nightly --repo cuihairu/courier --pattern 'courier-nightly-*'
+gh release download nightly --repo cuihairu/courier \
+  --pattern 'courier-nightly-*' --pattern 'SHA256SUMS'
 sha256sum -c SHA256SUMS
 ```
 

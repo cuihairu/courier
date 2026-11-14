@@ -186,9 +186,12 @@ tools/      仓库门禁:contractgen(契约测试骨架)、packcheck(UPM 结构)
 本地门禁(commit 前全绿):
 
 ```text
-go test ./...                      # 根模块:contractgen + packcheck + tsync
-(cd gateway && go test ./...)      # gateway 模块:全部 Provider + e2e
+go test -race ./...                # 根模块:contractgen + packcheck + tsync
+(cd gateway && go test -race ./...)  # gateway 模块:全部 Provider + e2e
 (cd gateway && go vet ./...)       # copylocks 等(go test 默认 vet 子集之外)
+gofmt -l . ; (cd gateway && gofmt -l .)  # 双模块必须零输出
+go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...   # 根模块可达标准库扫描
+(cd gateway && go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...)  # gateway 模块
 node --test tests/*.test.ts        # 在 sdks/cocos、sdks/miniprogram、sdks/laybox 各自目录
 sh sdks/ue/run_tests.sh            # UE 无引擎独立编译(ISO C++17)
 ```
@@ -227,7 +230,8 @@ Go 网关**不经** nightly 分发:该渠道是 SDK 包面,不是 daemon 二进�
 下载与校验:
 
 ```bash
-gh release download nightly --repo cuihairu/courier --pattern 'courier-nightly-*'
+gh release download nightly --repo cuihairu/courier \
+  --pattern 'courier-nightly-*' --pattern 'SHA256SUMS'
 sha256sum -c SHA256SUMS
 ```
 
