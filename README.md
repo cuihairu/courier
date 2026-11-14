@@ -225,6 +225,27 @@ CI and local development split into three lanes by change surface — a one-line
 3. **Full suite** (`go test ./... + dotnet test`): triggered only by — go.mod / go.sum / *.csproj,
    `.github/**`, Docker/Compose config, or pre-release.
 
+## Nightly builds
+
+A rolling nightly build runs daily around 04:41 Asia/Shanghai and on manual dispatch — but skips entirely when `main` has no commit in the last 48 hours ([.github/workflows/nightly.yml](.github/workflows/nightly.yml)). Assets publish to the single rolling [`nightly` prerelease](../../releases/tag/nightly) — plus a dated immutable `nightly-YYYY-MM-DD` copy on the first build of each UTC day — **only after the full CI test surface passes**:
+
+- Unity: 4 UPM package tarballs via `npm pack` — `courier-nightly-com.courier.core-<ver>.tgz` (and service / ui / diagnostics); Unity → *Add package from tarball*
+- Cocos / Mini Program / Layabox: source tarballs `courier-nightly-<sdk>-src.tar.gz` — the three TS ends are zero-dependency source distributions (no npm package metadata, integration copies `src/`), so there is no npm tgz to produce
+- Unreal: `courier-nightly-ue-src.tar.gz` — the header-only ISO C++17 face (engine plugin surface not landed)
+- Godot: `courier-nightly-godot-src.tar.gz` — the GDScript addon
+- `SHA256SUMS` covers every asset; each tarball embeds `BUILD_INFO` with the source commit
+
+The Go gateway is **not** distributed through nightly: this channel is the SDK package face, not a daemon binary channel — build it from the source tree (`cd gateway && go build ./cmd/gateway`).
+
+**Nightly ≠ a formal release**: no version tag is created; versioned releases are issued manually by the maintainer only. Pin an exact build via the dated release or the commit recorded in `BUILD_INFO`.
+
+Download and verify:
+
+```bash
+gh release download nightly --repo cuihairu/courier --pattern 'courier-nightly-*'
+sha256sum -c SHA256SUMS
+```
+
 ## License
 
 Apache-2.0

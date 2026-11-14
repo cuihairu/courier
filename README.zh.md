@@ -210,6 +210,27 @@ CI 与本地开发按改动面三路分流——改一行文档不该全量编�
 3. **全量**(`go test ./... + dotnet test`):仅以下情形触发——go.mod / go.sum / *.csproj、
    `.github/**`、Docker/Compose 配置、发布前。
 
+## Nightly 构建
+
+滚动 nightly 每日约 04:41(Asia/Shanghai)运行,亦可手动 dispatch——但 main 近 48 小时无新 commit 时整体跳过([.github/workflows/nightly.yml](.github/workflows/nightly.yml))。产物仅在**完整 CI 测试面全绿后**发布到唯一的滚动 [`nightly` prerelease](../../releases/tag/nightly),并在每个 UTC 日首次构建时同步一份不可变的 `nightly-YYYY-MM-DD` 日期副本:
+
+- Unity:4 个 UPM 包 tarball(`npm pack`)——`courier-nightly-com.courier.core-<ver>.tgz`(以及 service / ui / diagnostics);Unity → *Add package from tarball*
+- Cocos / 小程序 / Layabox:源码 tarball `courier-nightly-<sdk>-src.tar.gz`——三端 TS SDK 是零依赖源码分发形态(无 npm 包元数据,接入按复制 `src/`),如实不造 npm 包面
+- Unreal:`courier-nightly-ue-src.tar.gz`——header-only ISO C++17 源码面(引擎插件面未落)
+- Godot:`courier-nightly-godot-src.tar.gz`——GDScript 插件
+- `SHA256SUMS` 覆盖全部资产;每个 tarball 内嵌 `BUILD_INFO`(记录源码 commit)
+
+Go 网关**不经** nightly 分发:该渠道是 SDK 包面,不是 daemon 二进制渠道——从源码树构建(`cd gateway && go build ./cmd/gateway`)。
+
+**Nightly ≠ 正式发布**:不建版本号 tag;正式版本由维护者手动触发签发。需要固定某一版构建,用日期副本 release 或 `BUILD_INFO` 里的 commit。
+
+下载与校验:
+
+```bash
+gh release download nightly --repo cuihairu/courier --pattern 'courier-nightly-*'
+sha256sum -c SHA256SUMS
+```
+
 ## License
 
 Apache-2.0

@@ -1,0 +1,251 @@
+# Rolling nightly builds (fleet ruling: daily builds are a normal delivery
+# surface; nightly is NOT a formal release channel).
+#
+#   Unity : 4 UPM package tarballs via npm pack
+#           (courier-nightly-com.courier.{core,service,ui,diagnostics}-<ver>.tgz)
+#   TS    : cocos / miniprogram / laybox source tarballs — the three TS ends are
+#           zero-dependency source distributions (no package.json, integration
+#           copies src/), so there is no npm tgz to produce
+#   UE    : engine-agnostic C++ source tarball (engine plugin surface not landed)
+#   Godot : GDScript source tarball
+#
+# The Go gateway is NOT distributed here: courier nightly is the SDK package
+# face, not a daemon binary channel — build the gateway from source.
+#
+# Assets publish to the single rolling `nightly` prerelease ONLY after the full
+# CI-standard test surface passes, with a dated immutable release
+# (nightly-YYYY-MM-DD) created alongside on the first build of each UTC day.
+# No version tag is created and nothing is promoted to a versioned release —
+# versioned releases are issued manually by the maintainer only. Scheduled runs
+# skip entirely when main has no commit in the last 48 hours;
+# workflow_dispatch always builds.
+name: Nightly build
+
+on:
+  schedule:
+    # 04:41 Asia/Shanghai; off-minute to reduce scheduler contention.
+    - cron: '41 20 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+jobs:
+  # Test gate: the exact tests.yml surface (root tools + gofmt + vet + gateway
+  # -race + govulncheck + three node SDK suites + unity dotnet + ue headless +
+  # six-end examples e2e vs a locally booted gateway), plus the 48h freshness
+  # gate (custos pattern): a scheduled wake with no new commit on origin/main
+  # skips everything downstream; manual dispatch always builds.
+  gate:
+    name: gate (tests.yml surface + 48h freshness)
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 45
+    outputs:
+      fresh: ${{ steps.fresh.outputs.fresh }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - name: 48h freshness gate (scheduled runs only)
+        id: fresh
+        run: |
+          fresh=true
+          if [ "${{ github.event_name }}" = "schedule" ] &&
+             [ -z "$(git log -1 --since='48 hours ago' --format=%H origin/main)" ]; then
+            fresh=false
+          fi
+          echo "fresh=$fresh" >> "$GITHUB_OUTPUT"
+          echo "fresh: $fresh"
+      - uses: actions/setup-go@v7.0.0
+        if: steps.fresh.outputs.fresh == 'true'
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v7.1.0
+        if: steps.fresh.outputs.fresh == 'true'
+        with:
+          node-version: 24
+      - uses: actions/setup-dotnet@v6.0.0
+        if: steps.fresh.outputs.fresh == 'true'
+        with:
+          dotnet-version: 10.0.x
+      - name: root module tools
+        if: steps.fresh.outputs.fresh == 'true'
+        run: go test -race ./tools/...
+      - name: gofmt (root + gateway)
+        if: steps.fresh.outputs.fresh == 'true'
+        run: |
+          drift=$(gofmt -l . ; cd gateway && gofmt -l .)
+          if [ -n "$drift" ]; then
+            echo "unformatted go files:"
+            printf '%s\n' "$drift"
+            exit 1
+          fi
+      - name: vet (root module)
+        if: steps.fresh.outputs.fresh == 'true'
+        run: go vet ./...
+      - name: vet (gateway)
+        if: steps.fresh.outputs.fresh == 'true'
+        run: go vet ./...
+        working-directory: gateway
+      - name: gateway
+        if: steps.fresh.outputs.fresh == 'true'
+        run: go test -race ./...
+        working-directory: gateway
+      - name: govulncheck (root + gateway)
+        if: steps.fresh.outputs.fresh == 'true'
+        run: |
+          go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+          (cd gateway && go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...)
+      - name: node sdks (cocos / miniprogram / laybox)
+        if: steps.fresh.outputs.fresh == 'true'
+        run: |
+          for sdk in cocos miniprogram laybox; do
+            (cd "sdks/$sdk" && node --test tests/*.test.ts)
+          done
+      - name: unity (dotnet pure-logic, four projects)
+        if: steps.fresh.outputs.fresh == 'true'
+        run: |
+          for t in ContractTests~ CoreTests~ ServiceTests~ DiagnosticsTests~; do
+            (cd "sdks/unity/$t" && dotnet test)
+          done
+      - name: ue (c++17 headless)
+        if: steps.fresh.outputs.fresh == 'true'
+        run: sh sdks/ue/run_tests.sh
+      - name: examples (six-end e2e vs local gateway)
+        if: steps.fresh.outputs.fresh == 'true'
+        run: |
+          (cd gateway && go build -o /tmp/courier-gateway ./cmd/gateway)
+          COURIER_GATEWAY_ADDR=:18099 /tmp/courier-gateway &
+          for i in $(seq 1 20); do curl -sf http://127.0.0.1:18099/healthz && break; sleep 0.5; done
+          for sdk in cocos miniprogram laybox; do
+            COURIER_ENDPOINT=http://127.0.0.1:18099 node "examples/$sdk/example.ts"
+          done
+          dotnet run --project examples/unity -- http://127.0.0.1:18099
+          g++ -std=c++17 -Wall -Wextra examples/ue/example.cpp \
+            -Isdks/ue/service -Isdks/ue/core -Isdks/ue/contract -o /tmp/ue_example
+          /tmp/ue_example http://127.0.0.1:18099
+
+  # Packages per SDK face, each artifact prefixed courier-nightly-<pkg>.
+  # Every tarball embeds BUILD_INFO (source commit + contents), so the rolling
+  # release's assets always identify what was built.
+  pack:
+    name: pack (upm tgz + source tarballs)
+    needs: gate
+    if: needs.gate.outputs.fresh == 'true'
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+      - name: Unity UPM packages (npm pack)
+        run: |
+          mkdir -p dist
+          for pkg in com.courier.core com.courier.service com.courier.ui com.courier.diagnostics; do
+            (cd "sdks/unity/packages/$pkg" && npm pack --pack-destination "$GITHUB_WORKSPACE/dist")
+          done
+          cd dist
+          for f in com.courier.*.tgz; do mv "$f" "courier-nightly-$f"; done
+      - name: Source tarballs (ts x3 / ue / godot)
+        run: |
+          mkdir -p dist
+          build_info() {
+            cat > "$1/BUILD_INFO" <<EOF
+          project: courier
+          channel: nightly (rolling prerelease; not a stable release)
+          commit: ${GITHUB_SHA}
+          built: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+          contents: $2
+          EOF
+          }
+          # TS 三端是零依赖源码分发(无 npm 包元数据,接入按复制 src/),
+          # nightly 以源码 tarball 分发并如实注明——不造 npm 包面。
+          for sdk in cocos miniprogram laybox; do
+            stage=$(mktemp -d)/$sdk
+            mkdir -p "$stage"
+            cp -r "sdks/$sdk/src" "sdks/$sdk/README.md" "$stage/"
+            build_info "$stage" "src/ (TypeScript source), README.md"
+            tar -C "$(dirname "$stage")" -czf "dist/courier-nightly-$sdk-src.tar.gz" "$sdk"
+          done
+          # UE:header-only ISO C++17 源码头三个 include 面(contract/core/service)。
+          stage=$(mktemp -d)/courier-ue
+          mkdir -p "$stage"
+          cp -r sdks/ue/contract sdks/ue/core sdks/ue/service sdks/ue/README.md "$stage/"
+          build_info "$stage" "contract/ core/ service/ (ISO C++17 headers), README.md"
+          tar -C "$(dirname "$stage")" -czf dist/courier-nightly-ue-src.tar.gz courier-ue
+          # Godot:GDScript 源码 + 契约镜像(project.godot/tests 属仓内测试工程,不随包)。
+          stage=$(mktemp -d)/courier-godot
+          mkdir -p "$stage"
+          cp -r sdks/godot/src sdks/godot/contract sdks/godot/README.md "$stage/"
+          build_info "$stage" "src/ (GDScript addon), contract/, README.md"
+          tar -C "$(dirname "$stage")" -czf dist/courier-nightly-godot-src.tar.gz courier-godot
+          ls -l dist
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: nightly-packages
+          path: dist/courier-nightly-*
+          if-no-files-found: error
+
+  # Rolling `nightly` prerelease (single release, assets clobbered, ref forced
+  # to the built commit) + a dated immutable release (nightly-YYYY-MM-DD,
+  # created once per UTC day, never overwritten). Not a formal release: no
+  # version tag, versioned releases stay manual.
+  publish:
+    name: publish (rolling nightly + dated immutable)
+    if: github.ref == 'refs/heads/main' && needs.gate.outputs.fresh == 'true'
+    needs: [gate, pack]
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          pattern: nightly-*
+          merge-multiple: true
+          path: dist/
+      - name: Publish rolling nightly + dated immutable release
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum courier-nightly-* > SHA256SUMS
+          DATE_TAG="nightly-$(date -u +%F)"
+          cat > notes.md <<NOTES
+          Automated nightly prerelease from commit ${GITHUB_SHA}.
+          Contents: Unity UPM package tarballs (com.courier.core / service / ui /
+          diagnostics, Unity → Add package from tarball), source tarballs for the
+          three TS ends (cocos / miniprogram / laybox — zero-dependency source
+          distributions without npm metadata), the Unreal C++17 header face and
+          the Godot GDScript addon. SHA256SUMS verifies the downloaded assets;
+          BUILD_INFO inside each tarball records the source commit. Every asset
+          was built only after the full tests.yml surface passed.
+          The Go gateway is not distributed through this channel: courier nightly
+          is the SDK package face, not a daemon binary channel — build it from
+          source (cd gateway && go build ./cmd/gateway).
+          This is NOT a stable release: nightly is a rolling build-artifact
+          channel. No version tag is created; versioned releases are issued
+          manually by the maintainer only. The nightly tag tracks the most
+          recent successful build; nightly-YYYY-MM-DD copies stay immutable.
+          NOTES
+          if gh release view nightly --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/nightly" -f sha="$GITHUB_SHA" -F force=true
+            gh release upload nightly courier-nightly-* SHA256SUMS --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit nightly --repo "$GITHUB_REPOSITORY" --prerelease --title 'Nightly' --notes-file notes.md
+          else
+            gh release create nightly courier-nightly-* SHA256SUMS --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --title 'Nightly' --notes-file notes.md
+          fi
+          # Dated copy: first build of the UTC day wins; later reruns never
+          # overwrite it (the dated release is immutable).
+          if gh release view "$DATE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "$DATE_TAG already exists; dated release stays immutable"
+          else
+            gh release create "$DATE_TAG" courier-nightly-* SHA256SUMS --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --title "Nightly $DATE_TAG" --notes-file notes.md
+          fi
