@@ -28,7 +28,7 @@ example: done
 ```text
 packages/
   com.courier.core/        L2 平台无关内核(CourierClient 门面 + Core/Identity/Session/Adapter)
-  com.courier.service/     L2 域服务(九域 + DTO + messages SSE 流客户端,CourierServices 门面)
+  com.courier.service/     L2 域服务(十一域 + DTO + messages SSE 流客户端,CourierServices 门面)
   com.courier.ui/          可选 UI 包(brandingCatalog + 公告/客服/助手/实名面板)
   com.courier.diagnostics/ 可选诊断包(crash/trace/performance/analytics,默认全关)
 ContractTests~/           契约测试(8 例,xunit)

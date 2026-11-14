@@ -43,7 +43,7 @@ sdks/laybox/
       identity.ts         身份域(guest/register/login/bind/refresh)
       lifecycle.ts        九态十触发状态机 + 契约事件面
       courierClient.ts    CourierClient 门面(认证流守卫)
-    service/         L2 域服务(九域 + SSE 解析器 + 流编排,courierServices.ts 门面)
+    service/         L2 域服务(十一域 + SSE 解析器 + 流编排,courierServices.ts 门面)
     platform/laya/   L3 平台绑定
       layaApi.ts          平台面最小结构类型(LocalStorage/XHR/可见性信号,零依赖)
       tokenStore.ts       LocalStorage 实现
@@ -55,7 +55,7 @@ sdks/laybox/
                      (公告栏/客服/助手):纯文本产出经回调交游戏侧渲染,不绑死 UI 框架
     diagnostics/     可选诊断包(契约 diagnostics.md):crash/trace/performance/analytics
                      四类独立开关,默认全关零开销;直发接入方自有端点,失败静默
-  tests/           node --test 12 文件 206 例(契约 / core / lifecycle / service / stream / laya / ui / diagnostics)
+  tests/           node --test 12 文件 207 例(契约 / core / lifecycle / service / stream / laya / ui / diagnostics)
 ```
 
 ## 运行测试

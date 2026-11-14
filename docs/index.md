@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Courier
   text: Universal Game SDK
-  tagline: A universal SDK for integrating common game services across engines and platforms —— providing Unity, Unreal, Cocos, Godot, and other engines with unified account, authentication, player, messaging, announcements, support, payments, real name, remote config, branding, and diagnostics capability interfaces
+  tagline: A universal SDK for integrating common game services across engines and platforms —— providing Unity, Unreal, Cocos, Godot, and other engines with unified account, authentication, player, messaging, announcements, support, payments, mail, redeem codes, real name, remote config, branding, and diagnostics capability interfaces
   actions:
     - theme: brand
       text: Contract Constitution
@@ -35,6 +35,10 @@ features:
     details: Crashes, OTel Trace, performance metrics, telemetry; all off by default, no-op when not configured
   - title: Payments (contract + sandbox channel)
     details: Order/Purchase/Receipt; built-in sandbox channel (teller) fully implemented across the chain, real channels ship with the deployment surface; four forms optional
+  - title: Mail (F62)
+    details: Mailbox fetch and claim, per account + mail idempotent; personal and server-wide mail, newest first; default provider carrier (+ carrier-alt)
+  - title: Redeem Codes (F62)
+    details: Gift-pack / redeem code redemption, per account + code idempotent; default provider voucher (+ voucher-alt)
 ---
 
 

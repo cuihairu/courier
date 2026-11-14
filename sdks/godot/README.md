@@ -1,6 +1,6 @@
 # Courier godot SDK
 
-> 状态：M1 core + 服务域（M2–M5 契约面）+ 平台适配面已落位（生命周期状态机 + Transport/TokenStore 抽象 + ApiClient + Identity/Session + CourierClient 门面 + SSE 解析器 + 九域服务 + CourierServices 门面 + HTTPClient 真传输 + user:// 持久令牌存储 + messages SSE 流式传输，Godot 4.3 headless 八套测试全绿）；TLS 路径与真机验证随部署面，UI 待引擎集成面。
+> 状态：M1 core + 服务域（M2–M5 契约面）+ 平台适配面已落位（生命周期状态机 + Transport/TokenStore 抽象 + ApiClient + Identity/Session + CourierClient 门面 + SSE 解析器 + 十一域服务 + CourierServices 门面 + HTTPClient 真传输 + user:// 持久令牌存储 + messages SSE 流式传输，Godot 4.3 headless 八套测试全绿）；TLS 路径与真机验证随部署面，UI 待引擎集成面。
 
 ## 快速开始
 
@@ -36,7 +36,7 @@ sdks/godot/
   contract/         契约生成物(errors.gd / envelope.gd,tools/contractgen 生成,# 注释风格)
   src/core/         L2 core(平台无关):lifecycle / transport / tokenStore /
                     courierError / apiClient / identity / session / courierClient
-  src/service/      L2 服务域(与 cocos/ue 同构):sseParser + 九域客户端 + CourierServices
+  src/service/      L2 服务域(与 cocos/ue 同构):sseParser + 十一域客户端 + CourierServices
   src/platform/     L3 平台绑定:httpTransport(HTTPClient 真传输) /
                     fileTokenStore(user:// 持久令牌存储) /
                     sseStreamTransport(messages SSE 流读,chunked 分框) /

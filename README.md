@@ -7,7 +7,7 @@
 
 > **A universal SDK for integrating common game services across engines and platforms.**
 >
-> Courier is a universal SDK for games. It exposes one set of interfaces for account, authentication, player, messaging, announcements, customer support, payments, real-name verification, remote configuration, branding, and diagnostics across game engines and platforms such as Unity, Unreal, Cocos, Godot, WeChat Mini Program, and LayaBox.
+> Courier is a universal SDK for games. It exposes one set of interfaces for account, authentication, player, messaging, announcements, customer support, payments, mail, redeem codes, real-name verification, remote configuration, branding, and diagnostics across game engines and platforms such as Unity, Unreal, Cocos, Godot, WeChat Mini Program, and LayaBox.
 
 Courier means messenger: it is not any single business feature. It delivers service capabilities to the game client on the game's behalf.
 

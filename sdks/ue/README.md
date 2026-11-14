@@ -44,7 +44,7 @@ sdks/ue/
     lifecycle.hpp       九态十触发状态机 + 契约事件面
     courier_client.hpp  CourierClient 门面(认证流守卫)
     *_test.cpp          各模块单测(CHECK 宏 + main)
-  service/     L2 域服务(九域 + SSE 解析器 + 流编排)
+  service/     L2 域服务(十一域 + SSE 解析器 + 流编排)
     sse_parser.hpp       SSE 帧解析(注释/多行 data/未知字段容忍)
     sse_stream_client.hpp  messages 长连编排(501/401 终态/退避重连/should_stop 净停;
                            SseSource 接缝在 core/sse_stream.hpp,引擎接线留 L3 集成面)

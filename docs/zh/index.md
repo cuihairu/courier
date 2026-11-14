@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Courier
   text: Universal Game SDK
-  tagline: A universal SDK for integrating common game services across engines and platforms —— 为 Unity、Unreal、Cocos、Godot 等引擎提供统一的账号、认证、玩家、消息、公告、客服、支付、实名、远程配置、品牌与诊断等能力接口
+  tagline: A universal SDK for integrating common game services across engines and platforms —— 为 Unity、Unreal、Cocos、Godot 等引擎提供统一的账号、认证、玩家、消息、公告、客服、支付、邮件、兑换码、实名、远程配置、品牌与诊断等能力接口
   actions:
     - theme: brand
       text: 契约宪法
@@ -35,6 +35,10 @@ features:
     details: 崩溃、OTel Trace、性能指标、埋点;默认全关,未配置即 no-op
   - title: 支付(契约+沙箱渠道)
     details: Order/Purchase/Receipt;内置沙箱渠道(teller)全链已实现,真实渠道随部署面;四形态可选
+  - title: 邮件(F62)
+    details: 邮箱拉取与领取,按账号+邮件幂等;个人与全服邮件,最新在前;默认提供者 carrier(+ carrier-alt)
+  - title: 兑换码(F62)
+    details: 礼包码 / 兑换码核销,按账号+码幂等;默认提供者 voucher(+ voucher-alt)
 ---
 
 

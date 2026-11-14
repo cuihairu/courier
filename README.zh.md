@@ -7,7 +7,7 @@
 
 > **A universal SDK for integrating common game services across engines and platforms.**
 >
-> Courier 是一个面向游戏的通用 SDK,为 Unity、Unreal、Cocos、Godot、微信小游戏、LayaBox 等引擎与平台提供统一的账号、认证、玩家、消息、公告、客服、支付、实名、远程配置、品牌与诊断等能力接口。
+> Courier 是一个面向游戏的通用 SDK,为 Unity、Unreal、Cocos、Godot、微信小游戏、LayaBox 等引擎与平台提供统一的账号、认证、玩家、消息、公告、客服、支付、邮件、兑换码、实名、远程配置、品牌与诊断等能力接口。
 
 Courier 是信使:它不是某一种具体业务,而是替游戏把各种服务能力送到客户端。
 

@@ -54,7 +54,7 @@ src/
                         损坏数据清场)/ 结构面 cocosApi.ts(CocosStorage 注入,测试鸭子匹配);
                         Transport 走默认 FetchTransport(运行时须有 WHATWG fetch)
   service/
-    courierServices.ts  门面:new CourierServices(client) → 九域服务
+    courierServices.ts  门面:new CourierServices(client) → 十一域服务
     announcementService.ts / supportService.ts / sseParser.ts   M2 通讯与客服
     sseStreamClient.ts  M2 推送通道长连编排(501 降级/401 终态/退避重连/每连现取 token)
     appService.ts / appConfigService.ts / brandingService.ts    M3 应用状态与远程配置
@@ -70,7 +70,7 @@ src/
                         直发接入方自有端点(不经网关,不复用认证 Transport 语义);
                         失败静默不重试不缓存,breadcrumb 环形 20 关闭即清空,
                         trace 只记 path 去 query,埋点 props 原始类型单条 ≤1KB 违例抛使用方错
-tests/                  零依赖 node --test(契约 / core / lifecycle / service / stream / wechat / native / ui / diagnostics,13 文件共 212 例)
+tests/                  零依赖 node --test(契约 / core / lifecycle / service / stream / wechat / native / ui / diagnostics,13 文件共 213 例)
 ```
 
 ## 运行测试
