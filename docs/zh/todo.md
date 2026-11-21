@@ -42,7 +42,7 @@
 ## 明确不做
 
 实时多人/匹配/大厅;渠道包聚合联运;运营端界面;自建长连接;统一钱包假设。
-F13 云存档/进度同步——player.md:5,11 红线「进度不经 Courier,角色数据归各游戏服」,边界已定(非待议);F58/F59/F60/F61/F63 排行榜/成就/Stats/赛季/活动——features.md §10 定性「玩法系统非服务递送」,防范围失控(§10 结论⑤),边界已定。
+F13 云存档/进度同步——player.md:6,12 红线「进度不经 Courier,角色数据归各游戏服」,边界已定(非待议);F58/F59/F60/F61/F63 排行榜/成就/Stats/赛季/活动——features.md §10 定性「玩法系统非服务递送」,防范围失控(§10 结论⑤),边界已定。
 
 ## 已完成(批次台账:一句话 | commit | 测试)
 
@@ -163,3 +163,5 @@ F13 云存档/进度同步——player.md:5,11 红线「进度不经 Courier,角
 - [x] 台账 hash 可达性复核(2026-11-21,续做单 continue-r2):todo.md 与 docs/zh/todo.md 引用的全部 commit hash,按台账规矩用可达集(`git rev-list --all`,415 提交)而非 `git cat-file` 逐条比对。**未见问题**:232 个 hash 形态记号中 231 个可达,唯一例外 `35a13a4` 系**故意保留的历史注记**而非悬空引用——它只出现在批次 76 行内(该笔历史重写使其悬空、已改为可达的 `3b80159`;todo.md:125 与 docs/zh/todo.md:125),而 `3b80159` 可达;该对象仍在库(`git reflog`:"feat: audit http direct sink"),故是真被孤立的提交而非错字,删掉此注记即抹去该重写的唯一记录。对规矩真正约束的位置做更严测试:两本台账 `| <hash> |` 证据列的 **135 个** hash **全部可达、0 悬空**。 | docs:build 绿
 
 - [x] 双语台账一致性复核(2026-11-21,续做单 continue-r2):本仓最顽固的缺陷类是双语台账漂移(`## Audit findings` 里 todo.md:179/198/201/211/213 五行均为其复发),故直接比对共享节。**未见问题**:批次行 root `## Completed` 107 条、zh `## 已完成` 107 条,批次号序列 1..107 同序完全一致,无只在一本出现的批次号、无重复;四个共享任务节(`## Open`/`## Under discussion`/`## Provider stance`/`## Explicitly out of scope`)在两本中起行号相同(11/17/26/42),节与节之间未相对漂移。仅 root 的节(Audit findings、中文 `## 审核发现`、源码分层分析、Codex 深审)在 zh 镜像中按设计缺失,与 todo.md:201 记录的约定一致。 | docs:build 绿
+
+- [x] 明确不做节红线引用复核(2026-11-21,续做单 continue-r2):F13 行引红线为 `player.md:5,11`,实际红线在 `player.md:6,12`(6 行「角色数据归各游戏(等级/背包/进度从不经 Courier)」、12 行「不覆盖…角色数据与进度(归各游戏服)」)——契约上方加行后引用整体移位一行。**已修**:双台账引用改 `player.md:6,12`。同行其余引用核验成立:features 边界节确为 §10(docs/research/features.md:172「Progression, Achievements, and Retention Gameplay」,横向结论⑤在 :234 回指 "Section 10");F55「诊断直发不经网关」与契约红线一致(docs/contract/diagnostics.md:6、:119「Never——绕过网关直发是契约红线」)。 | docs:build 绿
