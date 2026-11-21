@@ -13,9 +13,8 @@
 # face, not a daemon binary channel — build the gateway from source.
 #
 # Assets publish to the single rolling `nightly` prerelease ONLY after the full
-# CI-standard test surface passes, with a dated immutable release
-# (nightly-YYYY-MM-DD) created alongside on the first build of each UTC day.
-# No version tag is created and nothing is promoted to a versioned release —
+# CI-standard test surface passes. No dated copies, no version tag and nothing
+# is promoted to a versioned release —
 # versioned releases are issued manually by the maintainer only. Scheduled runs
 # skip entirely when main has no commit in the last 48 hours;
 # workflow_dispatch always builds.
@@ -192,11 +191,9 @@ jobs:
           if-no-files-found: error
 
   # Rolling `nightly` prerelease (single release, assets clobbered, ref forced
-  # to the built commit) + a dated immutable release (nightly-YYYY-MM-DD,
-  # created once per UTC day, never overwritten). Not a formal release: no
-  # version tag, versioned releases stay manual.
+  # to the built commit). No dated copies — the user keeps exactly one nightly.
   publish:
-    name: publish (rolling nightly + dated immutable)
+    name: publish (rolling nightly)
     if: github.ref == 'refs/heads/main' && needs.gate.outputs.fresh == 'true'
     needs: [gate, pack]
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
@@ -212,12 +209,11 @@ jobs:
           pattern: nightly-*
           merge-multiple: true
           path: dist/
-      - name: Publish rolling nightly + dated immutable release
+      - name: Publish rolling nightly
         run: |
           set -euo pipefail
           cd dist
           sha256sum courier-nightly-* > SHA256SUMS
-          DATE_TAG="nightly-$(date -u +%F)"
           cat > notes.md <<NOTES
           Automated nightly prerelease from commit ${GITHUB_SHA}.
           Contents: Unity UPM package tarballs (com.courier.core / service / ui /
@@ -233,7 +229,7 @@ jobs:
           This is NOT a stable release: nightly is a rolling build-artifact
           channel. No version tag is created; versioned releases are issued
           manually by the maintainer only. The nightly tag tracks the most
-          recent successful build; nightly-YYYY-MM-DD copies stay immutable.
+          recent successful build.
           NOTES
           if gh release view nightly --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/nightly" -f sha="$GITHUB_SHA" -F force=true
@@ -241,11 +237,4 @@ jobs:
             gh release edit nightly --repo "$GITHUB_REPOSITORY" --prerelease --title 'Nightly' --notes-file notes.md
           else
             gh release create nightly courier-nightly-* SHA256SUMS --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --title 'Nightly' --notes-file notes.md
-          fi
-          # Dated copy: first build of the UTC day wins; later reruns never
-          # overwrite it (the dated release is immutable).
-          if gh release view "$DATE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "$DATE_TAG already exists; dated release stays immutable"
-          else
-            gh release create "$DATE_TAG" courier-nightly-* SHA256SUMS --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --title "Nightly $DATE_TAG" --notes-file notes.md
           fi
