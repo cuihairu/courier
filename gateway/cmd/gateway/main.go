@@ -202,6 +202,7 @@ func main() {
 	tellerP := teller.New(teller.Options{
 		RequireAuth:   reqAuth,
 		ChannelSecret: os.Getenv("COURIER_PAYMENTS_CHANNEL_SECRET"),
+		AdminToken:    os.Getenv("COURIER_PAYMENTS_ADMIN_TOKEN"),
 		Notify:        publish,
 		StateFile:     os.Getenv("COURIER_PAYMENTS_STATE"),
 	})
@@ -212,6 +213,7 @@ func main() {
 	tellerAltP := telleralt.New(telleralt.Options{
 		RequireAuth:   reqAuth,
 		ChannelSecret: os.Getenv("COURIER_PAYMENTS_CHANNEL_SECRET"),
+		AdminToken:    os.Getenv("COURIER_PAYMENTS_ADMIN_TOKEN"),
 		Notify:        publish,
 		StateFile:     os.Getenv("COURIER_PAYMENTS_STATE_ALT"),
 	})

@@ -1,7 +1,7 @@
 
 # 支付契约(Payment)——形态开放
 
-> 状态:**Frozen v1.1** · 里程碑 M5 · v1 冻结日期 2026-10-09;**v1.1(2026-10-09)追加推送事件**(`payment.paid` / `payment.delivered`,附加兼容变更,见「推送事件」)。
+> 状态:**Frozen v1.2** · 里程碑 M5 · v1 冻结日期 2026-10-09;**v1.1(2026-10-09)追加推送事件**(`payment.paid` / `payment.delivered`,附加兼容变更,见「推送事件」);**v1.2(2026-11-23)追加管理面**(`/v1/payments/admin/*` 五端点,只加不改,见「管理面」)。
 > 域前缀 `PAYMENT` 已注册([errors.md](./errors.md));本文档是 M5 服务端(默认供应商 **teller**)与各端 SDK 的一致性依据,冻结后只加不改,破坏性变更升版本(见 [versioning.md](./versioning.md))。
 
 ## 能力与范围
@@ -91,6 +91,21 @@
 - **发货钩子**:Provider 构造注入(接入方按订单发货:道具/入账/外部确认);幂等要求按订单。
 - **对账重发**:管理面枚举停 `PAID` 的订单逐个重试发货(断单可对账恢复的落点);本 v1 为进程内方法,持久化与定时对账随部署面。
 
+## 管理面(v1.2 新增,`/v1/payments/admin/*`)
+
+管理面为 **S2S 运营面**,不经玩家 Bearer-scope 路由;认证 = `Authorization: Bearer <AdminToken>`(按渠道部署注入,与仓内 warden S2S 约定同款),**未配置/缺头/错值一律 401 `COMMON_UNAUTHENTICATED` fail-closed**——不配置不裸奔。玩家面/回调面/信封零改动。
+
+| 端点 | 认证 | 说明 |
+| --- | --- | --- |
+| `POST /v1/payments/admin/skus` | 管理凭证 | 登记/改价 SKU(服务端定价;重复登记 = 改价,已建订单不受影响);请求 `{skuId,productId,form,amountCents,currency}` |
+| `GET /v1/payments/admin/orders` | 管理凭证 | 全局检索(`gameId`/`status`/`accountId` 筛选 + 有界分页 `limit` 缺省 20/最大 100,`cursor` 不透明 keyset);`updatedAt` 倒序,不下发 `payToken` |
+| `GET /v1/payments/admin/orders/{orderId}` | 管理凭证 | 管理详情(含断单态 `PAID` 标识与退款登记事实;不下发 `payToken`) |
+| `POST /v1/payments/admin/orders/{orderId}/redeliver` | 管理凭证 | 断单对账重发:仅停 `PAID`(已付未发)可重发;`DELIVERED`/`CLOSED` 409 `PAYMENT_ORDER_STATE` 不二次发货(幂等红线);同步执行发货钩子,成败回 `DELIVERED`/留 `PAID`(`redelivered` 标志如实报告) |
+| `POST /v1/payments/admin/orders/{orderId}/refund` | 管理凭证 | 退款/冲正登记(`REFUND`/`CORRECTION` 两动作);订单须已付款(`paidAt` 非空,否则 409 `PAYMENT_ORDER_STATE`);金额 ≤ 实付,≤0 记全额(超付 400 `COMMON_INVALID_ARGUMENT`);重复登记同动作 = 幂等返回既有 |
+
+- **退款登记与状态机正交**:不改订单 `status`/时间戳,仅登记冲减事实(供管理对账);`EXECUTED`/`REJECTED` 状态映射、金额冲减口径与分成基数归接入方(spawn 管理适配),本域不代定。
+- **`gameId` 检索过滤**按下单 scope(`X-Courier-Game-Id`)快照;订单模型 v1.2 增 `gameId` 字段(只读,回放旧快照缺省空)。
+
 ## 推送事件(v1.1 新增)
 
 经推送通道([messages.md](./messages.md),默认 Provider chirp)**广播**;载荷是最小提示,**不含金额/SKU 等业务字段**(广播信道人人可收,业务数据归拉取端点按归属过滤):
@@ -131,5 +146,5 @@
 | 新订单形态 | `orderType` 加枚举值 = 兼容;状态机不因形态分支(四形态只是标注的既定红线) |
 | 订阅(F23) | v1.1+ 扩展位:订阅态跟随商店服务端通知,Provider 化;订单模型复用,`orderType=SUBSCRIPTION` 预留 |
 | 钱包余额 / 消费端点 | **不进 v1 玩家契约**(四形态只是订单标注);余额面属后续域提案 |
-| 退款 / 冲正 | 对账面(Reconcile)已内建;退款端点 = v1.1+ 提案,管理面先行 |
+| 退款 / 冲正 | 对账面(Reconcile)已内建;**v1.2 落地**管理面退款登记端点(`POST /v1/payments/admin/orders/{orderId}/refund`),状态映射/口径归接入方 |
 | 渠道凭证演进 | 契约只保证 `payToken` 在下单响应出现一次;渠道 SDK 语义不进本契约 |

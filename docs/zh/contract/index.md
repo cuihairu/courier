@@ -85,7 +85,7 @@ Gateway、Provider、herald、Chirp、Croupier、Oddsmaker 全部只是「契约
 - [player.md](./player.md) — 玩家档案(账号↔角色映射;Frozen v1 · M3)
 - [diagnostics.md](./diagnostics.md) — 诊断(默认关,四类能力上报 Schema;Frozen v1 · M3)
 - [assistant.md](./assistant.md) — 小助手(FAQ 检索问答 + 转人工;Frozen v1 · M4)
-- [payment.md](./payment.md) — 支付(订单-发货核心流,四形态开放;Frozen v1.1 · M5,v1.1 追加推送事件)
+- [payment.md](./payment.md) — 支付(订单-发货核心流,四形态开放;Frozen v1.2 · M5,v1.1 追加推送事件、v1.2 追加管理面)
 - [mail.md](./mail.md) — 邮件(运营→玩家邮件;Frozen v1 · F62)
 - [cdk.md](./cdk.md) — 兑换码(一码一换/限次兑换;Frozen v1 · F62)
 - [oauth.md](./oauth.md) — 第三方身份提供方(凭证换会话+绑定;Frozen v1 · 批次 52)

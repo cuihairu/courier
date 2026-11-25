@@ -85,7 +85,7 @@ Conclusion: the five primitives were promoted to **Frozen v1**; realname / brand
 - [player.md](./player.md) — Player profile (account↔character mapping; Frozen v1 · M3)
 - [diagnostics.md](./diagnostics.md) — Diagnostics (off by default, reporting Schema for four capability types; Frozen v1 · M3)
 - [assistant.md](./assistant.md) — Assistant (FAQ retrieval Q&A + handoff to human; Frozen v1 · M4)
-- [payment.md](./payment.md) — Payments (order-to-delivery core flow, four forms open; Frozen v1.1 · M5, v1.1 added push events)
+- [payment.md](./payment.md) — Payments (order-to-delivery core flow, four forms open; Frozen v1.2 · M5, v1.1 added push events, v1.2 added the management face)
 - [mail.md](./mail.md) — Mail (operations-to-player mail; Frozen v1 · F62)
 - [cdk.md](./cdk.md) — Redeem codes (one code one redemption / limited redemptions; Frozen v1 · F62)
 - [oauth.md](./oauth.md) — Third-party identity providers (credential-to-session exchange + binding; Frozen v1 · batch 52)

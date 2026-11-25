@@ -93,7 +93,9 @@ Provider 的密钥一律**环境变量注入、进程内 fail-closed**(`COURIER_
 `_ADULT_AGE` / `_REQUEST_TTL`,consent 组开关与法域阈值:任一非空即开启,全部
 未设置 = consent 端点 501「默认关」;数值非法拒绝起服)、
 `COURIER_PAYMENTS_STATE`(teller 订单快照文件路径,缺省空 = 纯内存)、
-`COURIER_PAYMENTS_STATE_ALT`(teller-alt 事件账本快照路径,缺省空 = 纯内存)。
+`COURIER_PAYMENTS_STATE_ALT`(teller-alt 事件账本快照路径,缺省空 = 纯内存)、
+`COURIER_PAYMENTS_ADMIN_TOKEN`(支付管理面 `/v1/payments/admin/*` 的 S2S Bearer
+凭证,payment v1.2;缺省空 = 管理端点一律 401 fail-closed,不配置不裸奔)。
 持久化(落库 / 对账 / 审计 / 对象存储)随部署面——trace 贯穿 gateway→Provider 已内建
 ([layers.md](./layers.md) L5),内存实现在单机与测试场景即为完整功能。
 

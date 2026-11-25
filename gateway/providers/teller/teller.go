@@ -65,6 +65,10 @@ type Options struct {
 	// ChannelSecret 渠道签名密钥(S2S 回调 HMAC-SHA256;部署经环境注入)。
 	// 空 = fail-closed:回调一律 403 PAYMENT_INVALID_SIGNATURE。
 	ChannelSecret string
+	// AdminToken 管理面 S2S 凭证(v1.2 管理端点 /v1/payments/admin/*;
+	// 认证 = Authorization: Bearer <token>,与仓内 warden S2S 约定同款)。
+	// 空 = fail-closed:管理端点一律 401——不配置不裸奔(忘注入不能变成开放管理面)。
+	AdminToken string
 	// Deliver 发货钩子(接入方按订单发货:道具/入账/外部确认;契约要求按订单幂等)。
 	// nil = 记账即发货成功(沙箱裸跑)。
 	Deliver func(Delivery) error
@@ -132,11 +136,22 @@ type orderRecord struct {
 	Owner       string
 	Status      string
 	Sku         skuRecord
+	GameID      string // 下单 scope 的 X-Courier-Game-Id(v1.2 管理面全局检索过滤)
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	PaidAt      *time.Time
 	DeliveredAt *time.Time
 	PayToken    string
+	Refunds     []refundRecord // v1.2 管理面退款/冲正登记(与状态机正交,不改状态)
+}
+
+// refundRecord 退款/冲正登记事实(v1.2 管理面;与订单状态机正交——不改变
+// status/时间戳,仅登记冲减事实供管理对账;金额不超实付由端点校验)。
+type refundRecord struct {
+	Action      string // REFUND / CORRECTION
+	AmountCents int64
+	Reason      string
+	At          time.Time
 }
 
 // PaymentsProvider 订单-发货核心流(沙箱渠道;真实渠道按同一回调签名面接入)。
@@ -145,6 +160,7 @@ type PaymentsProvider struct {
 	clock         func() time.Time
 	auth          func(http.Handler) http.Handler
 	channelSecret string
+	adminToken    string
 	deliver       func(Delivery) error
 	riskCheck     func(string, int64) error
 	notify        func(eventType string, data any)
@@ -191,6 +207,7 @@ func New(opts Options) *PaymentsProvider {
 		clock:         opts.Clock,
 		auth:          authMW,
 		channelSecret: opts.ChannelSecret,
+		adminToken:    opts.AdminToken,
 		deliver:       opts.Deliver,
 		riskCheck:     opts.RiskCheck,
 		notify:        opts.Notify,
@@ -413,10 +430,16 @@ func (p *PaymentsProvider) CloseOrder(orderID string) error {
 
 // ---- HTTP:玩家端点(全 Bearer)+ S2S 回调(渠道签名) ----
 
-// ServeHTTP 分发 /v1/payments/*;callback 无 Bearer(渠道签名),其余 auth 包裹。
+// ServeHTTP 分发 /v1/payments/*;callback 无 Bearer(渠道签名);admin/* 走管理
+// 凭证(Authorization: Bearer <AdminToken>,fail-closed 401),其余 auth 包裹。
 func (p *PaymentsProvider) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if strings.TrimPrefix(r.URL.Path, prefixPayments) == "callback" {
+	path := strings.TrimPrefix(r.URL.Path, prefixPayments)
+	if path == "callback" {
 		p.handleCallback(w, r) // S2S:签名即认证,不走 Bearer 链
+		return
+	}
+	if path == "admin" || strings.HasPrefix(path, "admin/") {
+		p.serveAdmin(w, r) // S2S 管理面:独立凭证,不走玩家 Bearer 链
 		return
 	}
 	p.auth(http.HandlerFunc(p.route)).ServeHTTP(w, r)
@@ -487,6 +510,7 @@ func (p *PaymentsProvider) handleCreateOrder(w http.ResponseWriter, r *http.Requ
 		Owner:     id.AccountID,
 		Status:    StatusCreated,
 		Sku:       sku,
+		GameID:    r.Header.Get("X-Courier-Game-Id"), // 下单 scope 快照(管理面全局检索过滤)
 		CreatedAt: now,
 		UpdatedAt: now,
 		PayToken:  "sbox_" + hexfnv(now, id.AccountID+"|"+req.SkuID),

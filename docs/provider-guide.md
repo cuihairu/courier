@@ -94,7 +94,10 @@ the audit direct-write-half endpoint and credentials), `COURIER_REALNAME_AUDIT=l
 any non-empty value enables the group, all unset = consent endpoints 501 "off by default";
 invalid values refuse to start the server),
 `COURIER_PAYMENTS_STATE` (teller order snapshot file path, default empty = in-memory only),
-`COURIER_PAYMENTS_STATE_ALT` (teller-alt event-journal snapshot path, default empty = in-memory only).
+`COURIER_PAYMENTS_STATE_ALT` (teller-alt event-journal snapshot path, default empty = in-memory only),
+`COURIER_PAYMENTS_ADMIN_TOKEN` (the S2S Bearer credential for the payments management face
+`/v1/payments/admin/*`, payment v1.2; default empty = every admin endpoint returns 401
+fail-closed — no configuration means no open management face).
 Persistence (database writes / reconciliation / audit / object storage) follows the deployment surface — trace propagation from gateway→Provider is built in
 ([layers.md](./layers.md) L5), and the in-memory implementation is full functionality for single-machine and test scenarios.
 

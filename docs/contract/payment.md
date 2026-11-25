@@ -1,7 +1,7 @@
 
 # Payment Contract (Payment) — Open Forms
 
-> Status: **Frozen v1.1** · Milestone M5 · v1 frozen 2026-10-09; **v1.1 (2026-10-09) added the push events** (`payment.paid` / `payment.delivered`, an additive compatible change, see "Push Events").
+> Status: **Frozen v1.2** · Milestone M5 · v1 frozen 2026-10-09; **v1.1 (2026-10-09) added the push events** (`payment.paid` / `payment.delivered`, an additive compatible change, see "Push Events"); **v1.2 (2026-11-23) added the management face** (`/v1/payments/admin/*`, five endpoints, additive-only, see "Management Face").
 > The domain prefix `PAYMENT` is registered ([errors.md](./errors.md)); this document is the consistency basis between the M5 server (default provider **teller**) and the SDKs on every platform. Once frozen it is additive-only; breaking changes bump the version (see [versioning.md](./versioning.md)).
 
 ## Capabilities and Scope
@@ -91,6 +91,21 @@ Request header: `X-Payment-Signature: <hex HMAC-SHA256(channelSecret, rawBody)>`
 - **Fulfillment hook**: injected by Provider construction (integrators fulfill per order: grant items / credit balance / external confirmation); the idempotency requirement is per order.
 - **Reconciliation re-delivery**: the management plane enumerates orders stuck at `PAID` and retries fulfillment one by one (where "broken orders recover via reconciliation" lands); in this v1 it is an in-process method; persistence and scheduled reconciliation follow the deployment plane.
 
+## Management Face (added in v1.2, `/v1/payments/admin/*`)
+
+The management face is an **S2S operations surface** and does not go through the player Bearer-scope routes; auth = `Authorization: Bearer <AdminToken>` (injected per deployment, same convention as the in-repo warden S2S), and **unconfigured / missing header / wrong value is always 401 `COMMON_UNAUTHENTICATED` fail-closed** — no configuration means no open management face. The player face, callback face, and envelope are unchanged.
+
+| Endpoint | Auth | Description |
+| --- | --- | --- |
+| `POST /v1/payments/admin/skus` | admin credential | Register/re-price a SKU (server-side pricing; re-registering = re-pricing, already-created orders are unaffected); request `{skuId,productId,form,amountCents,currency}` |
+| `GET /v1/payments/admin/orders` | admin credential | Global search (`gameId`/`status`/`accountId` filters + bounded pagination `limit` default 20/max 100, opaque keyset `cursor`); `updatedAt` descending, `payToken` is never sent |
+| `GET /v1/payments/admin/orders/{orderId}` | admin credential | Admin detail (includes the stuck-at-`PAID` marker and the refund-registration facts; `payToken` is never sent) |
+| `POST /v1/payments/admin/orders/{orderId}/redeliver` | admin credential | Broken-order reconciliation re-delivery: only orders stuck at `PAID` (paid, not delivered) can be redelivered; `DELIVERED`/`CLOSED` → 409 `PAYMENT_ORDER_STATE`, never a second fulfillment (idempotency red line); the fulfillment hook runs synchronously, success returns `DELIVERED` / failure leaves `PAID` (the `redelivered` flag reports it faithfully) |
+| `POST /v1/payments/admin/orders/{orderId}/refund` | admin credential | Refund/reversal registration (two actions, `REFUND`/`CORRECTION`); the order must be paid (`paidAt` non-empty, otherwise 409 `PAYMENT_ORDER_STATE`); amount ≤ paid, ≤0 records the full amount (over-refund → 400 `COMMON_INVALID_ARGUMENT`); re-registering the same action = idempotent return of the existing record |
+
+- **Refund registration is orthogonal to the state machine**: it does not change the order `status`/timestamps, it only records the deduction facts (for management reconciliation); the `EXECUTED`/`REJECTED` status mapping, the deduction basis, and the revenue-split base belong to the integrator (the spawn management adapter); this domain does not decide them.
+- **The `gameId` search filter** snapshots the order-time scope (`X-Courier-Game-Id`); the order model gains a `gameId` field in v1.2 (read-only, empty by default when replaying old snapshots).
+
 ## Push Events (added in v1.1)
 
 **Broadcast** over the push channel ([messages.md](./messages.md), default Provider chirp); the payload is a minimal hint, **without business fields such as amount/SKU** (the broadcast channel is receivable by anyone; business data belongs to the pull endpoints, filtered by ownership):
@@ -131,5 +146,5 @@ Request header: `X-Payment-Signature: <hex HMAC-SHA256(channelSecret, rawBody)>`
 | New order forms | Adding enum values to `orderType` = compatible; the state machine does not branch by form (the four forms being annotations only is an established red line) |
 | Subscriptions (F23) | v1.1+ extension slot: subscription state follows the store's server notifications, Provider-ized; the order model is reused, `orderType=SUBSCRIPTION` reserved |
 | Wallet balance / spending endpoints | **Not in the v1 player contract** (the four forms are only order annotations); the balance surface belongs to a later domain proposal |
-| Refunds / reversals | The reconciliation surface (Reconcile) is already built in; a refund endpoint = a v1.1+ proposal, management plane first |
+| Refunds / reversals | The reconciliation surface (Reconcile) is already built in; **landed in v1.2**: the management-face refund registration endpoint (`POST /v1/payments/admin/orders/{orderId}/refund`), status mapping / deduction basis belong to the integrator |
 | Channel-credential evolution | The contract only guarantees that `payToken` appears once in the create-order response; channel SDK semantics stay out of this contract |

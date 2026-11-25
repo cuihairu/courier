@@ -25,7 +25,11 @@ import (
 	"github.com/cuihairu/courier/gateway/routing"
 )
 
-const payConcSecret = "e2e_pay_conc_secret"
+const (
+	payConcSecret       = "e2e_pay_conc_secret"
+	payConcAdminToken   = "e2e_admin_conc_token"
+	payConcAdminMissing = ""
+)
 
 // paymentsHarness 装配 account + 一个支付实现(经路由,与 main 同构)。
 type paymentsHarness struct {
@@ -37,7 +41,8 @@ type paymentsHarness struct {
 	fail       *bool
 }
 
-func newPaymentsHarness(t *testing.T, useAlt bool) *paymentsHarness {
+// newPaymentsHarness 装配;adminToken 空 = 管理端点 fail-closed 场景。
+func newPaymentsHarness(t *testing.T, useAlt bool, adminToken string) *paymentsHarness {
 	t.Helper()
 	h := &paymentsHarness{fail: new(bool)}
 	reg := providers.NewRegistry()
@@ -49,6 +54,7 @@ func newPaymentsHarness(t *testing.T, useAlt bool) *paymentsHarness {
 		h.ap = telleralt.New(telleralt.Options{
 			RequireAuth:   reqAuth,
 			ChannelSecret: payConcSecret,
+			AdminToken:    adminToken,
 			Deliver: func(d telleralt.Delivery) error {
 				h.deliveries++
 				if *h.fail {
@@ -69,6 +75,7 @@ func newPaymentsHarness(t *testing.T, useAlt bool) *paymentsHarness {
 		h.tp = teller.New(teller.Options{
 			RequireAuth:   reqAuth,
 			ChannelSecret: payConcSecret,
+			AdminToken:    adminToken,
 			Deliver: func(d teller.Delivery) error {
 				h.deliveries++
 				if *h.fail {
@@ -168,6 +175,23 @@ func payConcSign(secret string, body string) string {
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write([]byte(body))
 	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// doAdmin 管理面请求:Authorization: Bearer <adminToken>(空 = 匿名/缺凭证)+ scope。
+func (h *paymentsHarness) doAdmin(t *testing.T, adminToken, method, path, body string) (int, string) {
+	t.Helper()
+	req, _ := http.NewRequest(method, h.srv.URL+path, strings.NewReader(body))
+	h.scopeHeaders(req)
+	if adminToken != "" {
+		req.Header.Set("Authorization", "Bearer "+adminToken)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("%s %s: %v", method, path, err)
+	}
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, string(b)
 }
 
 // addSku 管理面登记价格表(两实现同语义)。
@@ -447,7 +471,156 @@ func TestPaymentsContractConformance(t *testing.T) {
 		{"teller-alt", true},
 	} {
 		t.Run(impl.name, func(t *testing.T) {
-			runPaymentsContract(t, newPaymentsHarness(t, impl.useAlt), impl.useAlt)
+			runPaymentsContract(t, newPaymentsHarness(t, impl.useAlt, payConcAdminToken), impl.useAlt)
+		})
+	}
+}
+
+// runPaymentsAdmin 管理面契约链(v1.2):凭证 fail-closed → SKU 登记 → 全局检索
+// (筛选 + 分页)→ 管理详情 → 断单重发 → 退款/冲正(幂等 + 金额口径)。
+// 同一场景对两实现同断言(与玩家面 conformance 同构)。
+func runPaymentsAdmin(t *testing.T, h *paymentsHarness, useAlt bool) {
+	t.Helper()
+	token := h.login(t, "admin_buyer_conc")
+
+	// 凭证 fail-closed:缺凭证/错凭证一律 401,不泄露端点存在性以外的信息。
+	if code, body := h.doAdmin(t, "", http.MethodGet, "/v1/payments/admin/orders", ""); code != http.StatusUnauthorized ||
+		!strings.Contains(body, "COMMON_UNAUTHENTICATED") {
+		t.Fatalf("admin anon = %d %s, want 401", code, body)
+	}
+	if code, _ := h.doAdmin(t, "wrong-token", http.MethodGet, "/v1/payments/admin/orders", ""); code != http.StatusUnauthorized {
+		t.Fatalf("admin wrong token = %d, want 401", code)
+	}
+
+	// 路由形状:管理面未知路径 → 404(凭证正确时)。
+	if code, _ := h.doAdmin(t, payConcAdminToken, http.MethodGet, "/v1/payments/admin/telemetry", ""); code != http.StatusNotFound {
+		t.Fatalf("admin unknown path = %d, want 404", code)
+	}
+
+	// SKU 登记:合法 → 200 回 sku;玩家面随即可见;非法体 → 400。
+	code, body := h.doAdmin(t, payConcAdminToken, http.MethodPost, "/v1/payments/admin/skus",
+		`{"skuId":"sku_admin_gem","productId":"com.demo.gem","form":"DIRECT_PURCHASE","amountCents":888,"currency":"CNY"}`)
+	if code != http.StatusOK || !strings.Contains(body, `"amountCents":888`) {
+		t.Fatalf("admin add sku = %d %s", code, body)
+	}
+	if code, body = h.doAdmin(t, payConcAdminToken, http.MethodPost, "/v1/payments/admin/skus",
+		`{"skuId":"","productId":"com.demo.gem","form":"DIRECT_PURCHASE","amountCents":1,"currency":"CNY"}`); code != http.StatusBadRequest {
+		t.Fatalf("admin add sku bad = %d %s", code, body)
+	}
+	if code, body = h.do(t, token, http.MethodGet, "/v1/payments/skus", "", nil); code != http.StatusOK ||
+		!strings.Contains(body, `"id":"sku_admin_gem"`) {
+		t.Fatalf("player sees registered sku = %d %s", code, body)
+	}
+
+	// 下单 + 回调(DELIVERED)造全局检索素材。
+	oid := h.create(t, token, "sku_admin_gem")
+	if code, body = h.callback(t, oid, "2026-10-09T12:00:30Z", payConcSecret); code != http.StatusOK {
+		t.Fatalf("admin callback = %d %s", code, body)
+	}
+
+	// 管理详情:DELIVERED + accountId + gameId,不下发 payToken。
+	code, body = h.doAdmin(t, payConcAdminToken, http.MethodGet, "/v1/payments/admin/orders/"+oid, "")
+	if code != http.StatusOK || !strings.Contains(body, `"status":"DELIVERED"`) ||
+		!strings.Contains(body, `"gameId":"game_demo"`) || !strings.Contains(body, `"accountId":"acc_`) ||
+		strings.Contains(body, "payToken") {
+		t.Fatalf("admin get order = %d %s", code, body)
+	}
+	// 未知订单管理详情 → 404。
+	if code, _ = h.doAdmin(t, payConcAdminToken, http.MethodGet, "/v1/payments/admin/orders/order_nope", ""); code != http.StatusNotFound {
+		t.Fatalf("admin get missing = %d, want 404", code)
+	}
+
+	// 全局检索:gameId 筛选命中、accountId 筛选命中、status=CREATED 空、无筛选含订单。
+	code, body = h.doAdmin(t, payConcAdminToken, http.MethodGet, "/v1/payments/admin/orders?gameId=game_demo", "")
+	if code != http.StatusOK || !strings.Contains(body, oid) {
+		t.Fatalf("admin list by game = %d %s", code, body)
+	}
+	code, body = h.doAdmin(t, payConcAdminToken, http.MethodGet, "/v1/payments/admin/orders?status=CREATED", "")
+	if code != http.StatusOK || strings.Contains(body, oid) {
+		t.Fatalf("admin list by status CREATED should be empty: %d %s", code, body)
+	}
+	code, body = h.doAdmin(t, payConcAdminToken, http.MethodGet, "/v1/payments/admin/orders?accountId=nobody", "")
+	if code != http.StatusOK || !strings.Contains(body, `"items":[]`) {
+		t.Fatalf("admin list by account=nobody = %d %s", code, body)
+	}
+
+	// 断单重发:停 PAID(发货失败)→ 重发成功 → DELIVERED;DELIVERED 再重发 → 409。
+	*h.fail = true
+	oid2 := h.create(t, token, "sku_admin_gem")
+	if code, body = h.callback(t, oid2, "", payConcSecret); code != http.StatusOK {
+		t.Fatalf("stuck admin callback = %d %s", code, body)
+	}
+	*h.fail = false
+	code, body = h.doAdmin(t, payConcAdminToken, http.MethodPost, "/v1/payments/admin/orders/"+oid2+"/redeliver", "")
+	if code != http.StatusOK || !strings.Contains(body, `"redelivered":true`) ||
+		!strings.Contains(body, `"status":"DELIVERED"`) {
+		t.Fatalf("admin redeliver = %d %s", code, body)
+	}
+	if code, body = h.doAdmin(t, payConcAdminToken, http.MethodPost, "/v1/payments/admin/orders/"+oid2+"/redeliver", ""); code != http.StatusConflict ||
+		!strings.Contains(body, "PAYMENT_ORDER_STATE") {
+		t.Fatalf("admin redeliver delivered = %d %s, want 409", code, body)
+	}
+
+	// 退款:REFUND 全额 → 登记;重复同动作幂等返回既有;金额超实付 → 400;
+	// 未付款订单(CREATED)→ 409。
+	code, body = h.doAdmin(t, payConcAdminToken, http.MethodPost, "/v1/payments/admin/orders/"+oid+"/refund",
+		`{"action":"REFUND","amountCents":888,"reason":"test refund"}`)
+	if code != http.StatusOK || !strings.Contains(body, `"action":"REFUND"`) ||
+		!strings.Contains(body, `"amountCents":888`) {
+		t.Fatalf("admin refund = %d %s", code, body)
+	}
+	if code, body = h.doAdmin(t, payConcAdminToken, http.MethodPost, "/v1/payments/admin/orders/"+oid+"/refund",
+		`{"action":"REFUND","amountCents":888,"reason":"again"}`); code != http.StatusOK {
+		t.Fatalf("admin refund idempotent = %d %s", code, body)
+	}
+	// 金额超实付用未登记动作(CORRECTION)触发 → 400(REFUND 已被幂等路径接管)。
+	if code, body = h.doAdmin(t, payConcAdminToken, http.MethodPost, "/v1/payments/admin/orders/"+oid+"/refund",
+		`{"action":"CORRECTION","amountCents":9999,"reason":"over"}`); code != http.StatusBadRequest {
+		t.Fatalf("admin refund over = %d %s, want 400", code, body)
+	}
+	if code, body = h.doAdmin(t, payConcAdminToken, http.MethodPost, "/v1/payments/admin/orders/"+oid+"/refund",
+		`{"action":"CORRECTION","amountCents":100,"reason":"adj"}`); code != http.StatusOK ||
+		!strings.Contains(body, `"action":"CORRECTION"`) {
+		t.Fatalf("admin correction = %d %s", code, body)
+	}
+	oid3 := h.create(t, token, "sku_admin_gem") // 未付款 CREATED
+	if code, body = h.doAdmin(t, payConcAdminToken, http.MethodPost, "/v1/payments/admin/orders/"+oid3+"/refund",
+		`{"action":"REFUND","amountCents":1,"reason":"nope"}`); code != http.StatusConflict ||
+		!strings.Contains(body, "PAYMENT_ORDER_STATE") {
+		t.Fatalf("admin refund unpaid = %d %s, want 409", code, body)
+	}
+}
+
+// TestPaymentsAdminConformance 管理面 v1.2:两实现 × 同一管理契约,同一断言。
+func TestPaymentsAdminConformance(t *testing.T) {
+	for _, impl := range []struct {
+		name   string
+		useAlt bool
+	}{
+		{"teller", false},
+		{"teller-alt", true},
+	} {
+		t.Run(impl.name, func(t *testing.T) {
+			runPaymentsAdmin(t, newPaymentsHarness(t, impl.useAlt, payConcAdminToken), impl.useAlt)
+		})
+	}
+}
+
+// TestPaymentsAdminFailClosed 管理凭证未配置 = 管理端点一律 401(不裸奔)。
+func TestPaymentsAdminFailClosed(t *testing.T) {
+	for _, impl := range []struct {
+		name   string
+		useAlt bool
+	}{
+		{"teller", false},
+		{"teller-alt", true},
+	} {
+		t.Run(impl.name, func(t *testing.T) {
+			h := newPaymentsHarness(t, impl.useAlt, payConcAdminMissing)
+			if code, body := h.doAdmin(t, payConcAdminToken, http.MethodGet, "/v1/payments/admin/orders", ""); code != http.StatusUnauthorized ||
+				!strings.Contains(body, "COMMON_UNAUTHENTICATED") {
+				t.Fatalf("admin unconfigured = %d %s, want 401", code, body)
+			}
 		})
 	}
 }
