@@ -36,6 +36,7 @@ import (
 	"github.com/cuihairu/courier/gateway/auth"
 	"github.com/cuihairu/courier/gateway/middleware"
 	"github.com/cuihairu/courier/gateway/providers"
+	"github.com/cuihairu/courier/gateway/scope"
 )
 
 // DefaultName 注册名;路由表 {"payments":{"primary":"teller-alt"}} 即换。
@@ -135,6 +136,8 @@ type skuRecord struct {
 	Form        string
 	AmountCents int64
 	Currency    string
+	GameID      string // scope 隔离维度(v1.3;空 = 全局,历史部署行为零变化)
+	Env         string // scope 隔离维度(v1.3;空 = 全局,历史部署行为零变化)
 }
 
 // orderEvent 账本事件(不可变追加单元;异构面)。
@@ -388,13 +391,35 @@ func (p *PaymentsProvider) HealthCheck(_ context.Context) error {
 // ---- 管理面(价格表登记 / 对账;不经玩家路由) ----
 
 // AddSku 登记价格表条目(接入方定义 SKU;重复登记覆盖 = 改价,已建订单不受影响)。
+// 空 scope = 全局(历史部署行为零变化)。
 func (p *PaymentsProvider) AddSku(id, productID, form string, amountCents int64, currency string) {
+	p.AddSkuScoped(id, productID, form, amountCents, currency, "", "")
+}
+
+// AddSkuScoped 按 (gameID,env) 登记 SKU(v1.3 加法式隔离;空 gameID = 全局)。
+func (p *PaymentsProvider) AddSkuScoped(id, productID, form string, amountCents int64, currency, gameID, env string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if _, ok := p.skus[id]; !ok {
 		p.skuSeq = append(p.skuSeq, id)
 	}
-	p.skus[id] = skuRecord{ID: id, ProductID: productID, Form: form, AmountCents: amountCents, Currency: currency}
+	p.skus[id] = skuRecord{
+		ID: id, ProductID: productID, Form: form, AmountCents: amountCents,
+		Currency: currency, GameID: gameID, Env: env,
+	}
+}
+
+// skuVisibleInScope scoped SKU 仅登记时的 (gameID,env) 可见可购;gameId 空 =
+// 全局(历史登记,所有 scope 可见);gameId 非空 + env 空 = 该 game 全域可见。
+// 跨 scope 一律按不存在处理,不泄露 SKU 存在性(与订单归属 404 同口径)。
+func skuVisibleInScope(s skuRecord, gameID, env string) bool {
+	if s.GameID == "" {
+		return s.Env == "" // env-only 登记在管理面即拒收,这里按不可见兜底
+	}
+	if s.GameID != gameID {
+		return false
+	}
+	return s.Env == "" || s.Env == env
 }
 
 // Reconcile 对账重发:枚举停 PAID(已付未发)的订单逐个重试发货(发货幂等由
@@ -504,10 +529,14 @@ func (p *PaymentsProvider) route(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *PaymentsProvider) handleSkus(w http.ResponseWriter, r *http.Request) {
+	gameID, env := r.Header.Get(scope.HeaderGameID), r.Header.Get(scope.HeaderEnv)
 	p.mu.Lock()
 	items := make([]skuDTO, 0, len(p.skuSeq))
 	for _, id := range p.skuSeq {
 		s := p.skus[id]
+		if !skuVisibleInScope(s, gameID, env) {
+			continue // scoped SKU 不跨 game/env 泄露
+		}
 		items = append(items, skuDTO{
 			ID: s.ID, ProductID: s.ProductID, Form: s.Form,
 			AmountCents: s.AmountCents, Currency: s.Currency,
@@ -527,7 +556,7 @@ func (p *PaymentsProvider) handleCreateOrder(w http.ResponseWriter, r *http.Requ
 	}
 	p.mu.Lock()
 	sku, ok := p.skus[req.SkuID]
-	if !ok {
+	if !ok || !skuVisibleInScope(sku, r.Header.Get(scope.HeaderGameID), r.Header.Get(scope.HeaderEnv)) {
 		p.mu.Unlock()
 		aggregation.WriteError(w, middleware.TraceID(r.Context()),
 			aggregation.CodePaymentSkuNotFound, "sku 不可购: "+req.SkuID)

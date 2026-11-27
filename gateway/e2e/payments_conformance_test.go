@@ -121,10 +121,17 @@ func (h *paymentsHarness) capture(typ string, data any) {
 }
 
 func (h *paymentsHarness) login(t *testing.T, deviceId string) string {
+	return h.loginWithHeaders(t, deviceId, nil)
+}
+
+func (h *paymentsHarness) loginWithHeaders(t *testing.T, deviceId string, hdr map[string]string) string {
 	t.Helper()
 	body := `{"deviceId":"` + deviceId + `","platform":"linux"}`
 	req, _ := http.NewRequest(http.MethodPost, h.srv.URL+"/v1/identity/guest", strings.NewReader(body))
 	h.scopeHeaders(req)
+	for k, v := range hdr {
+		req.Header.Set(k, v)
+	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("guest login: %v", err)
@@ -196,17 +203,27 @@ func (h *paymentsHarness) doAdmin(t *testing.T, adminToken, method, path, body s
 
 // addSku 管理面登记价格表(两实现同语义)。
 func (h *paymentsHarness) addSku(useAlt bool, id, productID, form string, amountCents int64, currency string) {
+	h.addSkuScoped(useAlt, id, productID, form, amountCents, currency, "", "")
+}
+
+// addSkuScoped 按 (gameID,env) 登记 SKU(v1.3 scope 隔离;空 = 全局)。
+func (h *paymentsHarness) addSkuScoped(useAlt bool, id, productID, form string, amountCents int64, currency, gameID, env string) {
 	if useAlt {
-		h.ap.AddSku(id, productID, form, amountCents, currency)
+		h.ap.AddSkuScoped(id, productID, form, amountCents, currency, gameID, env)
 		return
 	}
-	h.tp.AddSku(id, productID, form, amountCents, currency)
+	h.tp.AddSkuScoped(id, productID, form, amountCents, currency, gameID, env)
 }
 
 // create 买家下单,返回订单 ID。
 func (h *paymentsHarness) create(t *testing.T, token, skuID string) string {
+	return h.createWithHeaders(t, token, skuID, nil)
+}
+
+// createWithHeaders 带自定义 scope 头下单,返回订单 ID。
+func (h *paymentsHarness) createWithHeaders(t *testing.T, token, skuID string, hdr map[string]string) string {
 	t.Helper()
-	code, body := h.do(t, token, http.MethodPost, "/v1/payments/orders", `{"skuId":"`+skuID+`"}`, nil)
+	code, body := h.do(t, token, http.MethodPost, "/v1/payments/orders", `{"skuId":"`+skuID+`"}`, hdr)
 	if code != http.StatusOK {
 		t.Fatalf("create order: %d %s", code, body)
 	}
@@ -620,6 +637,68 @@ func TestPaymentsAdminFailClosed(t *testing.T) {
 			if code, body := h.doAdmin(t, payConcAdminToken, http.MethodGet, "/v1/payments/admin/orders", ""); code != http.StatusUnauthorized ||
 				!strings.Contains(body, "COMMON_UNAUTHENTICATED") {
 				t.Fatalf("admin unconfigured = %d %s, want 401", code, body)
+			}
+		})
+	}
+}
+
+// TestPaymentsSkuScopeIsolation v1.3:全局 SKU 跨 scope 可见可购(历史零变化);
+// scoped SKU 只在登记 (gameID,env) 可见可购;跨 scope 列表隐身 + 下单 404。
+// 两实现同 wire 场景同断言。
+func TestPaymentsSkuScopeIsolation(t *testing.T) {
+	for _, impl := range []struct {
+		name   string
+		useAlt bool
+	}{
+		{"teller", false},
+		{"teller-alt", true},
+	} {
+		t.Run(impl.name, func(t *testing.T) {
+			h := newPaymentsHarness(t, impl.useAlt, payConcAdminToken)
+			h.addSkuScoped(impl.useAlt, "sku_global", "com.demo.global", "DIRECT_PURCHASE", 100, "CNY", "", "")
+			h.addSkuScoped(impl.useAlt, "sku_scoped", "com.demo.scoped", "DIRECT_PURCHASE", 200, "CNY", "game_demo", "prod")
+			h.addSkuScoped(impl.useAlt, "sku_game_wide", "com.demo.gamewide", "DIRECT_PURCHASE", 300, "CNY", "game_demo", "")
+
+			token := h.login(t, "scope_buyer")
+			hdrOther := map[string]string{"X-Courier-Game-Id": "game_other", "X-Courier-Env": "prod"}
+			otherToken := h.loginWithHeaders(t, "scope_buyer_other", hdrOther)
+			hdrDev := map[string]string{"X-Courier-Game-Id": "game_demo", "X-Courier-Env": "dev"}
+			devToken := h.loginWithHeaders(t, "scope_buyer_dev", hdrDev)
+			// 正确 scope:三类 SKU 全部可见,global 与 scoped 均可下单。
+			code, body := h.do(t, token, http.MethodGet, "/v1/payments/skus", "", nil)
+			if code != http.StatusOK || !strings.Contains(body, `"id":"sku_global"`) ||
+				!strings.Contains(body, `"id":"sku_scoped"`) || !strings.Contains(body, `"id":"sku_game_wide"`) {
+				t.Fatalf("matching scope skus = %d %s", code, body)
+			}
+			h.create(t, token, "sku_global")
+			h.create(t, token, "sku_scoped")
+
+			// 跨 scope:scoped SKU 隐身,global 仍在(历史行为零变化),下单 scoped = 404。
+			hdr := hdrOther
+			code, body = h.do(t, otherToken, http.MethodGet, "/v1/payments/skus", "", hdr)
+			if code != http.StatusOK || strings.Contains(body, `"id":"sku_scoped"`) ||
+				strings.Contains(body, `"id":"sku_game_wide"`) || !strings.Contains(body, `"id":"sku_global"`) {
+				t.Fatalf("other game skus = %d %s", code, body)
+			}
+			code, body = h.do(t, otherToken, http.MethodPost, "/v1/payments/orders", `{"skuId":"sku_scoped"}`, hdr)
+			if code != http.StatusNotFound || !strings.Contains(body, "PAYMENT_SKU_NOT_FOUND") {
+				t.Fatalf("cross-game order = %d %s, want 404 sku not found", code, body)
+			}
+
+			// 同 game 异 env:env 精确 scoped SKU 隐身;game 全域 SKU 仍可见可购。
+			hdr = hdrDev
+			code, body = h.do(t, devToken, http.MethodGet, "/v1/payments/skus", "", hdr)
+			if code != http.StatusOK || strings.Contains(body, `"id":"sku_scoped"`) ||
+				!strings.Contains(body, `"id":"sku_game_wide"`) {
+				t.Fatalf("other env skus = %d %s", code, body)
+			}
+			h.createWithHeaders(t, devToken, "sku_game_wide", hdr)
+
+			// 管理面登记带 scope:只给 env 不给 gameId → 400(防误登记为全局)。
+			code, body = h.doAdmin(t, payConcAdminToken, http.MethodPost, "/v1/payments/admin/skus",
+				`{"skuId":"sku_env_only","productId":"com.demo.bad","form":"DIRECT_PURCHASE","amountCents":100,"currency":"CNY","env":"prod"}`)
+			if code != http.StatusBadRequest {
+				t.Fatalf("env-only sku = %d %s, want 400", code, body)
 			}
 		})
 	}

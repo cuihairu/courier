@@ -1,7 +1,7 @@
 
 # Payment Contract (Payment) — Open Forms
 
-> Status: **Frozen v1.2** · Milestone M5 · v1 frozen 2026-10-09; **v1.1 (2026-10-09) added the push events** (`payment.paid` / `payment.delivered`, an additive compatible change, see "Push Events"); **v1.2 (2026-11-23) added the management face** (`/v1/payments/admin/*`, five endpoints, additive-only, see "Management Face").
+> Status: **Frozen v1.2** · Milestone M5 · v1 frozen 2026-10-09; **v1.1 (2026-10-09) added the push events** (`payment.paid` / `payment.delivered`, an additive compatible change, see "Push Events"); **v1.2 (2026-11-23) added the management face** (`/v1/payments/admin/*`, five endpoints, additive-only, see "Management Face"); **v1.3 (2026-11-27) added optional SKU scope isolation** (additive-only; global registrations unchanged, see "SKU Scope Isolation").
 > The domain prefix `PAYMENT` is registered ([errors.md](./errors.md)); this document is the consistency basis between the M5 server (default provider **teller**) and the SDKs on every platform. Once frozen it is additive-only; breaking changes bump the version (see [versioning.md](./versioning.md)).
 
 ## Capabilities and Scope
@@ -41,6 +41,7 @@
 | `form` | enum | One of the four forms |
 | `amountCents` | int64 | Server-side price (cents) |
 | `currency` | string | ISO 4217 (e.g. `CNY`) |
+| `gameId` / `env` | string? | Optional SKU scope (`X-Courier-Game-Id` / `X-Courier-Env`, v1.3); empty `gameId` = global (legacy behavior); `gameId` with empty `env` = visible in all environments of that game; `env` without `gameId` is rejected |
 
 ### order (order)
 
@@ -97,7 +98,7 @@ The management face is an **S2S operations surface** and does not go through the
 
 | Endpoint | Auth | Description |
 | --- | --- | --- |
-| `POST /v1/payments/admin/skus` | admin credential | Register/re-price a SKU (server-side pricing; re-registering = re-pricing, already-created orders are unaffected); request `{skuId,productId,form,amountCents,currency}` |
+| `POST /v1/payments/admin/skus` | admin credential | Register/re-price a SKU (server-side pricing; re-registering = re-pricing, already-created orders are unaffected); request `{skuId,productId,form,amountCents,currency[,gameId,env]}` (the optional scope is per "SKU Scope Isolation") |
 | `GET /v1/payments/admin/orders` | admin credential | Global search (`gameId`/`status`/`accountId` filters + bounded pagination `limit` default 20/max 100, opaque keyset `cursor`); `updatedAt` descending, `payToken` is never sent |
 | `GET /v1/payments/admin/orders/{orderId}` | admin credential | Admin detail (includes the stuck-at-`PAID` marker and the refund-registration facts; `payToken` is never sent) |
 | `POST /v1/payments/admin/orders/{orderId}/redeliver` | admin credential | Broken-order reconciliation re-delivery: only orders stuck at `PAID` (paid, not delivered) can be redelivered; `DELIVERED`/`CLOSED` → 409 `PAYMENT_ORDER_STATE`, never a second fulfillment (idempotency red line); the fulfillment hook runs synchronously, success returns `DELIVERED` / failure leaves `PAID` (the `redelivered` flag reports it faithfully) |
@@ -105,6 +106,20 @@ The management face is an **S2S operations surface** and does not go through the
 
 - **Refund registration is orthogonal to the state machine**: it does not change the order `status`/timestamps, it only records the deduction facts (for management reconciliation); the `EXECUTED`/`REJECTED` status mapping, the deduction basis, and the revenue-split base belong to the integrator (the spawn management adapter); this domain does not decide them.
 - **The `gameId` search filter** snapshots the order-time scope (`X-Courier-Game-Id`); the order model gains a `gameId` field in v1.2 (read-only, empty by default when replaying old snapshots).
+
+## SKU Scope Isolation (added in v1.3)
+
+The SKU price table is a per-provider assembly-time fact, so a **scoped** SKU may be registered for a single `(gameId, env)` pair, a single `gameId` (all envs), or globally (no scope, the historical default):
+
+| Registration | `GET /v1/payments/skus` | Purchase |
+| --- | --- | --- |
+| Global (`gameId` empty) | listed in every scope | purchasable in every scope (legacy behavior, unchanged) |
+| Game-wide (`gameId` set, `env` empty) | listed only under that `gameId` | purchasable in every env of that game |
+| Scoped (`gameId` + `env` set) | listed only under that exact `(gameId, env)` | purchasable only there; any other scope sees the SKU as **not existing** (the list omits it; ordering it → 404 `PAYMENT_SKU_NOT_FOUND`, existence never leaked) |
+
+- The scope is carried by the standard scope headers ([auth.md](./auth.md) / [scope.md](./scope.md)); `env` without `gameId` on registration → 400 `COMMON_INVALID_ARGUMENT` (it would silently become a global registration).
+- Already-created orders keep their SKU snapshot; scope changes do not touch them.
+- Additive-only: the player face and the envelope are unchanged, and existing global registrations keep working identically.
 
 ## Push Events (added in v1.1)
 

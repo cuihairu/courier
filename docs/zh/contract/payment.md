@@ -1,7 +1,7 @@
 
 # 支付契约(Payment)——形态开放
 
-> 状态:**Frozen v1.2** · 里程碑 M5 · v1 冻结日期 2026-10-09;**v1.1(2026-10-09)追加推送事件**(`payment.paid` / `payment.delivered`,附加兼容变更,见「推送事件」);**v1.2(2026-11-23)追加管理面**(`/v1/payments/admin/*` 五端点,只加不改,见「管理面」)。
+> 状态:**Frozen v1.2** · 里程碑 M5 · v1 冻结日期 2026-10-09;**v1.1(2026-10-09)追加推送事件**(`payment.paid` / `payment.delivered`,附加兼容变更,见「推送事件」);**v1.2(2026-11-23)追加管理面**(`/v1/payments/admin/*` 五端点,只加不改,见「管理面」);**v1.3(2026-11-27)追加可选 SKU scope 隔离**(只加不改;全局登记行为零变化,见「SKU scope 隔离」)。
 > 域前缀 `PAYMENT` 已注册([errors.md](./errors.md));本文档是 M5 服务端(默认供应商 **teller**)与各端 SDK 的一致性依据,冻结后只加不改,破坏性变更升版本(见 [versioning.md](./versioning.md))。
 
 ## 能力与范围
@@ -41,6 +41,7 @@
 | `form` | 枚举 | 四形态之一 |
 | `amountCents` | int64 | 服务端定价(分) |
 | `currency` | string | ISO 4217(如 `CNY`) |
+| `gameId` / `env` | string? | 可选 SKU scope(`X-Courier-Game-Id` / `X-Courier-Env`,v1.3);空 `gameId` = 全局(历史行为);有 `gameId` + 空 `env` = 该 game 全域可见;只给 `env` = 400 拒收 |
 
 ### order(订单)
 
@@ -97,7 +98,7 @@
 
 | 端点 | 认证 | 说明 |
 | --- | --- | --- |
-| `POST /v1/payments/admin/skus` | 管理凭证 | 登记/改价 SKU(服务端定价;重复登记 = 改价,已建订单不受影响);请求 `{skuId,productId,form,amountCents,currency}` |
+| `POST /v1/payments/admin/skus` | 管理凭证 | 登记/改价 SKU(服务端定价;重复登记 = 改价,已建订单不受影响);请求 `{skuId,productId,form,amountCents,currency[,gameId,env]}`(可选 scope 见「SKU scope 隔离」) |
 | `GET /v1/payments/admin/orders` | 管理凭证 | 全局检索(`gameId`/`status`/`accountId` 筛选 + 有界分页 `limit` 缺省 20/最大 100,`cursor` 不透明 keyset);`updatedAt` 倒序,不下发 `payToken` |
 | `GET /v1/payments/admin/orders/{orderId}` | 管理凭证 | 管理详情(含断单态 `PAID` 标识与退款登记事实;不下发 `payToken`) |
 | `POST /v1/payments/admin/orders/{orderId}/redeliver` | 管理凭证 | 断单对账重发:仅停 `PAID`(已付未发)可重发;`DELIVERED`/`CLOSED` 409 `PAYMENT_ORDER_STATE` 不二次发货(幂等红线);同步执行发货钩子,成败回 `DELIVERED`/留 `PAID`(`redelivered` 标志如实报告) |
@@ -105,6 +106,20 @@
 
 - **退款登记与状态机正交**:不改订单 `status`/时间戳,仅登记冲减事实(供管理对账);`EXECUTED`/`REJECTED` 状态映射、金额冲减口径与分成基数归接入方(spawn 管理适配),本域不代定。
 - **`gameId` 检索过滤**按下单 scope(`X-Courier-Game-Id`)快照;订单模型 v1.2 增 `gameId` 字段(只读,回放旧快照缺省空)。
+
+## SKU scope 隔离(v1.3 新增)
+
+SKU 价格表是 Provider 装配期事实,故允许按 **scope** 登记:全局(不带 scope,历史默认)、单 game 全域(`gameId`,不带 `env`)、单 `(gameId, env)` 精确对:
+
+| 登记 | `GET /v1/payments/skus` | 购买 |
+| --- | --- | --- |
+| 全局(`gameId` 空) | 任意 scope 均列出 | 任意 scope 可购(历史行为,零变化) |
+| game 全域(`gameId` 有、`env` 空) | 仅该 `gameId` 下列出 | 该 game 任意 env 可购 |
+| 精确 scope(`gameId` + `env`) | 仅该 `(gameId, env)` 下列出 | 仅该 scope 可购;其他 scope 视为 **不存在**(列表不出现;下单 404 `PAYMENT_SKU_NOT_FOUND`,不泄露存在性) |
+
+- scope 由标准 scope header 承载(见 [auth.md](./auth.md) / [scope.md](./scope.md));登记只给 `env` 不给 `gameId` → 400 `COMMON_INVALID_ARGUMENT`(否则会静默变成全局登记)。
+- 已建订单保留 SKU 快照,scope 变更不影响。
+- 只加不改:玩家面与信封零改动,既有全局登记行为完全不变。
 
 ## 推送事件(v1.1 新增)
 

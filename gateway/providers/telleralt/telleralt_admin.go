@@ -76,6 +76,8 @@ func (p *PaymentsProvider) handleAdminSku(w http.ResponseWriter, r *http.Request
 		Form        string `json:"form"`
 		AmountCents int64  `json:"amountCents"`
 		Currency    string `json:"currency"`
+		GameID      string `json:"gameId"`
+		Env         string `json:"env"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		aggregation.WriteError(w, traceID, aggregation.CodeInvalidArgument, "body 不可解析")
@@ -87,12 +89,19 @@ func (p *PaymentsProvider) handleAdminSku(w http.ResponseWriter, r *http.Request
 			"sku 须为 {skuId,productId,form∈四形态,amountCents>0,currency}")
 		return
 	}
-	p.AddSku(req.SkuID, req.ProductID, req.Form, req.AmountCents, req.Currency)
+	req.GameID, req.Env = strings.TrimSpace(req.GameID), strings.TrimSpace(req.Env)
+	if req.Env != "" && req.GameID == "" {
+		aggregation.WriteError(w, traceID, aggregation.CodeInvalidArgument,
+			"env 须与 gameId 同时给出(只给 env 会误登记为全局)")
+		return
+	}
+	p.AddSkuScoped(req.SkuID, req.ProductID, req.Form, req.AmountCents, req.Currency, req.GameID, req.Env)
 	aggregation.WriteData(w, map[string]any{
 		"sku": skuDTO{
 			ID: req.SkuID, ProductID: req.ProductID, Form: req.Form,
 			AmountCents: req.AmountCents, Currency: req.Currency,
 		},
+		"gameId": req.GameID, "env": req.Env,
 	})
 }
 
